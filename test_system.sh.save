@@ -1,0 +1,4 @@
+chmod +x test_system.sh
+./test_system.sh start
+
+

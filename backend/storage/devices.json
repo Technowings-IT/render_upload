@@ -1,0 +1,17 @@
+[
+  {
+    "id": "piros",
+    "name": "piros",
+    "ip": "192.168.253.79",
+    "status": "connected",
+    "connectedAt": "2025-06-20T06:48:45.518Z",
+    "lastSeen": "2025-06-20T06:49:23.925Z",
+    "capabilities": [
+      "navigation",
+      "mapping",
+      "joystick_control"
+    ],
+    "version": "1.0.0",
+    "ros2Connected": true
+  }
+]

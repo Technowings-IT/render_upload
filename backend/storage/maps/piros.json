@@ -1,0 +1,17 @@
+{
+  "action": "start_mapping",
+  "timestamp": "2025-06-20T12:13:36.411193",
+  "metadata": {
+    "deviceId": "piros",
+    "name": "mapping_session_1750401816411",
+    "savedAt": "2025-06-20T06:43:36.413Z",
+    "version": 3,
+    "resolution": 0.05,
+    "dimensions": {
+      "width": 0,
+      "height": 0
+    }
+  },
+  "shapes": [],
+  "annotations": []
+}

@@ -1,0 +1,21 @@
+[Unit]
+Description=AGV Fleet Management Backend
+After=network.target
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=/path/to/your/agv-fleet-backend
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=ROS_DOMAIN_ID=0
+ExecStart=/usr/bin/node app.js
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=append:/path/to/your/agv-fleet-backend/storage/logs/systemd.log
+StandardError=append:/path/to/your/agv-fleet-backend/storage/logs/systemd-error.log
+
+[Install]
+WantedBy=multi-user.target
