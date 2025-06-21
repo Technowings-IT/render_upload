@@ -1,11 +1,11 @@
 {
-  "action": "start_mapping",
-  "timestamp": "2025-06-20T12:13:36.411193",
+  "action": "save_map",
+  "timestamp": "2025-06-20T13:51:49.643475",
   "metadata": {
     "deviceId": "piros",
-    "name": "mapping_session_1750401816411",
-    "savedAt": "2025-06-20T06:43:36.413Z",
-    "version": 3,
+    "name": "map_1750407709643",
+    "savedAt": "2025-06-20T08:21:49.929Z",
+    "version": 7,
     "resolution": 0.05,
     "dimensions": {
       "width": 0,

@@ -1,9 +1,10 @@
-//screens/dashboard_screen.dart - Updated for Backend Integration
+// screens/dashboard_screen.dart - Fixed UI overflow issues
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../services/api_service.dart';
 import '../services/web_socket_service.dart';
 import '../models/odom.dart';
+import 'profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   @override
@@ -84,7 +85,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() {
       switch (data['type']) {
         case 'odometry_update':
-          _latestOdometry[deviceId] = OdometryData.fromJson(data['data']);
+          try {
+            _latestOdometry[deviceId] = OdometryData.fromJson(data['data']);
+          } catch (e) {
+            print('❌ Error parsing odometry data: $e');
+          }
           break;
         case 'battery_update':
           _batteryStates[deviceId] = data['data'];
@@ -195,8 +200,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: Text('Fleet Management Dashboard'),
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: _refreshDashboard,
+            icon: Icon(Icons.person),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => ProfileScreen()),
+            ),
+            tooltip: 'Profile',
           ),
           IconButton(
             icon: Stack(
@@ -212,16 +221,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         color: Colors.red,
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      constraints: BoxConstraints(
-                        minWidth: 12,
-                        minHeight: 12,
-                      ),
+                      constraints: BoxConstraints(minWidth: 12, minHeight: 12),
                       child: Text(
                         '${_recentAlerts.length}',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 8,
-                        ),
+                        style: TextStyle(color: Colors.white, fontSize: 8),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -229,6 +232,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             onPressed: _showAlertsDialog,
+          ),
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: _refreshDashboard,
           ),
         ],
       ),
@@ -274,8 +281,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildSystemHealthCard() {
     if (_systemHealth == null) return SizedBox.shrink();
 
-    final isHealthy = _systemHealth!['success'] == true;
-    final data = _systemHealth!['data'] ?? {};
+    final isHealthy = _systemHealth!['status'] == 'healthy';
     
     return Card(
       color: isHealthy ? Colors.green[50] : Colors.red[50],
@@ -292,17 +298,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   size: 24,
                 ),
                 SizedBox(width: 8),
-                Text(
-                  'System Status: ${data['status']?.toString().toUpperCase() ?? 'UNKNOWN'}',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: isHealthy ? Colors.green[700] : Colors.red[700],
+                Expanded(
+                  child: Text(
+                    'System Status: ${_systemHealth!['status']?.toString().toUpperCase() ?? 'UNKNOWN'}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isHealthy ? Colors.green[700] : Colors.red[700],
+                    ),
                   ),
                 ),
-                Spacer(),
+                SizedBox(width: 8),
                 Text(
-                  'ROS2: ${data['ros2Status']?.toString().toUpperCase() ?? 'UNKNOWN'}',
+                  'v${_systemHealth!['version'] ?? '1.0.0'}',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[600],
@@ -311,13 +319,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             SizedBox(height: 8),
-            Row(
-              children: [
-                Text('Uptime: ${_formatUptime(data['uptime'])}'),
-                Spacer(),
-                Text('Version: ${data['version'] ?? 'Unknown'}'),
-              ],
-            ),
+            Text('Last updated: ${DateTime.now().toString().split('.')[0]}'),
           ],
         ),
       ),
@@ -333,44 +335,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .where((order) => order['status'] == 'active' || order['status'] == 'pending')
         .length;
 
-    return Row(
-      children: [
-        Expanded(
-          child: _buildOverviewCard(
-            'Total Devices',
-            totalDevices.toString(),
-            Icons.devices,
-            Colors.blue,
-          ),
-        ),
-        SizedBox(width: 12),
-        Expanded(
-          child: _buildOverviewCard(
-            'Online',
-            '$onlineDevices/$totalDevices',
-            Icons.wifi,
-            onlineDevices == totalDevices ? Colors.green : Colors.orange,
-          ),
-        ),
-        SizedBox(width: 12),
-        Expanded(
-          child: _buildOverviewCard(
-            'Total Orders',
-            totalOrders.toString(),
-            Icons.list_alt,
-            Colors.orange,
-          ),
-        ),
-        SizedBox(width: 12),
-        Expanded(
-          child: _buildOverviewCard(
-            'Active',
-            activeOrders.toString(),
-            Icons.play_circle,
-            Colors.purple,
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Responsive layout for different screen sizes
+        final isWideScreen = constraints.maxWidth > 600;
+        
+        if (isWideScreen) {
+          return Row(
+            children: [
+              Expanded(child: _buildOverviewCard('Total Devices', totalDevices.toString(), Icons.devices, Colors.blue)),
+              SizedBox(width: 12),
+              Expanded(child: _buildOverviewCard('Online', '$onlineDevices/$totalDevices', Icons.wifi, onlineDevices == totalDevices ? Colors.green : Colors.orange)),
+              SizedBox(width: 12),
+              Expanded(child: _buildOverviewCard('Total Orders', totalOrders.toString(), Icons.list_alt, Colors.orange)),
+              SizedBox(width: 12),
+              Expanded(child: _buildOverviewCard('Active', activeOrders.toString(), Icons.play_circle, Colors.purple)),
+            ],
+          );
+        } else {
+          return Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(child: _buildOverviewCard('Devices', totalDevices.toString(), Icons.devices, Colors.blue)),
+                  SizedBox(width: 12),
+                  Expanded(child: _buildOverviewCard('Online', '$onlineDevices/$totalDevices', Icons.wifi, onlineDevices == totalDevices ? Colors.green : Colors.orange)),
+                ],
+              ),
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: _buildOverviewCard('Orders', totalOrders.toString(), Icons.list_alt, Colors.orange)),
+                  SizedBox(width: 12),
+                  Expanded(child: _buildOverviewCard('Active', activeOrders.toString(), Icons.play_circle, Colors.purple)),
+                ],
+              ),
+            ],
+          );
+        }
+      },
     );
   }
 
@@ -383,22 +386,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             Icon(icon, size: 32, color: color),
             SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: color,
+            FittedBox(
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
               ),
             ),
             SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
+            FittedBox(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -419,7 +426,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Spacer(),
             TextButton(
               onPressed: () => Navigator.pushNamed(context, '/connect'),
-              child: Text('Manage Devices'),
+              child: Text('Manage'),
             ),
           ],
         ),
@@ -448,19 +455,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           )
         else
-          GridView.builder(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: MediaQuery.of(context).size.width > 800 ? 3 : 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.2,
-            ),
-            itemCount: _connectedDevices.length,
-            itemBuilder: (context, index) {
-              final device = _connectedDevices[index];
-              return _buildDeviceCard(device);
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount = constraints.maxWidth > 1200 ? 4 : 
+                                   constraints.maxWidth > 800 ? 3 : 
+                                   constraints.maxWidth > 600 ? 2 : 1;
+              
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 1.1,
+                ),
+                itemCount: _connectedDevices.length,
+                itemBuilder: (context, index) {
+                  final device = _connectedDevices[index];
+                  return _buildDeviceCard(device);
+                },
+              );
             },
           ),
       ],
@@ -486,7 +501,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
+              // Header row - FIXED: Added Expanded to prevent overflow
               Row(
                 children: [
                   Container(
@@ -503,43 +520,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       device['name'] ?? device['id'],
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: 14,
                       ),
                       overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
-                  PopupMenuButton(
+                  PopupMenuButton<String>(
                     itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: 'control',
-                        child: Text('Control'),
-                      ),
-                      PopupMenuItem(
-                        value: 'map',
-                        child: Text('Map Editor'),
-                      ),
-                      PopupMenuItem(
-                        value: 'orders',
-                        child: Text('Orders'),
-                      ),
+                      PopupMenuItem(value: 'control', child: Text('Control')),
+                      PopupMenuItem(value: 'map', child: Text('Map')),
+                      PopupMenuItem(value: 'orders', child: Text('Orders')),
                     ],
                     onSelected: (value) => _handleDeviceAction(device, value),
+                    padding: EdgeInsets.zero,
+                    iconSize: 20,
                   ),
                 ],
               ),
+              
               SizedBox(height: 8),
+              
+              // Device ID - FIXED: Added flexible text handling
               Text(
                 'ID: ${device['id']}',
                 style: TextStyle(
                   color: Colors.grey[600],
-                  fontSize: 12,
+                  fontSize: 11,
                 ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
+              
               Spacer(),
               
               // Battery indicator
               if (battery != null) ...[
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.battery_std, size: 16, color: batteryColor),
                     SizedBox(width: 4),
@@ -548,6 +566,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       style: TextStyle(
                         color: batteryColor,
                         fontWeight: FontWeight.bold,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -558,6 +577,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // Robot state
               if (robotState != null) ...[
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.smart_toy,
@@ -565,11 +585,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: _getRobotStateColor(robotState['status']),
                     ),
                     SizedBox(width: 4),
-                    Text(
-                      robotState['mode']?.toString().toUpperCase() ?? 'UNKNOWN',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                    Expanded(
+                      child: Text(
+                        robotState['mode']?.toString().toUpperCase() ?? 'UNKNOWN',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ),
                   ],
@@ -577,19 +601,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 SizedBox(height: 4),
               ],
               
-              // Position info
+              // Position info - FIXED: Better text handling
               if (odometry != null)
                 Text(
                   'X: ${odometry.position.x.toStringAsFixed(1)}, Y: ${odometry.position.y.toStringAsFixed(1)}',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: Colors.grey[600],
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               
               SizedBox(height: 8),
               
-              // Quick action buttons
+              // Quick action buttons - FIXED: Better layout
               Row(
                 children: [
                   Expanded(
@@ -597,7 +623,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onPressed: isOnline ? () => _navigateToControl(device) : null,
                       child: Text('Control', style: TextStyle(fontSize: 10)),
                       style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 4),
+                        padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                        minimumSize: Size(0, 32),
                       ),
                     ),
                   ),
@@ -607,7 +634,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onPressed: () => _navigateToMap(device),
                       child: Text('Map', style: TextStyle(fontSize: 10)),
                       style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 4),
+                        padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                        minimumSize: Size(0, 32),
                       ),
                     ),
                   ),
@@ -690,11 +718,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           backgroundColor: statusColor,
           child: Icon(statusIcon, color: Colors.white),
         ),
-        title: Text(order['name'] ?? 'Order'),
+        title: Text(
+          order['name'] ?? 'Order',
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Device: ${order['deviceName'] ?? order['deviceId']}'),
+            Text(
+              'Device: ${order['deviceName'] ?? order['deviceId']}',
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
             Text('Waypoints: ${order['waypoints']?.length ?? 0}'),
             Text('Status: ${status.toUpperCase()}'),
           ],
@@ -781,8 +817,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Card(
       child: ListTile(
         leading: Icon(alertIcon, color: alertColor),
-        title: Text(_getAlertTitle(alert)),
-        subtitle: Text(_getAlertDescription(alert)),
+        title: Text(
+          _getAlertTitle(alert),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
+        subtitle: Text(
+          _getAlertDescription(alert),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 2,
+        ),
         trailing: Text(
           _formatAlertTime(alert['timestamp']),
           style: TextStyle(fontSize: 12, color: Colors.grey[600]),
@@ -832,14 +876,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (e) {
       return '';
     }
-  }
-
-  String _formatUptime(dynamic uptime) {
-    if (uptime == null) return 'Unknown';
-    final seconds = uptime is num ? uptime.toInt() : 0;
-    final hours = seconds ~/ 3600;
-    final minutes = (seconds % 3600) ~/ 60;
-    return '${hours}h ${minutes}m';
   }
 
   Color _getRobotStateColor(String? status) {

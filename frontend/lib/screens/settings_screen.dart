@@ -1,7 +1,9 @@
-//settings_screen.dart
+// screens/settings_screen.dart - Updated for Integration
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../services/web_socket_service.dart';
+import '../services/theme_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   @override
@@ -11,11 +13,11 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final ApiService _apiService = ApiService();
   final WebSocketService _webSocketService = WebSocketService();
-  
+
   // Server settings
-  final _serverUrlController = TextEditingController(text: 'ws://192.168.253.79:3000/api');
-  final _websocketUrlController = TextEditingController(text: 'ws://192.168.253.79.79:3000');
-  
+  final _serverUrlController = TextEditingController();
+  final _websocketUrlController = TextEditingController();
+
   // AGV settings
   double _maxLinearSpeed = 1.0;
   double _maxAngularSpeed = 2.0;
@@ -23,20 +25,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _connectionTimeout = 30;
   bool _autoReconnect = true;
   bool _debugMode = false;
-  
+
   // UI settings
-  bool _darkMode = false;
   bool _showNotifications = true;
   bool _soundEnabled = true;
   String _selectedLanguage = 'English';
   double _joystickSize = 200.0;
-  
+
   // Map settings
   double _mapRefreshRate = 1.0;
   bool _showGrid = true;
   bool _showRobotTrail = true;
   int _maxTrailLength = 100;
-  
+
   bool _isLoading = false;
 
   @override
@@ -53,8 +54,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _loadSettings() {
-    // In a real app, load from SharedPreferences or local storage
+    // Load current settings from API service
     setState(() {
+      _serverUrlController.text = _apiService.baseUrl;
+      _websocketUrlController.text = _apiService.getWebSocketUrl();
       _isLoading = false;
     });
   }
@@ -65,12 +68,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
 
     try {
-      // In a real app, save to SharedPreferences or local storage
-      // and update API service configuration
+      // Update API service configuration
       _apiService.setBaseUrl(_serverUrlController.text);
-      
+
+      // In a real app, save to SharedPreferences or local storage
       await Future.delayed(Duration(seconds: 1)); // Simulate save delay
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Settings saved successfully'),
@@ -96,7 +99,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Reset Settings'),
-        content: Text('Are you sure you want to reset all settings to default values?'),
+        content: Text(
+            'Are you sure you want to reset all settings to default values?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -117,7 +121,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _performReset() {
     setState(() {
-      _serverUrlController.text = 'http://localhost:3000/api';
+      _serverUrlController.text = 'http://192.168.253.79:3000';
       _websocketUrlController.text = 'ws://192.168.253.79:3000';
       _maxLinearSpeed = 1.0;
       _maxAngularSpeed = 2.0;
@@ -125,7 +129,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _connectionTimeout = 30;
       _autoReconnect = true;
       _debugMode = false;
-      _darkMode = false;
       _showNotifications = true;
       _soundEnabled = true;
       _selectedLanguage = 'English';
@@ -146,42 +149,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Settings'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: _resetSettings,
-            tooltip: 'Reset to Defaults',
-          ),
-          IconButton(
-            icon: Icon(Icons.save),
-            onPressed: _isLoading ? null : _saveSettings,
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildServerSettingsCard(),
-                  SizedBox(height: 16),
-                  _buildAGVSettingsCard(),
-                  SizedBox(height: 16),
-                  _buildUISettingsCard(),
-                  SizedBox(height: 16),
-                  _buildMapSettingsCard(),
-                  SizedBox(height: 16),
-                  _buildSystemInfoCard(),
-                  SizedBox(height: 20),
-                  _buildActionButtons(),
-                ],
+    return Consumer<ThemeService>(
+      builder: (context, themeService, child) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text('Settings'),
+            actions: [
+              IconButton(
+                icon: Icon(Icons.refresh),
+                onPressed: _resetSettings,
+                tooltip: 'Reset to Defaults',
               ),
-            ),
+              IconButton(
+                icon: Icon(Icons.save),
+                onPressed: _isLoading ? null : _saveSettings,
+              ),
+            ],
+          ),
+          body: _isLoading
+              ? Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  padding: EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildServerSettingsCard(),
+                      SizedBox(height: 16),
+                      _buildAGVSettingsCard(),
+                      SizedBox(height: 16),
+                      _buildUISettingsCard(themeService),
+                      SizedBox(height: 16),
+                      _buildMapSettingsCard(),
+                      SizedBox(height: 16),
+                      _buildSystemInfoCard(),
+                      SizedBox(height: 20),
+                      _buildActionButtons(),
+                    ],
+                  ),
+                ),
+        );
+      },
     );
   }
 
@@ -337,7 +344,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildUISettingsCard() {
+  Widget _buildUISettingsCard(ThemeService themeService) {
     return Card(
       child: Padding(
         padding: EdgeInsets.all(16),
@@ -352,11 +359,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SwitchListTile(
               title: Text('Dark Mode'),
               subtitle: Text('Use dark theme throughout the app'),
-              value: _darkMode,
-              onChanged: (value) {
-                setState(() {
-                  _darkMode = value;
-                });
+              value: themeService.isDarkMode,
+              onChanged: (value) async {
+                await themeService.setTheme(value);
+                // Optionally, also save to backend if connected
+                try {
+                  await _apiService.updateTheme(value);
+                } catch (e) {
+                  // Handle API error silently
+                }
               },
             ),
             SwitchListTile(
@@ -494,9 +505,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildInfoRow('Build Number', '100'),
             _buildInfoRow('API Version', '2.1.0'),
             _buildInfoRow('Platform', 'Flutter'),
-            _buildInfoRow('Connection Status', 
+            _buildInfoRow('Connection Status',
                 _webSocketService.isConnected ? 'Connected' : 'Disconnected'),
-            _buildInfoRow('Connected Devices', '0'), // This would be dynamic
+            _buildInfoRow('Server URL', _apiService.baseUrl),
             SizedBox(height: 16),
             Row(
               children: [
@@ -546,7 +557,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: _isLoading ? null : _saveSettings,
-            icon: _isLoading 
+            icon: _isLoading
                 ? SizedBox(
                     width: 20,
                     height: 20,
@@ -595,10 +606,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _testConnection() async {
     try {
       final success = await _apiService.testConnection();
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success ? 'Connection successful' : 'Connection failed'),
+          content:
+              Text(success ? 'Connection successful' : 'Connection failed'),
           backgroundColor: success ? Colors.green : Colors.red,
         ),
       );
@@ -639,7 +651,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       applicationVersion: '1.0.0',
       applicationIcon: Icon(Icons.smart_toy, size: 48),
       children: [
-        Text('A comprehensive fleet management system for Automated Guided Vehicles (AGVs).'),
+        Text(
+            'A comprehensive fleet management system for Automated Guided Vehicles (AGVs).'),
         SizedBox(height: 16),
         Text('Features:'),
         Text('• Real-time AGV control and monitoring'),

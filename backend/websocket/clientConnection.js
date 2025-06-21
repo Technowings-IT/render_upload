@@ -1,15 +1,19 @@
-// websocket/clientConnection.js - Enhanced WebSocket Server for Real-time Communication
+// websocket/clientConnection.js - FIXED WebSocket with stable connection
 const WebSocket = require('ws');
 const config = require('../config');
 
 let wss;
 const connectedClients = new Map();
-const clientSubscriptions = new Map(); // Track what each client is subscribed to
+const clientSubscriptions = new Map();
+const pingTimers = new Map();
 
 function initializeWebSocketServer(server) {
     wss = new WebSocket.Server({ 
         server,
-        perMessageDeflate: config.WEBSOCKET.COMPRESSION
+        perMessageDeflate: config.WEBSOCKET.COMPRESSION,
+        clientTracking: true,
+        maxPayload: 16 * 1024,
+        skipUTF8Validation: false,
     });
 
     wss.on('connection', (ws, req) => {
@@ -19,9 +23,11 @@ function initializeWebSocketServer(server) {
             ws: ws,
             connectedAt: new Date(),
             lastHeartbeat: new Date(),
+            lastPong: new Date(),
             subscribedTopics: new Set(),
-            ipAddress: req.connection.remoteAddress,
+            ipAddress: req.connection.remoteAddress || req.socket.remoteAddress,
             userAgent: req.headers['user-agent'],
+            isAlive: true,
             subscriptions: {
                 devices: new Set(),
                 topics: new Set(),
@@ -31,117 +37,153 @@ function initializeWebSocketServer(server) {
 
         connectedClients.set(clientId, clientInfo);
         clientSubscriptions.set(clientId, new Set());
-        
+
         console.log(`📱 Client ${clientId} connected from ${clientInfo.ipAddress}. Total clients: ${connectedClients.size}`);
 
-        // Send welcome message with capabilities
-        sendToClient(clientId, {
-            type: 'connection',
-            status: 'connected',
-            clientId: clientId,
-            timestamp: new Date().toISOString(),
-            capabilities: {
-                realTimeTracking: true,
-                mapEditing: true,
-                orderManagement: true,
-                joystickControl: true
-            },
-            availableTopics: [
-                'real_time_data',
-                'control_events', 
-                'mapping_events',
-                'order_events',
-                'device_events',
-                'map_events'
-            ]
-        });
-
-        // Handle incoming messages
-        ws.on('message', (data) => {
-            try {
-                const message = JSON.parse(data);
-                handleClientMessage(clientId, message);
-            } catch (error) {
-                console.error(`❌ Error parsing message from client ${clientId}:`, error);
-                sendToClient(clientId, {
-                    type: 'error',
-                    message: 'Invalid message format',
-                    timestamp: new Date().toISOString()
-                });
-            }
-        });
-
-        // Handle client disconnect
-        ws.on('close', () => {
-            console.log(`📱 Client ${clientId} disconnected`);
-            connectedClients.delete(clientId);
-            clientSubscriptions.delete(clientId);
-        });
-
-        // Handle WebSocket errors
-        ws.on('error', (error) => {
-            console.error(`❌ WebSocket error for client ${clientId}:`, error);
-            connectedClients.delete(clientId);
-            clientSubscriptions.delete(clientId);
-        });
-
-        // Set up heartbeat
-        setupHeartbeat(clientId);
-        
-        // Send initial data if devices are connected
+        setupWebSocketHandlers(ws, clientId, clientInfo);
+        startPingPong(clientId); // ✅ FIXED: Enable ping-pong
+        sendWelcomeMessage(clientId);
         sendInitialData(clientId);
     });
 
-    // Periodic cleanup of dead connections
-    setInterval(cleanupConnections, 60000); // Every minute
-    
-    console.log('✅ WebSocket server initialized');
+    setInterval(cleanupConnections, 30000);
+    console.log('✅ WebSocket server initialized with enhanced stability');
 }
 
+function setupWebSocketHandlers(ws, clientId, clientInfo) {
+    ws.on('message', (data) => {
+        try {
+            clientInfo.lastHeartbeat = new Date();
+            const message = JSON.parse(data);
+            handleClientMessage(clientId, message);
+        } catch (error) {
+            console.error(`❌ Error parsing message from client ${clientId}:`, error);
+            sendToClient(clientId, {
+                type: 'error',
+                message: 'Invalid message format',
+                timestamp: new Date().toISOString()
+            });
+        }
+    });
+
+    // ✅ FIXED: Proper pong handling
+    ws.on('pong', (data) => {
+        const client = connectedClients.get(clientId);
+        if (client) {
+            client.isAlive = true;
+            client.lastPong = new Date();
+            console.log(`💓 Pong received from ${clientId}`);
+        }
+    });
+
+    ws.on('close', (code, reason) => {
+        console.log(`📱 Client ${clientId} disconnected (code: ${code}, reason: ${reason})`);
+        stopPingPong(clientId);
+        connectedClients.delete(clientId);
+        clientSubscriptions.delete(clientId);
+    });
+
+    ws.on('error', (error) => {
+        console.error(`❌ WebSocket error for client ${clientId}:`, error);
+        stopPingPong(clientId);
+        connectedClients.delete(clientId);
+        clientSubscriptions.delete(clientId);
+    });
+}
+
+// ✅ FIXED: Uncommented and improved ping-pong mechanism
+function startPingPong(clientId) {
+    const pingTimer = setInterval(() => {
+        const client = connectedClients.get(clientId);
+        if (!client) {
+            clearInterval(pingTimer);
+            return;
+        }
+
+        if (!client.isAlive) {
+            console.log(`💔 Client ${clientId} failed ping test, terminating`);
+            client.ws.terminate();
+            connectedClients.delete(clientId);
+            clientSubscriptions.delete(clientId);
+            clearInterval(pingTimer);
+            return;
+        }
+
+        client.isAlive = false;
+        try {
+            if (client.ws.readyState === WebSocket.OPEN) {
+                client.ws.ping('ping');
+                console.log(`🏓 Ping sent to ${clientId}`);
+            }
+        } catch (error) {
+            console.error(`❌ Error sending ping to ${clientId}:`, error);
+            connectedClients.delete(clientId);
+            clientSubscriptions.delete(clientId);
+            clearInterval(pingTimer);
+        }
+    }, config.WEBSOCKET.PING_INTERVAL);
+
+    pingTimers.set(clientId, pingTimer);
+}
+
+function stopPingPong(clientId) {
+    const pingTimer = pingTimers.get(clientId);
+    if (pingTimer) {
+        clearInterval(pingTimer);
+        pingTimers.delete(clientId);
+    }
+}
+
+// ✅ FIXED: Enhanced message handling with device-specific support
 function handleClientMessage(clientId, message) {
     const client = connectedClients.get(clientId);
     if (!client) return;
 
-    // Update last heartbeat on any message
-    client.lastHeartbeat = new Date();
+    console.log(`📨 Message from ${clientId}: ${message.type}`);
 
     switch (message.type) {
-        case config.WEBSOCKET.MESSAGE_TYPES.HEARTBEAT:
-            handleHeartbeat(clientId);
-            break;
-
-        case config.WEBSOCKET.MESSAGE_TYPES.SUBSCRIBE:
-            handleSubscription(clientId, message);
-            break;
-
-        case config.WEBSOCKET.MESSAGE_TYPES.UNSUBSCRIBE:
-            handleUnsubscription(clientId, message);
-            break;
-
-        case config.WEBSOCKET.MESSAGE_TYPES.CONTROL_COMMAND:
-            handleControlCommand(clientId, message);
-            break;
-
-        case config.WEBSOCKET.MESSAGE_TYPES.MAP_EDIT:
-            handleMapEdit(clientId, message);
-            break;
-
-        case config.WEBSOCKET.MESSAGE_TYPES.ORDER_COMMAND:
-            handleOrderCommand(clientId, message);
-            break;
-
-        case 'request_data':
-            handleDataRequest(clientId, message);
-            break;
-
         case 'ping':
             sendToClient(clientId, {
                 type: 'pong',
                 timestamp: new Date().toISOString()
             });
             break;
-
+            
+        case 'pong':
+            console.log(`🏓 Application pong received from ${clientId}`);
+            break;
+            
+        case config.WEBSOCKET.MESSAGE_TYPES.HEARTBEAT:
+            handleHeartbeat(clientId);
+            break;
+            
+        // ✅ FIXED: Device-specific WebSocket handling
+        case 'device_connect':
+            handleDeviceConnectMessage(clientId, message);
+            break;
+            
+        case 'subscribe':
+            handleSubscription(clientId, message);
+            break;
+            
+        case 'unsubscribe':
+            handleUnsubscription(clientId, message);
+            break;
+            
+        case config.WEBSOCKET.MESSAGE_TYPES.JOYSTICK_CONTROL:
+            handleJoystickControl(clientId, message);
+            break;
+            
+        case config.WEBSOCKET.MESSAGE_TYPES.MAPPING_COMMAND:
+            handleMappingCommand(clientId, message);
+            break;
+            
+        case 'device_discovery':
+            handleDeviceDiscovery(clientId, message);
+            break;
+            
         default:
+            console.log(`❓ Unknown message type from ${clientId}: ${message.type}`);
             sendToClient(clientId, {
                 type: 'error',
                 message: `Unknown message type: ${message.type}`,
@@ -150,397 +192,258 @@ function handleClientMessage(clientId, message) {
     }
 }
 
+// ✅ NEW: Device-specific connection handling
+function handleDeviceConnectMessage(clientId, message) {
+    try {
+        const { deviceId, deviceInfo } = message;
+        
+        if (!deviceId) {
+            sendToClient(clientId, {
+                type: 'error',
+                message: 'Device ID required for connection'
+            });
+            return;
+        }
+        
+        // Store device association with client
+        const client = connectedClients.get(clientId);
+        if (client) {
+            client.connectedDeviceId = deviceId;
+            client.deviceInfo = deviceInfo;
+        }
+        
+        sendToClient(clientId, {
+            type: 'device_connected',
+            deviceId: deviceId,
+            status: 'success',
+            timestamp: new Date().toISOString()
+        });
+        
+        console.log(`🔌 Client ${clientId} connected to device ${deviceId}`);
+        
+    } catch (error) {
+        console.error('❌ Error handling device connect:', error);
+        sendToClient(clientId, {
+            type: 'error',
+            message: 'Failed to connect to device'
+        });
+    }
+}
+
+// ✅ NEW: Enhanced subscription handling
+function handleSubscription(clientId, message) {
+    try {
+        const { topics, deviceId } = message;
+        const client = connectedClients.get(clientId);
+        
+        if (client && topics) {
+            topics.forEach(topic => {
+                client.subscribedTopics.add(topic);
+                
+                // Device-specific subscriptions
+                if (deviceId) {
+                    const deviceTopic = `${deviceId}.${topic}`;
+                    client.subscribedTopics.add(deviceTopic);
+                }
+            });
+            
+            sendToClient(clientId, {
+                type: 'subscription_confirmed',
+                topics: topics,
+                deviceId: deviceId,
+                timestamp: new Date().toISOString()
+            });
+            
+            console.log(`📡 Client ${clientId} subscribed to: ${topics.join(', ')}`);
+        }
+    } catch (error) {
+        console.error('❌ Error handling subscription:', error);
+    }
+}
+
+function handleUnsubscription(clientId, message) {
+    try {
+        const { topics } = message;
+        const client = connectedClients.get(clientId);
+        
+        if (client && topics) {
+            topics.forEach(topic => {
+                client.subscribedTopics.delete(topic);
+            });
+            
+            sendToClient(clientId, {
+                type: 'unsubscription_confirmed',
+                topics: topics,
+                timestamp: new Date().toISOString()
+            });
+        }
+    } catch (error) {
+        console.error('❌ Error handling unsubscription:', error);
+    }
+}
+
+// ✅ NEW: Joystick control via WebSocket
+function handleJoystickControl(clientId, message) {
+    try {
+        const { deviceId, x, y, deadman } = message;
+        
+        // Import ROS connection for publishing
+        const rosConnection = require('../ros/utils/ros_connection');
+        const result = rosConnection.publishJoystick(x, y, deadman);
+        
+        // Send result back to client
+        sendToClient(clientId, {
+            type: 'joystick_result',
+            deviceId: deviceId,
+            result: result,
+            timestamp: new Date().toISOString()
+        });
+        
+        // Broadcast to other subscribers
+        broadcastToSubscribers('control_events', {
+            type: 'joystick_command',
+            deviceId: deviceId,
+            data: { x, y, deadman },
+            result: result,
+            clientId: clientId
+        }, clientId);
+        
+    } catch (error) {
+        console.error('❌ Error handling joystick control:', error);
+        sendToClient(clientId, {
+            type: 'error',
+            message: 'Failed to process joystick command'
+        });
+    }
+}
+
+// ✅ NEW: Mapping command via WebSocket
+function handleMappingCommand(clientId, message) {
+    try {
+        const { deviceId, command } = message;
+        const rosConnection = require('../ros/utils/ros_connection');
+        
+        let result;
+        switch (command) {
+            case 'start':
+                result = rosConnection.startMapping();
+                break;
+            case 'stop':
+                result = rosConnection.stopMapping();
+                break;
+            default:
+                throw new Error(`Unknown mapping command: ${command}`);
+        }
+        
+        sendToClient(clientId, {
+            type: 'mapping_result',
+            deviceId: deviceId,
+            command: command,
+            result: result,
+            timestamp: new Date().toISOString()
+        });
+        
+        broadcastToSubscribers('mapping_events', {
+            type: `mapping_${command}`,
+            deviceId: deviceId,
+            result: result,
+            clientId: clientId
+        }, clientId);
+        
+    } catch (error) {
+        console.error('❌ Error handling mapping command:', error);
+        sendToClient(clientId, {
+            type: 'error',
+            message: 'Failed to process mapping command'
+        });
+    }
+}
+
+// ✅ NEW: Device discovery response
+function handleDeviceDiscovery(clientId, message) {
+    try {
+        const availableDevices = global.connectedDevices || [];
+        
+        sendToClient(clientId, {
+            type: 'device_discovery_response',
+            devices: availableDevices,
+            server: {
+                ip: '192.168.253.79', // Your backend IP
+                port: 3000,
+                websocket_port: 3000,
+                capabilities: ['mapping', 'navigation', 'remote_control'],
+                ros2_status: 'connected'
+            },
+            timestamp: new Date().toISOString()
+        });
+        
+        console.log(`🔍 Sent device discovery response to ${clientId}: ${availableDevices.length} devices`);
+        
+    } catch (error) {
+        console.error('❌ Error handling device discovery:', error);
+    }
+}
+
 function handleHeartbeat(clientId) {
     const client = connectedClients.get(clientId);
     if (client) {
         client.lastHeartbeat = new Date();
         sendToClient(clientId, {
-            type: 'heartbeat_ack',
-            timestamp: new Date().toISOString(),
-            clientInfo: {
-                connectedFor: Date.now() - client.connectedAt.getTime(),
-                subscriptions: client.subscribedTopics.size
-            }
-        });
-    }
-}
-
-function handleSubscription(clientId, message) {
-    const client = connectedClients.get(clientId);
-    if (!client) return;
-
-    const { topic, deviceId, options } = message;
-
-    if (topic) {
-        client.subscribedTopics.add(topic);
-        
-        // Handle device-specific subscriptions
-        if (deviceId) {
-            client.subscriptions.devices.add(deviceId);
-        }
-
-        // Add to topic-based subscriptions
-        if (!clientSubscriptions.has(topic)) {
-            clientSubscriptions.set(topic, new Set());
-        }
-        clientSubscriptions.get(topic).add(clientId);
-
-        sendToClient(clientId, {
-            type: 'subscription_ack',
-            topic: topic,
-            deviceId: deviceId,
-            status: 'subscribed',
-            timestamp: new Date().toISOString()
-        });
-
-        console.log(`📡 Client ${clientId} subscribed to ${topic}${deviceId ? ` for device ${deviceId}` : ''}`);
-
-        // Send initial data for this subscription
-        sendInitialDataForTopic(clientId, topic, deviceId);
-    }
-}
-
-function handleUnsubscription(clientId, message) {
-    const client = connectedClients.get(clientId);
-    if (!client) return;
-
-    const { topic, deviceId } = message;
-
-    if (topic) {
-        client.subscribedTopics.delete(topic);
-        
-        if (deviceId) {
-            client.subscriptions.devices.delete(deviceId);
-        }
-
-        // Remove from topic-based subscriptions
-        if (clientSubscriptions.has(topic)) {
-            clientSubscriptions.get(topic).delete(clientId);
-        }
-
-        sendToClient(clientId, {
-            type: 'unsubscription_ack',
-            topic: topic,
-            deviceId: deviceId,
-            status: 'unsubscribed',
-            timestamp: new Date().toISOString()
-        });
-
-        console.log(`📡 Client ${clientId} unsubscribed from ${topic}${deviceId ? ` for device ${deviceId}` : ''}`);
-    }
-}
-
-function handleControlCommand(clientId, message) {
-    const { deviceId, command, data } = message;
-    
-    if (!deviceId || !command) {
-        sendToClient(clientId, {
-            type: 'error',
-            message: 'Device ID and command are required',
-            timestamp: new Date().toISOString()
-        });
-        return;
-    }
-
-    // Validate device exists
-    const device = global.connectedDevices?.find(d => d.id === deviceId);
-    if (!device) {
-        sendToClient(clientId, {
-            type: 'error',
-            message: 'Device not found or not connected',
-            timestamp: new Date().toISOString()
-        });
-        return;
-    }
-
-    // Forward to appropriate handler based on command type
-    try {
-        let result;
-        const publishers = require('../ros/utils/publishers');
-
-        switch (command) {
-            case 'move':
-                result = publishers.publishVelocity(deviceId, data.linear || 0, data.angular || 0);
-                break;
-            case 'stop':
-                result = publishers.emergencyStop(deviceId);
-                break;
-            case 'goal':
-                result = publishers.publishGoal(deviceId, data.x, data.y, data.orientation || 0);
-                break;
-            default:
-                throw new Error(`Unknown command: ${command}`);
-        }
-
-        // Acknowledge command execution
-        sendToClient(clientId, {
-            type: 'command_ack',
-            deviceId,
-            command,
-            result,
-            timestamp: new Date().toISOString()
-        });
-
-        // Broadcast command execution to other clients
-        broadcastToSubscribers('control_events', {
-            type: 'control_command_executed',
-            deviceId,
-            command,
-            data,
-            executedBy: clientId,
-            timestamp: new Date().toISOString()
-        }, clientId); // Exclude the sender
-
-    } catch (error) {
-        sendToClient(clientId, {
-            type: 'error',
-            message: `Command execution failed: ${error.message}`,
+            type: config.WEBSOCKET.MESSAGE_TYPES.HEARTBEAT_ACK,
             timestamp: new Date().toISOString()
         });
     }
 }
 
-function handleMapEdit(clientId, message) {
-    const { deviceId, editType, editData } = message;
-    
-    if (!deviceId || !editType) {
-        sendToClient(clientId, {
-            type: 'error',
-            message: 'Device ID and edit type are required',
-            timestamp: new Date().toISOString()
-        });
-        return;
-    }
-
-    try {
-        // Initialize map if it doesn't exist
-        if (!global.deviceMaps) {
-            global.deviceMaps = {};
-        }
-        if (!global.deviceMaps[deviceId]) {
-            global.deviceMaps[deviceId] = {
-                shapes: [],
-                annotations: [],
-                metadata: { deviceId, createdAt: new Date().toISOString() }
-            };
-        }
-
-        let result = { success: true };
-
-        switch (editType) {
-            case 'add_shape':
-                const newShape = {
-                    id: `shape_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-                    ...editData,
-                    createdAt: new Date().toISOString(),
-                    createdBy: clientId
-                };
-                global.deviceMaps[deviceId].shapes.push(newShape);
-                result.shape = newShape;
-                break;
-
-            case 'update_shape':
-                const shapeIndex = global.deviceMaps[deviceId].shapes.findIndex(s => s.id === editData.id);
-                if (shapeIndex !== -1) {
-                    Object.assign(global.deviceMaps[deviceId].shapes[shapeIndex], editData, {
-                        updatedAt: new Date().toISOString(),
-                        updatedBy: clientId
-                    });
-                    result.shape = global.deviceMaps[deviceId].shapes[shapeIndex];
-                } else {
-                    throw new Error('Shape not found');
-                }
-                break;
-
-            case 'delete_shape':
-                const deleteIndex = global.deviceMaps[deviceId].shapes.findIndex(s => s.id === editData.id);
-                if (deleteIndex !== -1) {
-                    result.deletedShape = global.deviceMaps[deviceId].shapes.splice(deleteIndex, 1)[0];
-                } else {
-                    throw new Error('Shape not found');
-                }
-                break;
-
-            case 'add_annotation':
-                const annotation = {
-                    id: `annotation_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-                    ...editData,
-                    createdAt: new Date().toISOString(),
-                    createdBy: clientId
-                };
-                global.deviceMaps[deviceId].annotations.push(annotation);
-                result.annotation = annotation;
-                break;
-
-            default:
-                throw new Error(`Unknown edit type: ${editType}`);
-        }
-
-        // Acknowledge edit
-        sendToClient(clientId, {
-            type: 'map_edit_ack',
-            deviceId,
-            editType,
-            result,
-            timestamp: new Date().toISOString()
-        });
-
-        // Broadcast edit to other clients
-        broadcastToSubscribers('map_events', {
-            type: 'map_edited',
-            deviceId,
-            editType,
-            editData: result,
-            editedBy: clientId,
-            timestamp: new Date().toISOString()
-        }, clientId);
-
-    } catch (error) {
-        sendToClient(clientId, {
-            type: 'error',
-            message: `Map edit failed: ${error.message}`,
-            timestamp: new Date().toISOString()
-        });
-    }
-}
-
-function handleOrderCommand(clientId, message) {
-    const { deviceId, orderAction, orderData } = message;
-    
-    // This would typically interface with the order management system
-    // For now, just acknowledge and broadcast
+function sendWelcomeMessage(clientId) {
     sendToClient(clientId, {
-        type: 'order_ack',
-        deviceId,
-        orderAction,
-        timestamp: new Date().toISOString()
+        type: 'connection',
+        status: 'connected',
+        clientId: clientId,
+        timestamp: new Date().toISOString(),
+        serverInfo: {
+            version: '1.0.0',
+            capabilities: ['real_time_tracking', 'map_editing', 'order_management', 'device_discovery'],
+            pingInterval: config.WEBSOCKET.PING_INTERVAL,
+            heartbeatInterval: config.WEBSOCKET.HEARTBEAT_INTERVAL,
+        },
+        availableTopics: [
+            'real_time_data',
+            'control_events', 
+            'mapping_events',
+            'order_events',
+            'device_events',
+            'map_events'
+        ]
     });
-
-    broadcastToSubscribers('order_events', {
-        type: 'order_command_received',
-        deviceId,
-        orderAction,
-        orderData,
-        issuedBy: clientId,
-        timestamp: new Date().toISOString()
-    }, clientId);
-}
-
-function handleDataRequest(clientId, message) {
-    const { requestType, deviceId } = message;
-    
-    try {
-        let data = null;
-
-        switch (requestType) {
-            case 'device_status':
-                if (deviceId) {
-                    const device = global.connectedDevices?.find(d => d.id === deviceId);
-                    const liveData = global.liveData?.[deviceId];
-                    data = { device, liveData };
-                } else {
-                    data = {
-                        devices: global.connectedDevices || [],
-                        liveData: global.liveData || {}
-                    };
-                }
-                break;
-
-            case 'map_data':
-                if (deviceId) {
-                    data = global.deviceMaps?.[deviceId];
-                } else {
-                    data = global.deviceMaps || {};
-                }
-                break;
-
-            case 'orders':
-                if (deviceId) {
-                    data = global.deviceOrders?.[deviceId] || [];
-                } else {
-                    data = global.deviceOrders || {};
-                }
-                break;
-
-            default:
-                throw new Error(`Unknown request type: ${requestType}`);
-        }
-
-        sendToClient(clientId, {
-            type: 'data_response',
-            requestType,
-            deviceId,
-            data,
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        sendToClient(clientId, {
-            type: 'error',
-            message: `Data request failed: ${error.message}`,
-            timestamp: new Date().toISOString()
-        });
-    }
 }
 
 function sendInitialData(clientId) {
-    // Send current device list
-    sendToClient(clientId, {
-        type: 'initial_data',
-        devices: global.connectedDevices || [],
-        timestamp: new Date().toISOString()
-    });
-}
-
-function sendInitialDataForTopic(clientId, topic, deviceId) {
     try {
-        let data = null;
-
-        switch (topic) {
-            case 'real_time_data':
-                if (deviceId && global.liveData?.[deviceId]) {
-                    data = global.liveData[deviceId];
-                } else if (!deviceId) {
-                    data = global.liveData || {};
-                }
-                break;
-
-            case 'device_events':
-                data = {
-                    connectedDevices: global.connectedDevices || [],
-                    count: (global.connectedDevices || []).length
-                };
-                break;
-
-            case 'map_events':
-                if (deviceId && global.deviceMaps?.[deviceId]) {
-                    data = global.deviceMaps[deviceId];
-                } else if (!deviceId) {
-                    data = global.deviceMaps || {};
-                }
-                break;
-
-            case 'order_events':
-                if (deviceId && global.deviceOrders?.[deviceId]) {
-                    data = global.deviceOrders[deviceId];
-                } else if (!deviceId) {
-                    data = global.deviceOrders || {};
-                }
-                break;
-        }
-
-        if (data) {
-            sendToClient(clientId, {
-                type: 'initial_topic_data',
-                topic,
-                deviceId,
-                data,
+        const initialData = {
+            devices: global.connectedDevices || [],
+            liveData: global.liveData || {},
+            systemHealth: {
+                connectedDevices: (global.connectedDevices || []).length,
+                activeOrders: Object.values(global.deviceOrders || {})
+                    .flat()
+                    .filter(order => order.status === 'active').length,
                 timestamp: new Date().toISOString()
-            });
-        }
+            }
+        };
+
+        sendToClient(clientId, {
+            type: 'initial_data',
+            devices: initialData.devices,
+            liveData: initialData.liveData,
+            systemHealth: initialData.systemHealth,
+            timestamp: new Date().toISOString()
+        });
+
+        console.log(`📊 Sent initial data to ${clientId}: ${initialData.devices.length} devices`);
 
     } catch (error) {
-        console.error(`❌ Error sending initial data for topic ${topic}:`, error);
+        console.error(`❌ Error sending initial data to ${clientId}: ${error}`);
     }
 }
 
@@ -569,7 +472,7 @@ function broadcastToSubscribers(topic, message, excludeClientId = null) {
     let sentCount = 0;
     
     connectedClients.forEach((client, clientId) => {
-        if (clientId === excludeClientId) return; // Skip excluded client
+        if (clientId === excludeClientId) return;
         
         if (client.subscribedTopics.has(topic)) {
             sendToClient(clientId, broadcastMessage);
@@ -600,58 +503,36 @@ function broadcastToAll(message, excludeClientId = null) {
     console.log(`📡 Broadcasted message to ${sentCount} clients`);
 }
 
-function setupHeartbeat(clientId) {
-    const client = connectedClients.get(clientId);
-    if (!client) return;
-
-    const heartbeatInterval = setInterval(() => {
-        if (!connectedClients.has(clientId)) {
-            clearInterval(heartbeatInterval);
-            return;
-        }
-
-        const now = new Date();
-        const timeSinceLastHeartbeat = now - client.lastHeartbeat;
-
-        if (timeSinceLastHeartbeat > config.WEBSOCKET.CONNECTION_TIMEOUT) {
-            console.log(`💔 Client ${clientId} timed out (${timeSinceLastHeartbeat}ms since last heartbeat)`);
-            client.ws.terminate();
-            connectedClients.delete(clientId);
-            clientSubscriptions.delete(clientId);
-            clearInterval(heartbeatInterval);
-        } else {
-            // Send periodic heartbeat
-            sendToClient(clientId, {
-                type: 'heartbeat',
-                timestamp: now.toISOString(),
-                serverStats: {
-                    connectedClients: connectedClients.size,
-                    uptime: process.uptime()
-                }
-            });
-        }
-    }, config.WEBSOCKET.HEARTBEAT_INTERVAL);
-}
-
 function cleanupConnections() {
     const now = new Date();
     const clientsToRemove = [];
 
     connectedClients.forEach((client, clientId) => {
-        if (client.ws.readyState !== WebSocket.OPEN) {
-            clientsToRemove.push(clientId);
-        } else {
-            // Check for stale connections
-            const timeSinceLastHeartbeat = now - client.lastHeartbeat;
-            if (timeSinceLastHeartbeat > config.WEBSOCKET.CONNECTION_TIMEOUT * 2) {
-                console.log(`🧹 Cleaning up stale connection: ${clientId}`);
+        try {
+            if (client.ws.readyState !== WebSocket.OPEN) {
+                console.log(`🧹 Removing client with closed connection: ${clientId}`);
                 clientsToRemove.push(clientId);
-                client.ws.terminate();
+            } else {
+                // ✅ FIXED: More lenient timeout (2 minutes instead of aggressive timeouts)
+                const timeSinceLastHeartbeat = now - client.lastHeartbeat;
+                if (timeSinceLastHeartbeat > 120000) { // 2 minutes
+                    console.log(`🧹 Removing stale client: ${clientId} (${timeSinceLastHeartbeat}ms since last heartbeat)`);
+                    clientsToRemove.push(clientId);
+                    try {
+                        client.ws.terminate();
+                    } catch (e) {
+                        // Ignore termination errors
+                    }
+                }
             }
+        } catch (error) {
+            console.error(`❌ Error checking client ${clientId}: ${error}`);
+            clientsToRemove.push(clientId);
         }
     });
 
     clientsToRemove.forEach(clientId => {
+        stopPingPong(clientId);
         connectedClients.delete(clientId);
         clientSubscriptions.delete(clientId);
     });
@@ -665,7 +546,6 @@ function generateClientId() {
     return `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-// Get statistics about connected clients
 function getConnectionStats() {
     const stats = {
         totalClients: connectedClients.size,
@@ -674,14 +554,12 @@ function getConnectionStats() {
         topicSubscriptions: {}
     };
 
-    // Calculate average connection time
     const now = new Date();
     let totalConnectionTime = 0;
     
     connectedClients.forEach((client) => {
         totalConnectionTime += now - client.connectedAt;
         
-        // Count subscriptions by topic
         client.subscribedTopics.forEach(topic => {
             if (!stats.topicSubscriptions[topic]) {
                 stats.topicSubscriptions[topic] = 0;
@@ -697,7 +575,6 @@ function getConnectionStats() {
     return stats;
 }
 
-// Export functions for external use
 module.exports = {
     initializeWebSocketServer,
     sendToClient,

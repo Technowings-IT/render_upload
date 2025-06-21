@@ -974,7 +974,7 @@ class _MapCanvasWidgetState extends State<MapCanvasWidget> {
     try {
       await _apiService.saveMapData(
         deviceId: widget.deviceId!,
-        mapData: widget.mapData!.toJson(),
+        mapData: widget.mapData!,
       );
       
       _showInfoSnackBar('Map saved successfully');

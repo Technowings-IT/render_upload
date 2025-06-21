@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'connect_screen.dart';
 import 'signup_screen.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -130,7 +130,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: ElevatedButton(
                       onPressed: () async {
                         // Get saved credentials
-                        final prefs = await ConnectScreen.getInstance();
+                        // Use SharedPreferences to get saved credentials
+                        final prefs = await SharedPreferences.getInstance();
                         final savedUsername = prefs.getString('saved_username');
                         final savedPassword = prefs.getString('saved_password');
 

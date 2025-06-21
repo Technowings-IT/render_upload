@@ -1,40 +1,29 @@
-//connect_screen.dart - Updated with Success Popup
+// screens/connect_screen.dart - Simple device connection management screen
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../services/api_service.dart';
 import '../services/web_socket_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class ConnectScreen extends StatefulWidget {
   @override
   _ConnectScreenState createState() => _ConnectScreenState();
-  // Add this static method to provide SharedPreferences instance
-  static Future<SharedPreferences> getInstance() async {
-    return await SharedPreferences.getInstance();
-  }
 }
 
 class _ConnectScreenState extends State<ConnectScreen> {
   final ApiService _apiService = ApiService();
   final WebSocketService _webSocketService = WebSocketService();
+  final _deviceIdController = TextEditingController(text: 'agv_01');
+  final _deviceNameController = TextEditingController(text: 'Primary AGV');
+  final TextEditingController _deviceIpController = TextEditingController();
 
-  final _formKey = GlobalKey<FormState>();
-  final _deviceIdController = TextEditingController();
-  final _deviceNameController = TextEditingController();
-  final _ipAddressController = TextEditingController();
-  final _serverUrlController =
-      TextEditingController(text: 'ws://192.168.253.79:3000');
-
-  bool _isConnecting = false;
-  bool _isServerConnected = false;
-  bool _isDeviceConnected = false;
   List<Map<String, dynamic>> _connectedDevices = [];
-  List<Map<String, dynamic>> _availableDevices = [];
-  bool _isScanning = false;
+  bool _isLoading = false;
+  bool _isConnecting = false;
+  late StreamSubscription _deviceEventsSubscription;
 
   @override
   void initState() {
     super.initState();
-    _checkServerConnection();
     _loadConnectedDevices();
     _subscribeToDeviceEvents();
   }
@@ -43,207 +32,311 @@ class _ConnectScreenState extends State<ConnectScreen> {
   void dispose() {
     _deviceIdController.dispose();
     _deviceNameController.dispose();
-    _ipAddressController.dispose();
-    _serverUrlController.dispose();
+    _deviceIpController.dispose();
+    _deviceEventsSubscription.cancel();
     super.dispose();
   }
 
-  void _checkServerConnection() async {
-    setState(() {
-      _isServerConnected = _webSocketService.isConnected;
-    });
-
-    if (!_isServerConnected) {
-      _connectToServer();
-    }
-  }
-
   void _subscribeToDeviceEvents() {
-    _webSocketService.deviceEvents.listen((event) {
-      if (event['type'] == 'device_connected' ||
-          event['type'] == 'device_disconnected') {
-        _loadConnectedDevices();
+    _deviceEventsSubscription = _webSocketService.deviceEvents.listen((event) {
+      switch (event['type']) {
+        case 'device_connected':
+        case 'device_disconnected':
+        case 'initial_data':
+          _loadConnectedDevices();
+          break;
       }
-    });
-
-    _webSocketService.connectionState.listen((connected) {
-      setState(() {
-        _isServerConnected = connected;
-      });
     });
   }
 
   void _loadConnectedDevices() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
       final devices = await _apiService.getDevices();
       setState(() {
         _connectedDevices = devices;
-        _isDeviceConnected = devices.isNotEmpty;
       });
     } catch (e) {
-      print('Error loading devices: $e');
+      print('❌ Error loading devices: $e');
+      _showErrorSnackBar('Failed to load devices: $e');
+      setState(() {
+        _connectedDevices = [];
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
+  }
+
+  void _connectDevice() async {
+    final deviceId = _deviceIdController.text.trim();
+    final deviceName = _deviceNameController.text.trim();
+    final deviceIp = _deviceIpController.text.trim();
+
+    if (deviceId.isEmpty || deviceIp.isEmpty) {
+      _showErrorSnackBar('Device ID and IP Address are required');
+      return;
+    }
+
+    setState(() {
+      _isConnecting = true;
+    });
+
+    try {
+      final result = await _apiService.connectDevice(
+        deviceId: deviceId,
+        name: deviceName.isNotEmpty ? deviceName : 'AGV $deviceId',
+        ipAddress: deviceIp,
+        type: 'differential_drive',
+        capabilities: ['mapping', 'navigation', 'remote_control'],
+      );
+
+      if (result['success'] == true) {
+        _showSuccessSnackBar('Device connected successfully');
+        _loadConnectedDevices();
+
+        // Clear form
+        _deviceIdController.clear();
+        _deviceNameController.clear();
+        _deviceIpController.clear();
+
+        // Optionally show dashboard dialog
+        _showDashboardDialog();
+      } else {
+        _showErrorSnackBar('Failed to connect device: ${result['error']}');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Failed to connect device: $e');
+    } finally {
+      setState(() {
+        _isConnecting = false;
+      });
+    }
+  }
+
+  void _autoConnectAGV() async {
+    setState(() {
+      _isConnecting = true;
+    });
+
+    try {
+      final result = await _apiService.autoConnectAGV();
+
+      if (result['success'] == true) {
+        _showSuccessSnackBar('AGV auto-connected successfully');
+        _loadConnectedDevices();
+
+        // Show dashboard popup
+        _showDashboardDialog();
+      } else {
+        _showErrorSnackBar('Auto-connect failed: ${result['error']}');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Auto-connect failed: $e');
+    } finally {
+      setState(() {
+        _isConnecting = false;
+      });
+    }
+  }
+
+  void _connectWebSocket() async {
+    try {
+      await _webSocketService.connect('ws://192.168.253.79:3000');
+      _showSuccessSnackBar('WebSocket connected to ws://192.168.253.79:3000');
+    } catch (e) {
+      _showErrorSnackBar('WebSocket connection failed: $e');
+    }
+  }
+
+  // Add this method to show the dashboard dialog
+  void _showDashboardDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Device Connected'),
+        content: Text('Do you want to go to the Dashboard?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Stay'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.pushNamed(context, '/dashboard');
+            },
+            child: Text('Go to Dashboard'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Connect Devices'),
+        title: Text('Device Management'),
         actions: [
           IconButton(
-            icon: Icon(
-              _isServerConnected ? Icons.cloud_done : Icons.cloud_off,
-              color: _isServerConnected ? Colors.green : Colors.red,
-            ),
-            onPressed: _showServerConnectionDialog,
+            icon: Icon(Icons.refresh),
+            onPressed: _isLoading ? null : _loadConnectedDevices,
           ),
-          // Add dashboard navigation button if ready
-          if (_isServerConnected && _isDeviceConnected)
-            IconButton(
-              icon: Icon(Icons.dashboard, color: Colors.green),
-              onPressed: _navigateToDashboard,
-              tooltip: 'Go to Dashboard',
-            ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildConnectionCard(),
+                  SizedBox(height: 20),
+                  _buildConnectedDevicesCard(),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildConnectionCard() {
+    return Card(
+      child: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildServerStatusCard(),
+            Text(
+              'Connect AGV Device',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             SizedBox(height: 16),
-            _buildConnectedDevicesCard(),
-            SizedBox(height: 16),
-            _buildDeviceDiscoveryCard(),
-            SizedBox(height: 16),
-            _buildManualConnectCard(),
-            SizedBox(height: 16),
-            // Show success banner if both are connected
-            if (_isServerConnected && _isDeviceConnected)
-              _buildSuccessBanner(),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddDeviceDialog,
-        child: Icon(Icons.add),
-        tooltip: 'Add Device',
-      ),
-    );
-  }
 
-  Widget _buildSuccessBanner() {
-    return Card(
-      color: Colors.green[50],
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green, size: 32),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            // Auto-connect section
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Column(
+                children: [
+                  Row(
                     children: [
+                      Icon(Icons.auto_fix_high, color: Colors.blue),
+                      SizedBox(width: 8),
                       Text(
-                        'Connection Successful! 🎉',
+                        'Quick Setup',
                         style: TextStyle(
-                          fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.green[700],
+                          color: Colors.blue[700],
                         ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Server and AGV devices are connected and ready',
-                        style: TextStyle(color: Colors.green[600]),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _navigateToDashboard,
-                    icon: Icon(Icons.dashboard),
-                    label: Text('Go to Dashboard'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 12),
+                  SizedBox(height: 8),
+                  Text(
+                      'Automatically connect to your AGV with default settings'),
+                  SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isConnecting ? null : _autoConnectAGV,
+                      icon: _isConnecting
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(Icons.smart_toy),
+                      label: Text(
+                          _isConnecting ? 'Connecting...' : 'Auto-Connect AGV'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: _showConnectionSummary,
-                  icon: Icon(Icons.info),
-                  label: Text('Details'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildServerStatusCard() {
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  _isServerConnected ? Icons.check_circle : Icons.error,
-                  color: _isServerConnected ? Colors.green : Colors.red,
-                ),
-                SizedBox(width: 8),
-                Text(
-                  'Server Connection',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                Spacer(),
-                TextButton(
-                  onPressed: _isServerConnected
-                      ? _disconnectFromServer
-                      : _connectToServer,
-                  child: Text(_isServerConnected ? 'Disconnect' : 'Connect'),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
+            SizedBox(height: 20),
+            Divider(),
+            SizedBox(height: 20),
+
+            // Manual connection section
             Text(
-              _isServerConnected
-                  ? 'Connected to fleet management server'
-                  : 'Not connected to server',
-              style: TextStyle(
-                color: _isServerConnected ? Colors.green : Colors.red,
+              'Manual Connection',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 12),
+            TextFormField(
+              controller: _deviceIdController,
+              decoration: InputDecoration(
+                labelText: 'Device ID',
+                border: OutlineInputBorder(),
+                hintText: 'e.g., agv_01',
               ),
             ),
-            if (!_isServerConnected) ...[
-              SizedBox(height: 8),
-              Text(
-                'Server URL: ${_serverUrlController.text}',
-                style: TextStyle(color: Colors.grey[600]),
+            SizedBox(height: 12),
+            TextFormField(
+              controller: _deviceNameController,
+              decoration: InputDecoration(
+                labelText: 'Device Name (Optional)',
+                border: OutlineInputBorder(),
+                hintText: 'e.g., Primary AGV',
               ),
-            ],
+            ),
+            SizedBox(height: 12),
+            TextField(
+              controller: _deviceIpController,
+              decoration: InputDecoration(
+                labelText: 'Device IP Address',
+                prefixIcon: Icon(Icons.language),
+                hintText: 'e.g. 192.168.253.79',
+              ),
+              keyboardType: TextInputType.numberWithOptions(decimal: true),
+            ),
+            SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isConnecting ? null : _connectDevice,
+                icon: _isConnecting
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(Icons.add),
+                label: Text(_isConnecting ? 'Connecting...' : 'Connect Device'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _connectWebSocket,
+                icon: Icon(Icons.wifi),
+                label: Text('Connect WebSocket (ws://192.168.253.79:3000)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -259,23 +352,18 @@ class _ConnectScreenState extends State<ConnectScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.devices),
-                SizedBox(width: 8),
                 Text(
-                  'Connected Devices (${_connectedDevices.length})',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  'Connected Devices',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 Spacer(),
-                TextButton(
-                  onPressed: _loadConnectedDevices,
-                  child: Text('Refresh'),
-                ),
+                Text('Total: ${_connectedDevices.length}'),
               ],
             ),
             SizedBox(height: 16),
             if (_connectedDevices.isEmpty)
               Container(
-                padding: EdgeInsets.all(24),
+                padding: EdgeInsets.all(32),
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
@@ -283,17 +371,15 @@ class _ConnectScreenState extends State<ConnectScreen> {
                 ),
                 child: Column(
                   children: [
-                    Icon(Icons.devices_other, size: 48, color: Colors.grey),
+                    Icon(Icons.devices_other, size: 64, color: Colors.grey),
+                    SizedBox(height: 16),
+                    Text(
+                      'No Devices Connected',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
                     SizedBox(height: 8),
-                    Text(
-                      'No devices connected',
-                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Add a device to get started',
-                      style: TextStyle(color: Colors.grey[500]),
-                    ),
+                    Text('Connect your AGV devices to get started'),
                   ],
                 ),
               )
@@ -315,51 +401,90 @@ class _ConnectScreenState extends State<ConnectScreen> {
   }
 
   Widget _buildDeviceListItem(Map<String, dynamic> device) {
-    final isOnline = device['status'] == 'connected';
+    final deviceId = device['id']?.toString() ?? '';
+    final deviceName = device['name']?.toString() ?? deviceId;
+    final deviceStatus = device['status']?.toString() ?? 'unknown';
+    final deviceType = device['type']?.toString() ?? 'differential_drive';
+    final isOnline = deviceStatus == 'connected';
 
     return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: isOnline ? Colors.green : Colors.red,
-        child: Icon(
-          Icons.smart_toy,
-          color: Colors.white,
-        ),
+      leading: Stack(
+        children: [
+          CircleAvatar(
+            child: Icon(Icons.smart_toy),
+            backgroundColor: isOnline ? Colors.green[100] : Colors.grey[300],
+            foregroundColor: isOnline ? Colors.green[700] : Colors.grey[600],
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isOnline ? Colors.green : Colors.red,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+            ),
+          ),
+        ],
       ),
-      title: Text(device['name'] ?? 'Unknown Device'),
+      title: Text(
+        deviceName,
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('ID: ${device['id']}'),
-          Text('IP: ${device['ip'] ?? 'Unknown'}'),
+          Text('ID: $deviceId'),
+          Text('Type: $deviceType'),
           Text(
-            'Status: ${device['status']?.toUpperCase() ?? 'UNKNOWN'}',
+            'Status: ${deviceStatus.toUpperCase()}',
             style: TextStyle(
               color: isOnline ? Colors.green : Colors.red,
               fontWeight: FontWeight.w500,
             ),
           ),
+          if (device['connectedAt'] != null)
+            Text(
+              'Connected: ${_formatDateTime(device['connectedAt'])}',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
         ],
       ),
-      trailing: PopupMenuButton(
+      trailing: PopupMenuButton<String>(
         itemBuilder: (context) => [
           PopupMenuItem(
             value: 'control',
-            child: Row(
-              children: [
-                Icon(Icons.gamepad),
-                SizedBox(width: 8),
-                Text('Control'),
-              ],
+            child: ListTile(
+              leading: Icon(Icons.gamepad),
+              title: Text('Control'),
+              dense: true,
             ),
           ),
           PopupMenuItem(
-            value: 'disconnect',
-            child: Row(
-              children: [
-                Icon(Icons.link_off, color: Colors.red),
-                SizedBox(width: 8),
-                Text('Disconnect'),
-              ],
+            value: 'map',
+            child: ListTile(
+              leading: Icon(Icons.map),
+              title: Text('Map Editor'),
+              dense: true,
+            ),
+          ),
+          PopupMenuItem(
+            value: 'status',
+            child: ListTile(
+              leading: Icon(Icons.info),
+              title: Text('Status'),
+              dense: true,
+            ),
+          ),
+          PopupMenuItem(
+            value: 'remove',
+            child: ListTile(
+              leading: Icon(Icons.delete, color: Colors.red),
+              title: Text('Remove', style: TextStyle(color: Colors.red)),
+              dense: true,
             ),
           ),
         ],
@@ -369,608 +494,31 @@ class _ConnectScreenState extends State<ConnectScreen> {
     );
   }
 
-  Widget _buildDeviceDiscoveryCard() {
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.search),
-                SizedBox(width: 8),
-                Text(
-                  'Device Discovery',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                Spacer(),
-                if (_isScanning)
-                  SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  TextButton(
-                    onPressed: _scanForDevices,
-                    child: Text('Scan'),
-                  ),
-              ],
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Automatically discover AGV devices on the network',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            SizedBox(height: 16),
-            if (_availableDevices.isNotEmpty) ...[
-              Text(
-                'Found Devices:',
-                style: TextStyle(fontWeight: FontWeight.w500),
-              ),
-              SizedBox(height: 8),
-              ListView.builder(
-                shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-                itemCount: _availableDevices.length,
-                itemBuilder: (context, index) {
-                  final device = _availableDevices[index];
-                  return ListTile(
-                    dense: true,
-                    leading: Icon(Icons.wifi),
-                    title: Text(device['name'] ?? 'AGV Device'),
-                    subtitle: Text('IP: ${device['ip']}'),
-                    trailing: ElevatedButton(
-                      onPressed: () => _connectToDiscoveredDevice(device),
-                      child: Text('Connect'),
-                    ),
-                  );
-                },
-              ),
-            ] else if (_isScanning)
-              Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('Scanning for devices...'),
-                ),
-              )
-            else
-              Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text(
-                    'No devices found. Tap "Scan" to search.',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildManualConnectCard() {
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.settings_ethernet),
-                  SizedBox(width: 8),
-                  Text(
-                    'Manual Connection',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: _deviceIdController,
-                decoration: InputDecoration(
-                  labelText: 'Device ID',
-                  border: OutlineInputBorder(),
-                  hintText: 'e.g., agv_001',
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a device ID';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: _deviceNameController,
-                decoration: InputDecoration(
-                  labelText: 'Device Name',
-                  border: OutlineInputBorder(),
-                  hintText: 'e.g., Warehouse AGV 1',
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a device name';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 16),
-              TextFormField(
-                controller: _ipAddressController,
-                decoration: InputDecoration(
-                  labelText: 'IP Address',
-                  border: OutlineInputBorder(),
-                  hintText: 'e.g., 192.168.253.79',
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter an IP address';
-                  }
-                  // Basic IP validation
-                  final ipRegex = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
-                  if (!ipRegex.hasMatch(value)) {
-                    return 'Please enter a valid IP address';
-                  }
-                  return null;
-                },
-              ),
-              SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _isConnecting ? null : _connectDevice,
-                  icon: _isConnecting
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : Icon(Icons.link),
-                  label:
-                      Text(_isConnecting ? 'Connecting...' : 'Connect Device'),
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showServerConnectionDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Server Connection'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _serverUrlController,
-              decoration: InputDecoration(
-                labelText: 'Server URL',
-                border: OutlineInputBorder(),
-                hintText: 'ws://192.168.253.79:3000',
-              ),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Current Status: ${_isServerConnected ? "Connected" : "Disconnected"}',
-              style: TextStyle(
-                color: _isServerConnected ? Colors.green : Colors.red,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              if (_isServerConnected) {
-                _disconnectFromServer();
-              } else {
-                _connectToServer();
-              }
-            },
-            child: Text(_isServerConnected ? 'Disconnect' : 'Connect'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAddDeviceDialog() {
-    final deviceIdController = TextEditingController();
-    final deviceNameController = TextEditingController();
-    final ipController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Add Device'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: deviceIdController,
-              decoration: InputDecoration(
-                labelText: 'Device ID',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SizedBox(height: 16),
-            TextFormField(
-              controller: deviceNameController,
-              decoration: InputDecoration(
-                labelText: 'Device Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SizedBox(height: 16),
-            TextFormField(
-              controller: ipController,
-              decoration: InputDecoration(
-                labelText: 'IP Address',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _connectSpecificDevice(
-                deviceIdController.text,
-                deviceNameController.text,
-                ipController.text,
-              );
-            },
-            child: Text('Connect'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Enhanced success popup
-  void _showConnectionSuccessPopup() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Column(
-          children: [
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.green[100],
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.check_circle,
-                color: Colors.green,
-                size: 48,
-              ),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Connection Successful! 🎉',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.green[700],
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Great! Your AGV fleet management system is ready to use.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16),
-            ),
-            SizedBox(height: 16),
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.green[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green[200]!),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.cloud_done, color: Colors.green, size: 20),
-                      SizedBox(width: 8),
-                      Text('Server Connected'),
-                      Spacer(),
-                      Icon(Icons.check, color: Colors.green),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.smart_toy, color: Colors.green, size: 20),
-                      SizedBox(width: 8),
-                      Text('${_connectedDevices.length} Device(s) Connected'),
-                      Spacer(),
-                      Icon(Icons.check, color: Colors.green),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Stay Here'),
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _navigateToDashboard();
-                  },
-                  icon: Icon(Icons.dashboard),
-                  label: Text('Dashboard'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showConnectionSummary() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Connection Summary'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildStatusRow('Server Connection', _isServerConnected),
-            _buildStatusRow('Device Connection', _isDeviceConnected),
-            SizedBox(height: 16),
-            Text(
-              'Connected Devices:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            ..._connectedDevices.map((device) => Padding(
-              padding: EdgeInsets.only(left: 16, bottom: 4),
-              child: Row(
-                children: [
-                  Icon(Icons.smart_toy, size: 16, color: Colors.green),
-                  SizedBox(width: 8),
-                  Text(device['name'] ?? device['id']),
-                ],
-              ),
-            )),
-            SizedBox(height: 16),
-            Text(
-              'Server URL: ${_serverUrlController.text}',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Close'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _navigateToDashboard();
-            },
-            child: Text('Go to Dashboard'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusRow(String label, bool status) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(
-            status ? Icons.check_circle : Icons.error,
-            color: status ? Colors.green : Colors.red,
-            size: 20,
-          ),
-          SizedBox(width: 8),
-          Text(label),
-          Spacer(),
-          Text(
-            status ? 'Connected' : 'Disconnected',
-            style: TextStyle(
-              color: status ? Colors.green : Colors.red,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _connectToServer() async {
+  String _formatDateTime(dynamic dateTime) {
     try {
-      final success =
-          await _webSocketService.connect(_serverUrlController.text);
-      if (success) {
-        setState(() {
-          _isServerConnected = true;
-        });
-        _showSuccessSnackBar('Connected to server');
-        _checkAndShowSuccessPopup();
-      } else {
-        _showErrorSnackBar('Failed to connect to server');
+      if (dateTime is String) {
+        final dt = DateTime.parse(dateTime);
+        return '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
       }
+      return dateTime.toString();
     } catch (e) {
-      _showErrorSnackBar('Connection error: $e');
+      return 'Unknown';
     }
   }
 
-  void _disconnectFromServer() async {
-    await _webSocketService.disconnect();
-    setState(() {
-      _isServerConnected = false;
-    });
-    _showInfoSnackBar('Disconnected from server');
-  }
-
-  void _scanForDevices() async {
-    setState(() {
-      _isScanning = true;
-      _availableDevices.clear();
-    });
-
-    // Simulate device discovery
-    await Future.delayed(Duration(seconds: 2));
-
-    // Mock discovered devices
-    setState(() {
-      _availableDevices = [
-        {'name': 'piros', 'ip': '192.168.253.136', 'id': 'piros'},
-        {'name': 'AGV-001', 'ip': '192.168.1.101', 'id': 'agv_001'},
-        {'name': 'AGV-002', 'ip': '192.168.1.102', 'id': 'agv_002'},
-      ];
-      _isScanning = false;
-    });
-  }
-
-  void _connectDevice() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isConnecting = true;
-    });
-
-    try {
-      await _apiService.connectDevice(
-        deviceId: _deviceIdController.text,
-        deviceName: _deviceNameController.text,
-        ipAddress: _ipAddressController.text,
-      );
-
-      setState(() {
-        _isDeviceConnected = true;
-      });
-      _showSuccessSnackBar('Device connected successfully');
-      _loadConnectedDevices();
-
-      // Clear form
-      _deviceIdController.clear();
-      _deviceNameController.clear();
-      _ipAddressController.clear();
-
-      _checkAndShowSuccessPopup();
-    } catch (e) {
-      _showErrorSnackBar('Failed to connect device: $e');
-    } finally {
-      setState(() {
-        _isConnecting = false;
-      });
-    }
-  }
-
-  void _connectToDiscoveredDevice(Map<String, dynamic> device) async {
-    try {
-      await _apiService.connectDevice(
-        deviceId: device['id'],
-        deviceName: device['name'],
-        ipAddress: device['ip'],
-      );
-
-      _showSuccessSnackBar('Device ${device['name']} connected');
-      _loadConnectedDevices();
-
-      setState(() {
-        _availableDevices.remove(device);
-        _isDeviceConnected = true;
-      });
-
-      _checkAndShowSuccessPopup();
-    } catch (e) {
-      _showErrorSnackBar('Failed to connect to ${device['name']}: $e');
-    }
-  }
-
-  void _connectSpecificDevice(
-      String deviceId, String deviceName, String ip) async {
-    if (deviceId.isEmpty || deviceName.isEmpty || ip.isEmpty) return;
-
-    try {
-      await _apiService.connectDevice(
-        deviceId: deviceId,
-        deviceName: deviceName,
-        ipAddress: ip,
-      );
-
-      _showSuccessSnackBar('Device $deviceName connected');
-      _loadConnectedDevices();
-      setState(() {
-        _isDeviceConnected = true;
-      });
-
-      _checkAndShowSuccessPopup();
-    } catch (e) {
-      _showErrorSnackBar('Failed to connect device: $e');
-    }
-  }
-
-  void _handleDeviceAction(Map<String, dynamic> device, String action) async {
+  void _handleDeviceAction(Map<String, dynamic> device, String action) {
     switch (action) {
       case 'control':
         _navigateToControl(device);
         break;
-      case 'disconnect':
-        _disconnectDevice(device);
+      case 'map':
+        _navigateToMap(device);
+        break;
+      case 'status':
+        _showDeviceStatus(device);
+        break;
+      case 'remove':
+        _confirmRemoveDevice(device);
         break;
     }
   }
@@ -986,26 +534,123 @@ class _ConnectScreenState extends State<ConnectScreen> {
     );
   }
 
-  void _navigateToDashboard() {
-    Navigator.pushReplacementNamed(context, '/dashboard');
+  void _navigateToMap(Map<String, dynamic> device) {
+    Navigator.pushNamed(
+      context,
+      '/map',
+      arguments: {
+        'deviceId': device['id'],
+      },
+    );
   }
 
-  void _disconnectDevice(Map<String, dynamic> device) async {
+  void _showDeviceStatus(Map<String, dynamic> device) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Device Status'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildStatusRow('Device ID', device['id']?.toString() ?? ''),
+            _buildStatusRow('Name', device['name']?.toString() ?? ''),
+            _buildStatusRow('Type', device['type']?.toString() ?? ''),
+            _buildStatusRow('Status', device['status']?.toString() ?? ''),
+            if (device['ipAddress'] != null)
+              _buildStatusRow('IP Address', device['ipAddress'].toString()),
+            if (device['connectedAt'] != null)
+              _buildStatusRow(
+                  'Connected At', _formatDateTime(device['connectedAt'])),
+            if (device['capabilities'] != null) ...[
+              SizedBox(height: 8),
+              Text('Capabilities:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              ...((device['capabilities'] as List<dynamic>)
+                  .map((cap) => Padding(
+                        padding: EdgeInsets.only(left: 16),
+                        child: Text('• $cap'),
+                      ))),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _navigateToControl(device);
+            },
+            child: Text('Control'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusRow(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  void _confirmRemoveDevice(Map<String, dynamic> device) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remove Device'),
+        content: Text(
+            'Are you sure you want to remove "${device['name'] ?? device['id']}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _removeDevice(device['id']);
+            },
+            child: Text('Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _removeDevice(String deviceId) async {
+    setState(() {
+      _isLoading = true;
+    });
     try {
-      await _apiService.disconnectDevice(device['id']);
-      _showInfoSnackBar('Device ${device['name']} disconnected');
-      _loadConnectedDevices();
+      final result = await _apiService.disconnectDevice(deviceId: deviceId);
+      if (result['success'] == true) {
+        _showSuccessSnackBar('Device removed');
+        _loadConnectedDevices();
+      } else {
+        _showErrorSnackBar('Failed to remove device: ${result['error']}');
+      }
     } catch (e) {
-      _showErrorSnackBar('Failed to disconnect device: $e');
-    }
-  }
-
-  // Check if both server and device are connected, then show success popup
-  void _checkAndShowSuccessPopup() {
-    if (_isServerConnected && _isDeviceConnected) {
-      // Delay slightly to ensure UI updates
-      Future.delayed(Duration(milliseconds: 500), () {
-        _showConnectionSuccessPopup();
+      _showErrorSnackBar('Failed to remove device: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
       });
     }
   }
@@ -1015,6 +660,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -1024,15 +670,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
-      ),
-    );
-  }
-
-  void _showInfoSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.blue,
+        duration: Duration(seconds: 4),
       ),
     );
   }

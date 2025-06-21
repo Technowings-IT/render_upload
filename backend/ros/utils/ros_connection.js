@@ -1,16 +1,18 @@
-// ros/utils/ros_connection_working.js - Working version based on your successful test
+// ros/utils/ros_connection.js - Integrated with publishers and subscribers
 const rclnodejs = require('rclnodejs');
 
 let rosNode = null;
 let isInitialized = false;
-let publishers = {};
-let subscribers = {};
+
+// Import our modular publishers and subscribers
+const publishers = require('./publishers');
+const subscribers = require('./subscribers');
 
 async function initializeROS() {
     try {
         console.log('🤖 Initializing ROS2 connection...');
         
-        // Use the same initialization that worked in your test
+        // Initialize ROS2
         await rclnodejs.init();
         console.log('✅ ROS2 initialized successfully');
         
@@ -18,15 +20,19 @@ async function initializeROS() {
         rosNode = rclnodejs.createNode('agv_fleet_backend');
         console.log('✅ ROS2 node created: agv_fleet_backend');
         
+        // Initialize publishers and subscribers with the node
+        publishers.initializePublishers(rosNode);
+        subscribers.initializeSubscribers(rosNode);
+        
         // Start spinning to process callbacks
         rclnodejs.spin(rosNode);
         console.log('✅ ROS2 node spinning');
         
-        // Create publishers for AGV control
-        await createPublishers();
+        // Subscribe to all essential topics
+        subscribers.subscribeToAllTopics();
         
-        // Create subscribers for AGV data
-        await createSubscribers();
+        // Initialize global data structures
+        initializeGlobalData();
         
         isInitialized = true;
         console.log('✅ Complete ROS2 integration initialized');
@@ -39,253 +45,114 @@ async function initializeROS() {
     }
 }
 
-async function createPublishers() {
-    try {
-        console.log('📤 Creating ROS2 publishers...');
-        
-        // Velocity command publisher
-        publishers.cmdVel = rosNode.createPublisher(
-            'geometry_msgs/msg/Twist', 
-            '/cmd_vel',
-            { depth: 10, reliability: 'reliable', durability: 'volatile' }
-        );
-        console.log('   ✅ cmd_vel publisher created');
-        
-        // Joystick publisher (if needed)
-        publishers.joy = rosNode.createPublisher(
-            'sensor_msgs/msg/Joy',
-            '/joy',
-            { depth: 10, reliability: 'reliable', durability: 'volatile' }
-        );
-        console.log('   ✅ joy publisher created');
-        
-        console.log(`📤 Created ${Object.keys(publishers).length} publishers`);
-        
-    } catch (error) {
-        console.error('❌ Failed to create publishers:', error);
-        throw error;
+function initializeGlobalData() {
+    // Initialize global data structures for AGV management
+    if (!global.connectedDevices) {
+        global.connectedDevices = [];
     }
-}
-
-async function createSubscribers() {
-    try {
-        console.log('📥 Creating ROS2 subscribers...');
-        
-        // Odometry subscriber
-        subscribers.odom = rosNode.createSubscription(
-            'nav_msgs/msg/Odometry',
-            '/diff_drive_controller/odom',
-            { depth: 10, reliability: 'reliable', durability: 'volatile' },
-            (odomMsg) => handleOdometryMessage(odomMsg)
-        );
-        console.log('   ✅ odometry subscriber created');
-        
-        // Command velocity feedback subscriber
-        subscribers.cmdVelFeedback = rosNode.createSubscription(
-            'geometry_msgs/msg/Twist',
-            '/diff_drive_controller/cmd_vel',
-            { depth: 10, reliability: 'reliable', durability: 'volatile' },
-            (twistMsg) => handleVelocityFeedback(twistMsg)
-        );
-        console.log('   ✅ cmd_vel feedback subscriber created');
-        
-        // Joint states subscriber
-        subscribers.jointStates = rosNode.createSubscription(
-            'sensor_msgs/msg/JointState',
-            '/joint_states',
-            { depth: 10, reliability: 'reliable', durability: 'volatile' },
-            (jointMsg) => handleJointStates(jointMsg)
-        );
-        console.log('   ✅ joint_states subscriber created');
-        
-        console.log(`📥 Created ${Object.keys(subscribers).length} subscribers`);
-        
-    } catch (error) {
-        console.error('❌ Failed to create subscribers:', error);
-        throw error;
+    
+    if (!global.liveData) {
+        global.liveData = {};
     }
-}
-
-// Handle incoming odometry data
-function handleOdometryMessage(odomMsg) {
-    try {
-        const processedOdom = {
-            position: {
-                x: odomMsg.pose.pose.position.x,
-                y: odomMsg.pose.pose.position.y,
-                z: odomMsg.pose.pose.position.z
-            },
-            orientation: {
-                x: odomMsg.pose.pose.orientation.x,
-                y: odomMsg.pose.pose.orientation.y,
-                z: odomMsg.pose.pose.orientation.z,
-                w: odomMsg.pose.pose.orientation.w,
-                yaw: quaternionToYaw(odomMsg.pose.pose.orientation)
-            },
-            velocity: {
-                linear: {
-                    x: odomMsg.twist.twist.linear.x,
-                    y: odomMsg.twist.twist.linear.y,
-                    z: odomMsg.twist.twist.linear.z
-                },
-                angular: {
-                    x: odomMsg.twist.twist.angular.x,
-                    y: odomMsg.twist.twist.angular.y,
-                    z: odomMsg.twist.twist.angular.z
-                }
-            },
-            timestamp: new Date().toISOString()
-        };
-        
-        // Update global live data for all connected devices
-        updateLiveData('odometry', processedOdom);
-        
-        // Broadcast via WebSocket
-        broadcastRealTimeData('odometry_update', processedOdom);
-        
-    } catch (error) {
-        console.error('❌ Error processing odometry:', error);
+    
+    if (!global.deviceOrders) {
+        global.deviceOrders = {};
     }
-}
-
-// Handle velocity feedback
-function handleVelocityFeedback(twistMsg) {
-    try {
-        const velocityData = {
-            linear: {
-                x: twistMsg.linear.x,
-                y: twistMsg.linear.y,
-                z: twistMsg.linear.z
-            },
-            angular: {
-                x: twistMsg.angular.x,
-                y: twistMsg.angular.y,
-                z: twistMsg.angular.z
-            },
-            timestamp: new Date().toISOString()
-        };
-        
-        updateLiveData('velocity_feedback', velocityData);
-        broadcastRealTimeData('velocity_feedback', velocityData);
-        
-    } catch (error) {
-        console.error('❌ Error processing velocity feedback:', error);
+    
+    if (!global.orderQueue) {
+        global.orderQueue = {};
     }
-}
-
-// Handle joint states
-function handleJointStates(jointMsg) {
-    try {
-        const jointData = {
-            joint_names: jointMsg.name,
-            positions: jointMsg.position,
-            velocities: jointMsg.velocity,
-            efforts: jointMsg.effort,
-            timestamp: new Date().toISOString()
-        };
-        
-        updateLiveData('joint_states', jointData);
-        broadcastRealTimeData('joint_states_update', jointData);
-        
-    } catch (error) {
-        console.error('❌ Error processing joint states:', error);
+    
+    if (!global.deviceMaps) {
+        global.deviceMaps = {};
     }
-}
-
-// Utility functions
-function quaternionToYaw(q) {
-    return Math.atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
-}
-
-function updateLiveData(dataType, data) {
-    // Update live data for all connected devices
-    global.connectedDevices?.forEach(device => {
-        if (!global.liveData[device.id]) {
-            global.liveData[device.id] = {};
-        }
-        global.liveData[device.id][dataType] = data;
-        
-        // Update device last seen
-        device.lastSeen = new Date().toISOString();
-    });
-}
-
-function broadcastRealTimeData(type, data) {
-    try {
-        // Import WebSocket broadcast function
-        const { broadcastToSubscribers } = require('../../websocket/clientConnection');
-        
-        broadcastToSubscribers('real_time_data', {
-            type: type,
-            data: data,
-            timestamp: new Date().toISOString()
-        });
-        
-    } catch (error) {
-        // WebSocket might not be available yet, ignore
+    
+    if (!global.deviceMappingStates) {
+        global.deviceMappingStates = {};
     }
+    
+    if (!global.robotTrails) {
+        global.robotTrails = {};
+    }
+    
+    console.log('📊 Global data structures initialized');
 }
 
-// Public API functions
+// Public API functions that delegate to publishers
 function publishVelocity(linear = 0.0, angular = 0.0) {
-    try {
-        if (!isInitialized || !publishers.cmdVel) {
-            throw new Error('ROS2 not initialized or cmd_vel publisher not available');
-        }
-        
-        const velocityMsg = {
-            linear: { x: linear, y: 0.0, z: 0.0 },
-            angular: { x: 0.0, y: 0.0, z: angular }
-        };
-        
-        publishers.cmdVel.publish(velocityMsg);
-        console.log(`🚗 Published velocity: linear=${linear}, angular=${angular}`);
-        
-        return {
-            success: true,
-            message: 'Velocity command sent successfully',
-            data: { linear, angular }
-        };
-        
-    } catch (error) {
-        console.error('❌ Failed to publish velocity:', error);
-        return {
-            success: false,
-            error: error.message
-        };
+    if (!isInitialized) {
+        throw new Error('ROS2 not initialized');
     }
+    return publishers.publishVelocity(linear, angular);
+}
+
+function publishGoal(x, y, orientation = 0) {
+    if (!isInitialized) {
+        throw new Error('ROS2 not initialized');
+    }
+    return publishers.publishGoal(x, y, orientation);
+}
+
+function publishMap(mapData) {
+    if (!isInitialized) {
+        throw new Error('ROS2 not initialized');
+    }
+    return publishers.publishMap(mapData);
+}
+
+function startMapping() {
+    if (!isInitialized) {
+        throw new Error('ROS2 not initialized');
+    }
+    
+    // Set mapping state
+    global.deviceMappingStates['agv_01'] = {
+        active: true,
+        startedAt: new Date().toISOString()
+    };
+    
+    return publishers.startMapping();
+}
+
+function stopMapping() {
+    if (!isInitialized) {
+        throw new Error('ROS2 not initialized');
+    }
+    
+    // Update mapping state
+    if (global.deviceMappingStates['agv_01']) {
+        global.deviceMappingStates['agv_01'].active = false;
+        global.deviceMappingStates['agv_01'].stoppedAt = new Date().toISOString();
+    }
+    
+    return publishers.stopMapping();
 }
 
 function emergencyStop() {
     return publishVelocity(0.0, 0.0);
 }
 
+// Enhanced joystick control with deadman switch
 function publishJoystick(x, y, deadman = false) {
     try {
-        if (!isInitialized || !publishers.joy) {
-            throw new Error('ROS2 not initialized or joy publisher not available');
+        if (!isInitialized) {
+            throw new Error('ROS2 not initialized');
         }
         
-        const joyMsg = {
-            header: {
-                stamp: { sec: Math.floor(Date.now() / 1000), nanosec: (Date.now() % 1000) * 1000000 },
-                frame_id: 'base_link'
-            },
-            axes: [x, y],
-            buttons: [deadman ? 1 : 0]
-        };
-        
-        publishers.joy.publish(joyMsg);
-        console.log(`🕹️ Published joystick: x=${x}, y=${y}, deadman=${deadman}`);
-        
-        return {
-            success: true,
-            message: 'Joystick command sent successfully',
-            data: { x, y, deadman }
-        };
+        // Only send velocity if deadman switch is active
+        if (deadman) {
+            // Convert joystick values to velocity
+            const linear = y; // Forward/backward
+            const angular = -x; // Left/right (inverted for correct rotation)
+            
+            return publishVelocity(linear, angular);
+        } else {
+            // Stop the robot if deadman not active
+            return publishVelocity(0.0, 0.0);
+        }
         
     } catch (error) {
-        console.error('❌ Failed to publish joystick:', error);
+        console.error('❌ Failed to publish joystick command:', error);
         return {
             success: false,
             error: error.message
@@ -295,19 +162,40 @@ function publishJoystick(x, y, deadman = false) {
 
 // Get ROS2 status
 function getROS2Status() {
-    const topics = rosNode ? rosNode.getTopicNamesAndTypes() : [];
+    if (!rosNode) {
+        return {
+            initialized: false,
+            nodeActive: false,
+            topicsDiscovered: 0,
+            availableTopics: [],
+            error: 'Node not created'
+        };
+    }
     
-    return {
-        initialized: isInitialized,
-        nodeActive: rosNode !== null,
-        publishersCount: Object.keys(publishers).length,
-        subscribersCount: Object.keys(subscribers).length,
-        topicsDiscovered: topics.length,
-        availableTopics: topics.map(t => t.name)
-    };
+    try {
+        const topics = rosNode.getTopicNamesAndTypes();
+        
+        return {
+            initialized: isInitialized,
+            nodeActive: rosNode !== null,
+            topicsDiscovered: topics.length,
+            availableTopics: topics.map(t => t.name),
+            mappingActive: global.deviceMappingStates?.['agv_01']?.active || false,
+            connectedDevices: global.connectedDevices?.length || 0,
+            liveDataKeys: Object.keys(global.liveData || {}),
+            lastUpdate: new Date().toISOString()
+        };
+    } catch (error) {
+        return {
+            initialized: isInitialized,
+            nodeActive: false,
+            error: error.message,
+            lastUpdate: new Date().toISOString()
+        };
+    }
 }
 
-// Test connectivity
+// Test connectivity with your specific topics
 async function testConnectivity() {
     try {
         if (!isInitialized) {
@@ -315,26 +203,113 @@ async function testConnectivity() {
         }
         
         const topics = rosNode.getTopicNamesAndTypes();
-        const agvTopics = ['/cmd_vel', '/diff_drive_controller/odom'];
+        const requiredTopics = ['/cmd_vel', '/pos', '/map', '/joint_states'];
+        const optionalTopics = ['/diff_drive_controller/odom', '/battery_state'];
+        
+        const foundRequired = requiredTopics.filter(topic => 
+            topics.some(t => t.name === topic)
+        );
+        
+        const foundOptional = optionalTopics.filter(topic => 
+            topics.some(t => t.name === topic)
+        );
         
         const results = {
             totalTopics: topics.length,
-            agvTopicsFound: agvTopics.filter(topic => 
-                topics.some(t => t.name === topic)
-            ),
-            publishersActive: Object.keys(publishers).length,
-            subscribersActive: Object.keys(subscribers).length,
-            canPublish: !!publishers.cmdVel,
+            requiredTopicsFound: foundRequired,
+            optionalTopicsFound: foundOptional,
+            missingRequired: requiredTopics.filter(topic => !foundRequired.includes(topic)),
+            canPublishVelocity: true, // We can always try to publish
+            mappingActive: global.deviceMappingStates?.['agv_01']?.active || false,
+            rosStatus: 'connected',
             timestamp: new Date().toISOString()
         };
         
-        console.log('🔍 ROS2 Connectivity Test:', results);
+        console.log('🔍 ROS2 Connectivity Test Results:');
+        console.log(`   📊 Total topics: ${results.totalTopics}`);
+        console.log(`   ✅ Required topics found: ${foundRequired.join(', ')}`);
+        console.log(`   📍 Optional topics found: ${foundOptional.join(', ')}`);
+        
+        if (results.missingRequired.length > 0) {
+            console.log(`   ⚠️ Missing required topics: ${results.missingRequired.join(', ')}`);
+        }
+        
         return results;
         
     } catch (error) {
         console.error('❌ ROS2 connectivity test failed:', error);
-        return { success: false, error: error.message };
+        return { 
+            success: false, 
+            error: error.message,
+            timestamp: new Date().toISOString()
+        };
     }
+}
+
+// Device management functions
+function addConnectedDevice(deviceInfo) {
+    const deviceId = deviceInfo.id || 'agv_01';
+    
+    // Check if device already exists
+    const existingIndex = global.connectedDevices.findIndex(d => d.id === deviceId);
+    
+    if (existingIndex >= 0) {
+        // Update existing device
+        global.connectedDevices[existingIndex] = {
+            ...global.connectedDevices[existingIndex],
+            ...deviceInfo,
+            status: 'connected',
+            lastSeen: new Date().toISOString(),
+            reconnectedAt: new Date().toISOString()
+        };
+    } else {
+        // Add new device
+        global.connectedDevices.push({
+            id: deviceId,
+            ...deviceInfo,
+            status: 'connected',
+            connectedAt: new Date().toISOString(),
+            lastSeen: new Date().toISOString()
+        });
+    }
+    
+    // Initialize device data structures
+    if (!global.liveData[deviceId]) {
+        global.liveData[deviceId] = {};
+    }
+    if (!global.deviceOrders[deviceId]) {
+        global.deviceOrders[deviceId] = [];
+    }
+    if (!global.orderQueue[deviceId]) {
+        global.orderQueue[deviceId] = { current: null, pending: [] };
+    }
+    if (!global.deviceMappingStates[deviceId]) {
+        global.deviceMappingStates[deviceId] = { active: false };
+    }
+    if (!global.robotTrails[deviceId]) {
+        global.robotTrails[deviceId] = [];
+    }
+    
+    console.log(`✅ Device ${deviceId} connected and initialized`);
+    return deviceId;
+}
+
+// Get live data for all devices or specific device
+function getLiveData(deviceId = null) {
+    if (deviceId) {
+        return global.liveData[deviceId] || {};
+    }
+    return global.liveData || {};
+}
+
+// Get current mapping status
+function getMappingStatus(deviceId = 'agv_01') {
+    return {
+        active: global.deviceMappingStates?.[deviceId]?.active || false,
+        startedAt: global.deviceMappingStates?.[deviceId]?.startedAt,
+        stoppedAt: global.deviceMappingStates?.[deviceId]?.stoppedAt,
+        trailLength: global.robotTrails?.[deviceId]?.length || 0
+    };
 }
 
 async function shutdown() {
@@ -342,25 +317,9 @@ async function shutdown() {
         if (rosNode) {
             console.log('🛑 Shutting down ROS2 integration...');
             
-            // Clean up publishers
-            Object.keys(publishers).forEach(key => {
-                try {
-                    publishers[key].destroy();
-                } catch (e) {
-                    // Ignore cleanup errors
-                }
-            });
-            publishers = {};
-            
-            // Clean up subscribers
-            Object.keys(subscribers).forEach(key => {
-                try {
-                    subscribers[key].destroy();
-                } catch (e) {
-                    // Ignore cleanup errors
-                }
-            });
-            subscribers = {};
+            // Cleanup publishers and subscribers
+            publishers.cleanup();
+            subscribers.cleanup();
             
             // Destroy node and shutdown
             rosNode.destroy();
@@ -375,12 +334,33 @@ async function shutdown() {
     }
 }
 
+// Export the node for use by other modules
+function getNode() {
+    return rosNode;
+}
+
 module.exports = {
     initializeROS,
     shutdown,
+    getNode,
+    
+    // Control functions
     publishVelocity,
-    emergencyStop,
     publishJoystick,
+    publishGoal,
+    publishMap,
+    emergencyStop,
+    
+    // Mapping functions
+    startMapping,
+    stopMapping,
+    getMappingStatus,
+    
+    // Device management
+    addConnectedDevice,
+    getLiveData,
+    
+    // Status functions
     getROS2Status,
     testConnectivity,
     isRosInitialized: () => isInitialized

@@ -1,4 +1,4 @@
-//screens/map_page.dart - Enhanced Map Page with Real-time Integration
+// screens/map_page.dart - Simplified for Integration
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/web_socket_service.dart';
@@ -23,7 +23,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   late TabController _tabController;
   late StreamSubscription _realTimeSubscription;
   late StreamSubscription _mapEventsSubscription;
-  late StreamSubscription _orderEventsSubscription;
   late StreamSubscription _deviceEventsSubscription;
 
   MapData? _currentMap;
@@ -33,12 +32,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   bool _hasUnsavedChanges = false;
   bool _isWebSocketConnected = false;
 
-  // Order management
-  List<Map<String, dynamic>> _orders = <Map<String, dynamic>>[];
-  List<odom.Position> _currentOrderWaypoints = [];
-  String _orderName = '';
-  final _orderNameController = TextEditingController();
-
   // Real-time data
   Map<String, dynamic>? _realTimeMapData;
   odom.OdometryData? _currentOdometry;
@@ -46,7 +39,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this); // Reduced to 2 tabs
     _selectedDeviceId = widget.deviceId;
 
     _initializeConnections();
@@ -55,7 +48,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
     if (_selectedDeviceId != null) {
       _loadMapForDevice(_selectedDeviceId!);
-      _loadOrdersForDevice(_selectedDeviceId!);
     }
   }
 
@@ -64,9 +56,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     _tabController.dispose();
     _realTimeSubscription.cancel();
     _mapEventsSubscription.cancel();
-    _orderEventsSubscription.cancel();
     _deviceEventsSubscription.cancel();
-    _orderNameController.dispose();
     super.dispose();
   }
 
@@ -115,13 +105,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       }
     });
 
-    // Subscribe to order events
-    _orderEventsSubscription = _webSocketService.orderEvents.listen((event) {
-      if (event['deviceId'] == _selectedDeviceId) {
-        _loadOrdersForDevice(_selectedDeviceId!);
-      }
-    });
-
     // Subscribe to device events
     _deviceEventsSubscription = _webSocketService.deviceEvents.listen((event) {
       _loadConnectedDevices();
@@ -142,7 +125,12 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           _realTimeMapData = data['data'];
           break;
         case 'odometry_update':
-          _currentOdometry = odom.OdometryData.fromJson(data['data']);
+        case 'position_update':
+          try {
+            _currentOdometry = odom.OdometryData.fromJson(data['data']);
+          } catch (e) {
+            print('❌ Error parsing odometry data: $e');
+          }
           break;
       }
     });
@@ -152,7 +140,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     switch (data['type']) {
       case 'map_edited':
         print('🗺️ Map edited by another client: ${data['editType']}');
-        // Optionally show notification
         _showInfoSnackBar('Map updated by another client');
         break;
       case 'map_updated':
@@ -164,25 +151,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   void _loadConnectedDevices() async {
     try {
       final devices = await _apiService.getDevices();
-
-      List<Map<String, dynamic>> devicesList = <Map<String, dynamic>>[];
-
-      // Convert the response to the expected format
-      for (final device in devices) {
-        if (device != null && device is Map) {
-          // Convert to Map<String, dynamic>
-          Map<String, dynamic> deviceMap = <String, dynamic>{};
-          device.forEach((key, value) {
-            if (key != null) {
-              deviceMap[key.toString()] = value;
-            }
-          });
-          devicesList.add(deviceMap);
-        }
-      }
-
       setState(() {
-        _connectedDevices = devicesList;
+        _connectedDevices = devices;
       });
     } catch (e) {
       print('❌ Error loading devices: $e');
@@ -217,8 +187,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           print('✅ Map loaded successfully for device: $deviceId');
         } catch (parseError) {
           print('❌ Error parsing map data: $parseError');
-          print('📋 Raw map data: ${response['mapData']}');
-          // Create empty map if parsing fails
           setState(() {
             _currentMap = _createEmptyMap(deviceId);
             _hasUnsavedChanges = false;
@@ -226,7 +194,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           _showWarningSnackBar('Map data corrupted. Created new empty map.');
         }
       } else {
-        // Create empty map if none exists
         setState(() {
           _currentMap = _createEmptyMap(deviceId);
           _hasUnsavedChanges = false;
@@ -237,7 +204,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
       print('❌ Error loading map: $e');
       if (e is ApiException) {
         if (e.isNotFound) {
-          // Map doesn't exist, create empty one
           setState(() {
             _currentMap = _createEmptyMap(deviceId);
             _hasUnsavedChanges = false;
@@ -258,47 +224,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     } finally {
       setState(() {
         _isLoading = false;
-      });
-    }
-  }
-
-  void _loadOrdersForDevice(String deviceId) async {
-    try {
-      final orders = await _apiService.getOrders(deviceId);
-
-      List<Map<String, dynamic>> ordersList = <Map<String, dynamic>>[];
-
-      // Convert the response to the expected format
-      for (final order in orders) {
-        if (order != null && order is Map) {
-          Map<String, dynamic> orderMap = <String, dynamic>{};
-          order.forEach((key, value) {
-            if (key != null) {
-              orderMap[key.toString()] = value;
-            }
-          });
-          ordersList.add(orderMap);
-        }
-      }
-
-      setState(() {
-        _orders = ordersList;
-      });
-    } catch (e) {
-      print('❌ Error loading orders: $e');
-      if (e is ApiException) {
-        if (e.isNotFound) {
-          setState(() {
-            _orders = <Map<String, dynamic>>[];
-          });
-        } else {
-          _showErrorSnackBar('Failed to load orders: ${e.message}');
-        }
-      } else {
-        _showErrorSnackBar('Failed to load orders: $e');
-      }
-      setState(() {
-        _orders = <Map<String, dynamic>>[];
       });
     }
   }
@@ -385,22 +310,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             itemBuilder: (context) => [
               PopupMenuItem(
                 child: ListTile(
-                  leading: Icon(Icons.download),
-                  title: Text('Export Map'),
-                  dense: true,
-                ),
-                onTap: _exportMap,
-              ),
-              PopupMenuItem(
-                child: ListTile(
-                  leading: Icon(Icons.upload),
-                  title: Text('Import Map'),
-                  dense: true,
-                ),
-                onTap: _importMap,
-              ),
-              PopupMenuItem(
-                child: ListTile(
                   leading: Icon(Icons.clear_all),
                   title: Text('Clear All'),
                   dense: true,
@@ -422,7 +331,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
           controller: _tabController,
           tabs: [
             Tab(icon: Icon(Icons.map), text: 'Edit Map'),
-            Tab(icon: Icon(Icons.route), text: 'Orders'),
             Tab(icon: Icon(Icons.list), text: 'Locations'),
           ],
         ),
@@ -435,7 +343,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   controller: _tabController,
                   children: [
                     _buildMapEditorTab(),
-                    _buildOrdersTab(),
                     _buildLocationsTab(),
                   ],
                 ),
@@ -482,13 +389,11 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             setState(() {
               _selectedDeviceId = deviceId;
               _currentMap = null;
-              _orders.clear();
               _hasUnsavedChanges = false;
               _realTimeMapData = null;
               _currentOdometry = null;
             });
             _loadMapForDevice(deviceId);
-            _loadOrdersForDevice(deviceId);
 
             // Subscribe to real-time updates for new device
             if (_isWebSocketConnected) {
@@ -565,9 +470,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                   final device = _connectedDevices[index];
                   final deviceId = device['id']?.toString() ?? '';
                   final deviceName = device['name']?.toString() ?? deviceId;
-                  final deviceStatus =
-                      device['status']?.toString() ?? 'unknown';
-                  final hasMap = device['hasMap'] == true;
+                  final deviceStatus = device['status']?.toString() ?? 'unknown';
 
                   return Card(
                     child: ListTile(
@@ -585,8 +488,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                                 color: deviceStatus == 'connected'
                                     ? Colors.green
                                     : Colors.grey,
-                                border:
-                                    Border.all(color: Colors.white, width: 2),
+                                border: Border.all(color: Colors.white, width: 2),
                               ),
                             ),
                           ),
@@ -598,9 +500,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                         children: [
                           Text('ID: $deviceId'),
                           Text('Status: $deviceStatus'),
-                          if (hasMap)
-                            Text('✓ Has map data',
-                                style: TextStyle(color: Colors.green)),
                         ],
                       ),
                       trailing: deviceStatus == 'connected'
@@ -611,7 +510,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                           _selectedDeviceId = deviceId;
                         });
                         _loadMapForDevice(deviceId);
-                        _loadOrdersForDevice(deviceId);
                       },
                     ),
                   );
@@ -679,363 +577,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
             onMapChanged: _onMapChanged,
             deviceId: _selectedDeviceId,
             enableRealTimeUpdates: _isWebSocketConnected,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOrdersTab() {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _buildCreateOrderCard(),
-          SizedBox(height: 16),
-          _buildOrdersListCard(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCreateOrderCard() {
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Create New Order',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 16),
-            TextFormField(
-              controller: _orderNameController,
-              decoration: InputDecoration(
-                labelText: 'Order Name',
-                border: OutlineInputBorder(),
-                hintText: 'e.g., Pickup and Delivery Route 1',
-              ),
-              onChanged: (value) {
-                setState(() {
-                  _orderName = value;
-                });
-              },
-            ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                Text('Waypoints:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                Spacer(),
-                Text('${_currentOrderWaypoints.length} points'),
-              ],
-            ),
-            SizedBox(height: 8),
-            if (_currentOrderWaypoints.isEmpty)
-              Container(
-                padding: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info, color: Colors.blue),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Add waypoints by selecting locations from the map or location list',
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              Container(
-                constraints: BoxConstraints(maxHeight: 200),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _currentOrderWaypoints.length,
-                  itemBuilder: (context, index) {
-                    final waypoint = _currentOrderWaypoints[index];
-                    return ListTile(
-                      dense: true,
-                      leading: CircleAvatar(
-                        child: Text('${index + 1}'),
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        radius: 16,
-                      ),
-                      title: Text('Waypoint ${index + 1}'),
-                      subtitle: Text(
-                          'X: ${waypoint.x.toStringAsFixed(2)}, Y: ${waypoint.y.toStringAsFixed(2)}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (index > 0)
-                            IconButton(
-                              icon: Icon(Icons.keyboard_arrow_up),
-                              onPressed: () => _moveWaypoint(index, index - 1),
-                              iconSize: 20,
-                            ),
-                          if (index < _currentOrderWaypoints.length - 1)
-                            IconButton(
-                              icon: Icon(Icons.keyboard_arrow_down),
-                              onPressed: () => _moveWaypoint(index, index + 1),
-                              iconSize: 20,
-                            ),
-                          IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _removeWaypoint(index),
-                            iconSize: 20,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _addWaypointFromLocations,
-                    icon: Icon(Icons.add_location),
-                    label: Text('Add from Locations'),
-                  ),
-                ),
-                SizedBox(width: 8),
-                if (_currentOdometry != null)
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _addCurrentPositionAsWaypoint,
-                      icon: Icon(Icons.my_location),
-                      label: Text('Add Current Pos'),
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange),
-                    ),
-                  ),
-              ],
-            ),
-            SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed:
-                    _orderName.isNotEmpty && _currentOrderWaypoints.isNotEmpty
-                        ? _createOrder
-                        : null,
-                icon: Icon(Icons.save),
-                label: Text('Create Order'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOrdersListCard() {
-    return Card(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Orders (${_orders.length})',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                Spacer(),
-                TextButton(
-                  onPressed: () => _loadOrdersForDevice(_selectedDeviceId!),
-                  child: Text('Refresh'),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            if (_orders.isEmpty)
-              Container(
-                padding: EdgeInsets.all(24),
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: [
-                    Icon(Icons.list_alt, size: 48, color: Colors.grey),
-                    SizedBox(height: 8),
-                    Text('No orders created yet'),
-                  ],
-                ),
-              )
-            else
-              ListView.separated(
-                shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-                itemCount: _orders.length,
-                separatorBuilder: (context, index) => Divider(),
-                itemBuilder: (context, index) {
-                  final order = _orders[index];
-                  return _buildOrderListItem(order, index);
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOrderListItem(Map<String, dynamic> order, int index) {
-    final status = order['status']?.toString() ?? 'pending';
-    Color statusColor;
-    IconData statusIcon;
-
-    switch (status) {
-      case 'completed':
-        statusColor = Colors.green;
-        statusIcon = Icons.check_circle;
-        break;
-      case 'active':
-        statusColor = Colors.blue;
-        statusIcon = Icons.play_circle;
-        break;
-      case 'failed':
-        statusColor = Colors.red;
-        statusIcon = Icons.error;
-        break;
-      case 'cancelled':
-        statusColor = Colors.orange;
-        statusIcon = Icons.cancel;
-        break;
-      default:
-        statusColor = Colors.grey;
-        statusIcon = Icons.pending;
-    }
-
-    final orderName = order['name']?.toString() ?? 'Order ${index + 1}';
-    final waypoints = order['waypoints'] as List? ?? [];
-    final createdAt = order['createdAt']?.toString();
-
-    return ExpansionTile(
-      leading: CircleAvatar(
-        child: Text('${index + 1}'),
-        backgroundColor: statusColor,
-        foregroundColor: Colors.white,
-      ),
-      title: Text(orderName),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(statusIcon, size: 16, color: statusColor),
-              SizedBox(width: 4),
-              Text(
-                status.toUpperCase(),
-                style:
-                    TextStyle(color: statusColor, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          Text('Waypoints: ${waypoints.length}'),
-          if (createdAt != null)
-            Text(
-                'Created: ${DateTime.parse(createdAt).toLocal().toString().split('.')[0]}'),
-        ],
-      ),
-      trailing: PopupMenuButton(
-        itemBuilder: (context) => [
-          if (status == 'pending')
-            PopupMenuItem(
-              value: 'execute',
-              child: Row(
-                children: [
-                  Icon(Icons.play_arrow, color: Colors.green),
-                  SizedBox(width: 8),
-                  Text('Execute'),
-                ],
-              ),
-            ),
-          if (status == 'active')
-            PopupMenuItem(
-              value: 'pause',
-              child: Row(
-                children: [
-                  Icon(Icons.pause, color: Colors.orange),
-                  SizedBox(width: 8),
-                  Text('Pause'),
-                ],
-              ),
-            ),
-          PopupMenuItem(
-            value: 'duplicate',
-            child: Row(
-              children: [
-                Icon(Icons.copy),
-                SizedBox(width: 8),
-                Text('Duplicate'),
-              ],
-            ),
-          ),
-          PopupMenuItem(
-            value: 'delete',
-            child: Row(
-              children: [
-                Icon(Icons.delete, color: Colors.red),
-                SizedBox(width: 8),
-                Text('Delete'),
-              ],
-            ),
-          ),
-        ],
-        onSelected: (value) => _handleOrderAction(order, value.toString()),
-      ),
-      children: [
-        Padding(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Waypoints:', style: TextStyle(fontWeight: FontWeight.bold)),
-              SizedBox(height: 8),
-              if (waypoints.isNotEmpty)
-                ...List.generate(
-                  waypoints.length,
-                  (i) {
-                    final waypoint =
-                        waypoints[i] as Map<String, dynamic>? ?? {};
-                    final x = waypoint['x']?.toString() ?? '0';
-                    final y = waypoint['y']?.toString() ?? '0';
-                    return Padding(
-                      padding: EdgeInsets.symmetric(vertical: 2),
-                      child: Text('${i + 1}. X: $x, Y: $y'),
-                    );
-                  },
-                ),
-              if (order['progress'] != null) ...[
-                SizedBox(height: 8),
-                Text('Progress:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                LinearProgressIndicator(
-                  value: (order['progress']['completedWaypoints'] ?? 0) /
-                      (order['progress']['totalWaypoints'] ?? 1),
-                ),
-                Text(
-                  '${order['progress']['completedWaypoints'] ?? 0}/${order['progress']['totalWaypoints'] ?? 0} waypoints completed',
-                ),
-              ],
-            ],
           ),
         ),
       ],
@@ -1124,12 +665,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   Widget _buildLocationListItem(MapShape location) {
     Color color;
     try {
-      // Safe color parsing
       final colorString = location.color.replaceAll('#', '');
       final colorValue = int.tryParse('0xFF$colorString') ?? 0xFF000000;
       color = Color(colorValue);
     } catch (e) {
-      // Fallback to black if color parsing fails
       color = Colors.black;
     }
 
@@ -1158,20 +697,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 'Sides: ${location.sides.entries.where((e) => e.value.isNotEmpty).map((e) => '${e.key}: ${e.value}').join(', ')}'),
         ],
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: Icon(Icons.add_location),
-            onPressed: () => _addLocationToOrder(location),
-            tooltip: 'Add to Order',
-          ),
-          IconButton(
-            icon: Icon(Icons.navigation),
-            onPressed: () => _navigateToLocation(location),
-            tooltip: 'Navigate Here',
-          ),
-        ],
+      trailing: IconButton(
+        icon: Icon(Icons.navigation),
+        onPressed: () => _navigateToLocation(location),
+        tooltip: 'Navigate Here',
       ),
     );
   }
@@ -1207,7 +736,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     try {
       await _apiService.saveMapData(
         deviceId: _selectedDeviceId!,
-        mapData: _currentMap!.toJson(),
+        mapData: _currentMap!,
       );
 
       setState(() {
@@ -1263,9 +792,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
                 if (info['serverInfo'] != null) ...[
                   SizedBox(height: 16),
                   Text('Server Info:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  _buildInfoRow('Server Status', info['serverInfo']['data']['status']),
-                  _buildInfoRow('ROS2 Status', info['serverInfo']['data']['ros2Status']),
-                  _buildInfoRow('Connected Devices', info['serverInfo']['data']['connectedDevices'].toString()),
+                  _buildInfoRow('Server Status', info['serverInfo']['status']),
                 ],
                 if (info['error'] != null) ...[
                   SizedBox(height: 16),
@@ -1312,218 +839,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
-  void _addWaypointFromLocations() {
-    if (_currentMap == null) return;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Add Waypoint'),
-        content: Container(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: _currentMap!.shapes.length,
-            itemBuilder: (context, index) {
-              final location = _currentMap!.shapes[index];
-              return ListTile(
-                leading: Icon(_getLocationIcon(location.type)),
-                title: Text(location.name),
-                subtitle: Text(location.type.toUpperCase()),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _addLocationToOrder(location);
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _addCurrentPositionAsWaypoint() {
-    if (_currentOdometry == null) return;
-
-    setState(() {
-      _currentOrderWaypoints.add(odom.Position(
-        x: _currentOdometry!.position.x,
-        y: _currentOdometry!.position.y,
-        z: 0,
-      ));
-    });
-
-    _showInfoSnackBar('Current position added as waypoint');
-  }
-
-  void _addLocationToOrder(MapShape location) {
-    setState(() {
-      _currentOrderWaypoints.add(location.center);
-    });
-
-    _showInfoSnackBar('${location.name} added to order');
-  }
-
-  void _removeWaypoint(int index) {
-    setState(() {
-      _currentOrderWaypoints.removeAt(index);
-    });
-  }
-
-  void _moveWaypoint(int from, int to) {
-    setState(() {
-      final waypoint = _currentOrderWaypoints.removeAt(from);
-      _currentOrderWaypoints.insert(to, waypoint);
-    });
-  }
-
-  void _createOrder() async {
-    if (_selectedDeviceId == null ||
-        _orderName.isEmpty ||
-        _currentOrderWaypoints.isEmpty) return;
-
-    try {
-      final waypoints =
-          _currentOrderWaypoints.map((pos) => pos.toJson()).toList();
-
-      await _apiService.createOrder(
-        deviceId: _selectedDeviceId!,
-        waypoints: waypoints,
-        orderName: _orderName,
-      );
-
-      setState(() {
-        _orderName = '';
-        _currentOrderWaypoints.clear();
-      });
-      _orderNameController.clear();
-
-      _loadOrdersForDevice(_selectedDeviceId!);
-      _showInfoSnackBar('Order created successfully');
-    } catch (e) {
-      if (e is ApiException) {
-        _showErrorSnackBar('Failed to create order: ${e.message}');
-      } else {
-        _showErrorSnackBar('Failed to create order: $e');
-      }
-    }
-  }
-
-  void _handleOrderAction(Map<String, dynamic> order, String action) async {
-    switch (action) {
-      case 'execute':
-        await _executeOrder(order);
-        break;
-      case 'pause':
-        await _pauseOrder(order);
-        break;
-      case 'duplicate':
-        await _duplicateOrder(order);
-        break;
-      case 'delete':
-        await _deleteOrder(order);
-        break;
-    }
-  }
-
-  Future<void> _executeOrder(Map<String, dynamic> order) async {
-    try {
-      final orderId = order['id']?.toString();
-      if (orderId == null) return;
-
-      await _apiService.updateOrderStatus(
-        orderId: orderId,
-        status: 'active',
-      );
-
-      _loadOrdersForDevice(_selectedDeviceId!);
-      _showInfoSnackBar('Order execution started');
-    } catch (e) {
-      if (e is ApiException) {
-        _showErrorSnackBar('Failed to execute order: ${e.message}');
-      } else {
-        _showErrorSnackBar('Failed to execute order: $e');
-      }
-    }
-  }
-
-  Future<void> _pauseOrder(Map<String, dynamic> order) async {
-    try {
-      final orderId = order['id']?.toString();
-      if (orderId == null) return;
-
-      await _apiService.updateOrderStatus(
-        orderId: orderId,
-        status: 'paused',
-      );
-
-      _loadOrdersForDevice(_selectedDeviceId!);
-      _showInfoSnackBar('Order paused');
-    } catch (e) {
-      if (e is ApiException) {
-        _showErrorSnackBar('Failed to pause order: ${e.message}');
-      } else {
-        _showErrorSnackBar('Failed to pause order: $e');
-      }
-    }
-  }
-
-  Future<void> _duplicateOrder(Map<String, dynamic> order) async {
-    try {
-      final orderName = order['name']?.toString() ?? 'Order';
-      final waypoints = order['waypoints'] as List? ?? [];
-
-      await _apiService.createOrder(
-        deviceId: _selectedDeviceId!,
-        waypoints: waypoints.cast<Map<String, dynamic>>(),
-        orderName: '${orderName}_copy',
-      );
-
-      _loadOrdersForDevice(_selectedDeviceId!);
-      _showInfoSnackBar('Order duplicated successfully');
-    } catch (e) {
-      if (e is ApiException) {
-        _showErrorSnackBar('Failed to duplicate order: ${e.message}');
-      } else {
-        _showErrorSnackBar('Failed to duplicate order: $e');
-      }
-    }
-  }
-
-  Future<void> _deleteOrder(Map<String, dynamic> order) async {
-    final orderName = order['name']?.toString() ?? 'this order';
-
-    // Show confirmation dialog
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete Order'),
-        content: Text('Are you sure you want to delete "$orderName"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      // Implementation would depend on having a delete endpoint
-      _showInfoSnackBar('Delete order functionality not implemented');
-    }
-  }
-
   void _navigateToLocation(MapShape location) async {
     if (_selectedDeviceId == null) return;
 
@@ -1543,14 +858,6 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         _showErrorSnackBar('Failed to set navigation goal: $e');
       }
     }
-  }
-
-  void _exportMap() async {
-    _showInfoSnackBar('Export functionality not implemented');
-  }
-
-  void _importMap() async {
-    _showInfoSnackBar('Import functionality not implemented');
   }
 
   void _clearAllData() async {
@@ -1574,26 +881,13 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
 
     if (confirmed == true && _currentMap != null) {
-      // Safe version increment
-      int newVersion = 1;
-      try {
-        if (_currentMap!.version is int) {
-          newVersion = (_currentMap!.version as int) + 1;
-        } else if (_currentMap!.version is String) {
-          newVersion = (int.tryParse(_currentMap!.version.toString()) ?? 0) + 1;
-        }
-      } catch (e) {
-        print('Error parsing version: $e');
-        newVersion = 1;
-      }
-
       final clearedMap = MapData(
         deviceId: _currentMap!.deviceId,
         timestamp: DateTime.now(),
         info: _currentMap!.info,
         occupancyData: _currentMap!.occupancyData,
         shapes: [],
-        version: newVersion,
+        version: _currentMap!.version + 1,
       );
 
       _onMapChanged(clearedMap);

@@ -1,24 +1,41 @@
-//services/websocket_service.dart - Fixed Version
+//services/websocket_service.dart - Restructured for Better Organization
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 
 class WebSocketService {
+  // ==========================================
+  // SINGLETON SETUP & CONSTANTS
+  // ==========================================
   static final WebSocketService _instance = WebSocketService._internal();
   factory WebSocketService() => _instance;
   WebSocketService._internal();
 
+  static const int maxReconnectAttempts = 10;
+  static const Duration pingInterval = Duration(seconds: 5);
+  static const Duration connectionTimeout = Duration(seconds: 15);
+
+  // ==========================================
+  // FIELDS & PROPERTIES
+  // ==========================================
   WebSocketChannel? _channel;
   String? _clientId;
+  String? _serverUrl;
+  
+  // Connection state
   bool _isConnected = false;
+  bool _isReconnecting = false;
+  int _reconnectAttempts = 0;
+  DateTime? _lastPongReceived;
+
+  // Timers
   Timer? _heartbeatTimer;
   Timer? _reconnectTimer;
-  String? _serverUrl;
-  int _reconnectAttempts = 0;
-  static const int maxReconnectAttempts = 5;
-  
+  Timer? _pingTimer;
+
   // Stream controllers for different message types (matching backend topics)
   StreamController<Map<String, dynamic>>? _realTimeDataController;
   StreamController<Map<String, dynamic>>? _controlEventsController;
@@ -29,54 +46,50 @@ class WebSocketService {
   StreamController<bool>? _connectionStateController;
   StreamController<String>? _errorController;
 
-  // Initialize controllers
-  void _initializeControllers() {
-    _realTimeDataController ??= StreamController<Map<String, dynamic>>.broadcast();
-    _controlEventsController ??= StreamController<Map<String, dynamic>>.broadcast();
-    _mappingEventsController ??= StreamController<Map<String, dynamic>>.broadcast();
-    _mapEventsController ??= StreamController<Map<String, dynamic>>.broadcast();
-    _orderEventsController ??= StreamController<Map<String, dynamic>>.broadcast();
-    _deviceEventsController ??= StreamController<Map<String, dynamic>>.broadcast();
-    _connectionStateController ??= StreamController<bool>.broadcast();
-    _errorController ??= StreamController<String>.broadcast();
-  }
+  // ==========================================
+  // GETTERS - PROPERTIES
+  // ==========================================
+  bool get isConnected => _isConnected;
+  String? get clientId => _clientId;
 
-  // Public streams (matching backend topics)
+  // ==========================================
+  // GETTERS - STREAMS
+  // ==========================================
   Stream<Map<String, dynamic>> get realTimeData {
     _initializeControllers();
     return _realTimeDataController!.stream;
   }
-  
+
   Stream<Map<String, dynamic>> get controlEvents {
     _initializeControllers();
     return _controlEventsController!.stream;
   }
-  
+
   Stream<Map<String, dynamic>> get mappingEvents {
     _initializeControllers();
     return _mappingEventsController!.stream;
   }
-  
+
   Stream<Map<String, dynamic>> get mapEvents {
     _initializeControllers();
     return _mapEventsController!.stream;
   }
-  
+
   Stream<Map<String, dynamic>> get orderEvents {
     _initializeControllers();
     return _orderEventsController!.stream;
   }
-  
+
   Stream<Map<String, dynamic>> get deviceEvents {
     _initializeControllers();
     return _deviceEventsController!.stream;
   }
-  
+
   Stream<bool> get connectionState {
     _initializeControllers();
     return _connectionStateController!.stream;
   }
-  
+
   Stream<String> get errors {
     _initializeControllers();
     return _errorController!.stream;
@@ -86,11 +99,11 @@ class WebSocketService {
   Stream<Map<String, dynamic>> get odometry => realTimeData
       .where((data) => data['type'] == 'odometry_update')
       .map((data) => data['data'] ?? {});
-      
+
   Stream<Map<String, dynamic>> get mapData => realTimeData
       .where((data) => data['type'] == 'map_update')
       .map((data) => data['data'] ?? {});
-      
+
   Stream<Map<String, dynamic>> get batteryState => realTimeData
       .where((data) => data['type'] == 'battery_update')
       .map((data) => data['data'] ?? {});
@@ -103,153 +116,312 @@ class WebSocketService {
       .where((data) => data['type'] == 'alert')
       .map((data) => data['data'] ?? {});
 
-  bool get isConnected => _isConnected;
-  String? get clientId => _clientId;
-
-  Future<bool> connect(String serverUrl) async {
-    _serverUrl = serverUrl;
-    _initializeControllers();
-    return await _attemptConnection();
+  // ==========================================
+  // INITIALIZATION METHODS
+  // ==========================================
+  void _initializeControllers() {
+    _realTimeDataController ??=
+        StreamController<Map<String, dynamic>>.broadcast();
+    _controlEventsController ??=
+        StreamController<Map<String, dynamic>>.broadcast();
+    _mappingEventsController ??=
+        StreamController<Map<String, dynamic>>.broadcast();
+    _mapEventsController ??= StreamController<Map<String, dynamic>>.broadcast();
+    _orderEventsController ??=
+        StreamController<Map<String, dynamic>>.broadcast();
+    _deviceEventsController ??=
+        StreamController<Map<String, dynamic>>.broadcast();
+    _connectionStateController ??= StreamController<bool>.broadcast();
+    _errorController ??= StreamController<String>.broadcast();
   }
 
-  Future<bool> _attemptConnection() async {
+  void _subscribeToTopics() {
+    subscribe('real_time_data');
+    subscribe('control_events');
+    subscribe('mapping_events');
+    subscribe('map_events');
+    subscribe('order_events');
+    subscribe('device_events');
+  }
+
+  // ==========================================
+  // CONNECTION METHODS
+  // ==========================================
+  Future<bool> connect(
+    String serverUrl, {
+    String? deviceId,
+    Map<String, dynamic>? deviceInfo,
+  }) async {
+    _serverUrl = serverUrl;
+    _initializeControllers();
+    return await _attemptConnection(
+      deviceId: deviceId,
+      deviceInfo: deviceInfo,
+    );
+  }
+
+  Future<bool> _attemptConnection({
+    String? deviceId,
+    Map<String, dynamic>? deviceInfo,
+  }) async {
+    if (_isReconnecting) {
+      print('🔄 Already attempting to reconnect, skipping...');
+      return false;
+    }
+
+    _isReconnecting = true;
+
     try {
-      // Close existing connection but don't dispose controllers
+      // Close existing connection properly
       if (_channel != null) {
-        await _channel!.sink.close();
+        try {
+          await _channel!.sink.close(1000, 'Reconnecting');
+        } catch (e) {
+          print('⚠️ Error closing existing connection: $e');
+        }
         _channel = null;
       }
 
       print('🔌 Connecting to WebSocket server: $_serverUrl');
-      
-      // Add URL validation
-      final uri = Uri.parse(_serverUrl!);
-      print('📋 Parsed URI: scheme=${uri.scheme}, host=${uri.host}, port=${uri.port}');
-      
-      if (uri.scheme != 'ws' && uri.scheme != 'wss') {
-        throw Exception('Invalid WebSocket scheme: ${uri.scheme}. Expected ws:// or wss://');
-      }
 
+      final uri = Uri.parse(_serverUrl!);
+
+      // Create connection with TCP keep-alive
       _channel = IOWebSocketChannel.connect(
         uri,
         protocols: ['websocket'],
-        connectTimeout: Duration(seconds: 10),
+        connectTimeout: connectionTimeout,
       );
 
-      // Wait for connection with timeout
+      // Test connection by sending ping
       bool connectionEstablished = false;
       final completer = Completer<bool>();
-      
-      // Set up listeners before waiting
+
       late StreamSubscription subscription;
+      Timer? timeoutTimer;
+
+      timeoutTimer = Timer(connectionTimeout, () {
+        if (!connectionEstablished) {
+          print('⏰ Connection timeout');
+          subscription.cancel();
+          completer.complete(false);
+        }
+      });
+
       subscription = _channel!.stream.listen(
         (data) {
-          print('📨 Message received: $data');
           if (!connectionEstablished) {
             connectionEstablished = true;
+            timeoutTimer?.cancel();
             subscription.cancel();
+
+            // Send device info after connection established
+            if (deviceId != null || deviceInfo != null) {
+              sendMessage({
+                'type': 'register_device',
+                if (deviceId != null) 'deviceId': deviceId,
+                if (deviceInfo != null) 'deviceInfo': deviceInfo,
+              });
+            }
+
+            // Set up permanent listener
+            _setupPermanentListener();
+
             completer.complete(true);
-          } else {
-            _handleMessage(data);
           }
         },
         onError: (error) {
           print('❌ WebSocket stream error: $error');
           if (!connectionEstablished) {
             connectionEstablished = true;
+            timeoutTimer?.cancel();
             subscription.cancel();
             completer.complete(false);
-          } else {
-            _handleError(error);
           }
         },
         onDone: () {
-          print('🔌 WebSocket stream closed');
+          print('🔌 WebSocket stream closed during connection');
           if (!connectionEstablished) {
             connectionEstablished = true;
+            timeoutTimer?.cancel();
             subscription.cancel();
             completer.complete(false);
-          } else {
-            _handleDisconnection();
           }
         },
       );
 
-      // Wait for connection confirmation or timeout
-      final result = await Future.any([
-        completer.future,
-        Future.delayed(Duration(seconds: 10), () => false),
-      ]);
+      final result = await completer.future;
 
       if (result) {
-        // Set up proper listener for ongoing messages
-        _channel!.stream.listen(
-          _handleMessage,
-          onError: _handleError,
-          onDone: _handleDisconnection,
-        );
-        
         _reconnectAttempts = 0;
+        _isConnected = true;
+        _isReconnecting = false;
+
+        _startApplicationPing();
         _startHeartbeat();
         _subscribeToTopics();
-        print('✅ WebSocket connected successfully with client ID: $_clientId');
+
+        print('✅ WebSocket connected successfully');
+
+        if (_connectionStateController != null &&
+            !_connectionStateController!.isClosed) {
+          _connectionStateController!.add(true);
+        }
+
         return true;
       } else {
-        print('❌ WebSocket connection timeout or failed');
-        if (_channel != null) {
-          await _channel!.sink.close();
-          _channel = null;
-        }
+        print('❌ WebSocket connection failed');
+        _cleanup();
         return false;
       }
     } catch (e) {
       print('❌ Failed to connect to WebSocket: $e');
-      print('📊 Connection details: serverUrl=$_serverUrl');
-      _handleDisconnection();
+      _cleanup();
       return false;
+    } finally {
+      _isReconnecting = false;
     }
   }
 
-  Future<void> disconnect() async {
-    try {
-      _stopHeartbeat();
-      _stopReconnectTimer();
-      
-      if (_channel != null) {
-        await _channel!.sink.close();
-        _channel = null;
+  void _setupPermanentListener() {
+    _channel!.stream.listen(
+      _handleMessage,
+      onError: (error) {
+        print('❌ WebSocket error: $error');
+        _handleDisconnection();
+      },
+      onDone: () {
+        print('🔌 WebSocket connection closed');
+        _handleDisconnection();
+      },
+    );
+  }
+
+  void disconnect() {
+    _isConnected = false;
+    _clientId = null;
+    _stopApplicationPing();
+    _stopHeartbeat();
+    _stopReconnectTimer();
+    if (_channel != null) {
+      try {
+        _channel!.sink.close();
+      } catch (e) {
+        // Ignore cleanup errors
       }
-      
-      _isConnected = false;
-      _clientId = null;
-      
-      if (_connectionStateController != null && !_connectionStateController!.isClosed) {
-        _connectionStateController!.add(false);
-      }
-      
-      print('🔌 WebSocket disconnected');
-    } catch (e) {
-      print('❌ Error during disconnect: $e');
+      _channel = null;
+    }
+    if (_connectionStateController != null &&
+        !_connectionStateController!.isClosed) {
+      _connectionStateController!.add(false);
     }
   }
 
+  // ==========================================
+  // PING/HEARTBEAT METHODS
+  // ==========================================
+  void _startApplicationPing() {
+    _stopApplicationPing();
+
+    _pingTimer = Timer.periodic(pingInterval, (timer) {
+      if (_isConnected && _channel != null) {
+        try {
+          // Send application-level ping
+          sendMessage({
+            'type': 'ping',
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+
+          // Check if we received a recent pong
+          if (_lastPongReceived != null) {
+            final timeSincePong = DateTime.now().difference(_lastPongReceived!);
+            if (timeSincePong > Duration(seconds: 30)) {
+              print(
+                  '💔 No pong received for ${timeSincePong.inSeconds}s, reconnecting...');
+              _handleDisconnection();
+              return;
+            }
+          }
+        } catch (e) {
+          print('❌ Error sending ping: $e');
+          _handleDisconnection();
+        }
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  void _stopApplicationPing() {
+    _pingTimer?.cancel();
+    _pingTimer = null;
+  }
+
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(Duration(seconds: 20), (timer) {
+      if (_isConnected) {
+        sendMessage({
+          'type': 'heartbeat',
+          'timestamp': DateTime.now().toIso8601String()
+        });
+      }
+    });
+  }
+
+  void _stopHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+  }
+
+  void _sendHeartbeatAck() {
+    sendMessage({
+      'type': 'heartbeat_ack',
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
+  // ==========================================
+  // MESSAGE HANDLING METHODS
+  // ==========================================
   void _handleMessage(dynamic data) {
     try {
       final message = json.decode(data);
-      
+
       switch (message['type']) {
         case 'connection':
           _isConnected = true;
           _clientId = message['clientId'];
-          if (_connectionStateController != null && !_connectionStateController!.isClosed) {
+          if (_connectionStateController != null &&
+              !_connectionStateController!.isClosed) {
             _connectionStateController!.add(true);
           }
           print('✅ Connection established with client ID: $_clientId');
-          
-          // Send capabilities info
-          final capabilities = message['capabilities'];
-          if (capabilities != null) {
-            print('🚀 Server capabilities: ${capabilities.keys.join(', ')}');
+          break;
+
+        case 'pong':
+          _lastPongReceived = DateTime.now();
+          print('🏓 Pong received from server');
+          break;
+
+        case 'ping':
+          // Respond to server ping
+          sendMessage({
+            'type': 'pong',
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+          break;
+
+        case 'initial_data':
+          print(
+              '📊 Received initial data: ${message['devices']?.length ?? 0} devices');
+          if (_deviceEventsController != null &&
+              !_deviceEventsController!.isClosed) {
+            _deviceEventsController!.add({
+              'type': 'initial_data',
+              'devices': message['devices'] ?? [],
+              'timestamp': DateTime.now().toIso8601String()
+            });
           }
           break;
 
@@ -258,7 +430,7 @@ class WebSocketService {
           break;
 
         case 'heartbeat_ack':
-          // Heartbeat acknowledged
+          print('💓 Heartbeat acknowledged');
           break;
 
         case 'broadcast':
@@ -267,22 +439,9 @@ class WebSocketService {
 
         case 'subscription_ack':
           print('📡 Subscribed to topic: ${message['topic']}');
-          break;
-
-        case 'unsubscription_ack':
-          print('📡 Unsubscribed from topic: ${message['topic']}');
-          break;
-
-        case 'command_ack':
-          print('✅ Command acknowledged: ${message['command']} for device ${message['deviceId']}');
-          break;
-
-        case 'map_edit_ack':
-          print('✅ Map edit acknowledged: ${message['editType']}');
-          break;
-
-        case 'order_ack':
-          print('✅ Order command acknowledged: ${message['orderAction']}');
+          if (message['deviceId'] != null) {
+            print('   Device: ${message['deviceId']}');
+          }
           break;
 
         case 'error':
@@ -293,31 +452,44 @@ class WebSocketService {
           }
           break;
 
-        case 'initial_data':
-          print('📊 Received initial data: ${message['devices']?.length ?? 0} devices');
-          if (_deviceEventsController != null && !_deviceEventsController!.isClosed) {
+        case 'device_status':
+          if (_deviceEventsController != null &&
+              !_deviceEventsController!.isClosed) {
             _deviceEventsController!.add({
-              'type': 'initial_data',
-              'devices': message['devices'] ?? []
+              'type': 'device_status_update',
+              'deviceId': message['deviceId'],
+              'status': message['status'],
+              'data': message['data'] ?? {},
+              'timestamp': DateTime.now().toIso8601String()
             });
           }
           break;
 
-        case 'initial_topic_data':
-          print('📊 Received initial topic data for: ${message['topic']}');
-          _handleBroadcast(message['topic'], {
-            'type': 'initial_data',
-            'data': message['data'] ?? {}
-          });
+        case 'device_connected':
+        case 'device_disconnected':
+          print(
+              '🔌 Device ${message['deviceId']} ${message['type'].replaceAll('device_', '')}');
+          if (_deviceEventsController != null &&
+              !_deviceEventsController!.isClosed) {
+            _deviceEventsController!.add({
+              'type': message['type'],
+              'deviceId': message['deviceId'],
+              'timestamp':
+                  message['timestamp'] ?? DateTime.now().toIso8601String()
+            });
+          }
           break;
 
-        case 'data_response':
-          print('📊 Received data response for: ${message['requestType']}');
-          _handleDataResponse(message);
+        case 'device_discovery_response':
+          if (_deviceEventsController != null &&
+              !_deviceEventsController!.isClosed) {
+            _deviceEventsController!.add(message);
+          }
           break;
 
         default:
           print('❓ Unknown message type: ${message['type']}');
+          print('📨 Full message: $message');
       }
     } catch (e) {
       print('❌ Error handling message: $e');
@@ -329,17 +501,20 @@ class WebSocketService {
     try {
       switch (topic) {
         case 'real_time_data':
-          if (_realTimeDataController != null && !_realTimeDataController!.isClosed) {
+          if (_realTimeDataController != null &&
+              !_realTimeDataController!.isClosed) {
             _realTimeDataController!.add(data);
           }
           break;
         case 'control_events':
-          if (_controlEventsController != null && !_controlEventsController!.isClosed) {
+          if (_controlEventsController != null &&
+              !_controlEventsController!.isClosed) {
             _controlEventsController!.add(data);
           }
           break;
         case 'mapping_events':
-          if (_mappingEventsController != null && !_mappingEventsController!.isClosed) {
+          if (_mappingEventsController != null &&
+              !_mappingEventsController!.isClosed) {
             _mappingEventsController!.add(data);
           }
           break;
@@ -349,12 +524,14 @@ class WebSocketService {
           }
           break;
         case 'order_events':
-          if (_orderEventsController != null && !_orderEventsController!.isClosed) {
+          if (_orderEventsController != null &&
+              !_orderEventsController!.isClosed) {
             _orderEventsController!.add(data);
           }
           break;
         case 'device_events':
-          if (_deviceEventsController != null && !_deviceEventsController!.isClosed) {
+          if (_deviceEventsController != null &&
+              !_deviceEventsController!.isClosed) {
             _deviceEventsController!.add(data);
           }
           break;
@@ -370,10 +547,11 @@ class WebSocketService {
     try {
       final requestType = message['requestType'];
       final data = message['data'] ?? {};
-      
+
       switch (requestType) {
         case 'device_status':
-          if (_deviceEventsController != null && !_deviceEventsController!.isClosed) {
+          if (_deviceEventsController != null &&
+              !_deviceEventsController!.isClosed) {
             _deviceEventsController!.add({
               'type': 'status_response',
               'data': data,
@@ -381,7 +559,8 @@ class WebSocketService {
           }
           break;
         case 'orders':
-          if (_orderEventsController != null && !_orderEventsController!.isClosed) {
+          if (_orderEventsController != null &&
+              !_orderEventsController!.isClosed) {
             _orderEventsController!.add({
               'type': 'orders_response',
               'data': data,
@@ -402,45 +581,54 @@ class WebSocketService {
     _handleDisconnection();
   }
 
+  // ==========================================
+  // RECONNECTION METHODS
+  // ==========================================
   void _handleDisconnection() {
     _isConnected = false;
     _clientId = null;
-    
-    if (_connectionStateController != null && !_connectionStateController!.isClosed) {
+
+    if (_connectionStateController != null &&
+        !_connectionStateController!.isClosed) {
       _connectionStateController!.add(false);
     }
-    
+
+    _stopApplicationPing();
     _stopHeartbeat();
-    
-    if (_reconnectAttempts < maxReconnectAttempts && _serverUrl != null) {
-      print('🔄 WebSocket disconnected, attempting to reconnect... (attempt ${_reconnectAttempts + 1}/$maxReconnectAttempts)');
-      _startReconnectTimer();
+    _stopReconnectTimer();
+
+    if (_reconnectAttempts < maxReconnectAttempts &&
+        _serverUrl != null &&
+        !_isReconnecting) {
+      _reconnectAttempts++;
+      print(
+          '🔄 WebSocket disconnected, attempting to reconnect... (attempt $_reconnectAttempts/$maxReconnectAttempts)');
+
+      // Exponential backoff with jitter
+      final baseDelay =
+          Duration(seconds: math.min(2 << (_reconnectAttempts - 1), 30));
+      final jitter = Duration(milliseconds: math.Random().nextInt(1000));
+      final totalDelay = baseDelay + jitter;
+
+      print('⏳ Waiting ${totalDelay.inSeconds}s before reconnect attempt...');
+
+      _startReconnectTimer(totalDelay);
     } else {
       print('❌ WebSocket disconnected, max reconnection attempts reached');
       if (_errorController != null && !_errorController!.isClosed) {
-        _errorController!.add('Connection lost and unable to reconnect');
+        _errorController!
+            .add('Connection lost after $_reconnectAttempts attempts');
       }
     }
   }
 
-  void _startHeartbeat() {
-    _heartbeatTimer = Timer.periodic(Duration(seconds: 25), (timer) {
-      if (_isConnected) {
-        _sendHeartbeat();
-      }
-    });
-  }
+  void _startReconnectTimer([Duration? delay]) {
+    _stopReconnectTimer();
 
-  void _stopHeartbeat() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = null;
-  }
-
-  void _startReconnectTimer() {
-    _reconnectTimer = Timer(Duration(seconds: 5 + _reconnectAttempts * 2), () async {
-      if (!_isConnected && _serverUrl != null) {
-        _reconnectAttempts++;
-        print('🔄 Attempting to reconnect... (attempt $_reconnectAttempts/$maxReconnectAttempts)');
+    _reconnectTimer = Timer(delay ?? Duration(seconds: 5), () async {
+      if (!_isConnected && _serverUrl != null && !_isReconnecting) {
+        print(
+            '🔄 Attempting to reconnect... (attempt $_reconnectAttempts/$maxReconnectAttempts)');
         final success = await _attemptConnection();
         if (!success) {
           _handleDisconnection();
@@ -452,39 +640,11 @@ class WebSocketService {
   void _stopReconnectTimer() {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
-    _reconnectAttempts = 0;
   }
 
-  void _sendHeartbeat() {
-    sendMessage({
-      'type': 'heartbeat',
-      'timestamp': DateTime.now().toIso8601String(),
-    });
-  }
-
-  void _sendHeartbeatAck() {
-    sendMessage({
-      'type': 'heartbeat_ack',
-      'timestamp': DateTime.now().toIso8601String(),
-    });
-  }
-
-  void _subscribeToTopics() {
-    final topics = [
-      'real_time_data',
-      'control_events',
-      'mapping_events',
-      'map_events',
-      'order_events',
-      'device_events',
-    ];
-
-    for (String topic in topics) {
-      subscribe(topic);
-    }
-  }
-
-  // Public subscription methods
+  // ==========================================
+  // SUBSCRIPTION METHODS
+  // ==========================================
   void subscribe(String topic, {String? deviceId}) {
     sendMessage({
       'type': 'subscribe',
@@ -501,6 +661,9 @@ class WebSocketService {
     });
   }
 
+  // ==========================================
+  // CORE MESSAGING METHOD
+  // ==========================================
   void sendMessage(Map<String, dynamic> message) {
     if (_isConnected && _channel != null) {
       try {
@@ -512,47 +675,25 @@ class WebSocketService {
         }
       }
     } else {
-      print('⚠️ WebSocket not connected, cannot send message: ${message['type']}');
+      print(
+          '⚠️ WebSocket not connected, cannot send message: ${message['type']}');
     }
   }
 
-  // Control commands (matching backend WebSocket handlers)
-  void sendControlCommand(String deviceId, String command, Map<String, dynamic>? data) {
+  // ==========================================
+  // JOYSTICK & MOVEMENT CONTROL
+  // ==========================================
+  void sendJoystickControl(String deviceId, double x, double y, bool deadman) {
     sendMessage({
-      'type': 'control_command',
+      'type': 'joystick_control',
       'deviceId': deviceId,
-      'command': command,
-      'data': data ?? {},
+      'x': x,
+      'y': y,
+      'deadman': deadman,
+      'timestamp': DateTime.now().toIso8601String(),
     });
   }
 
-  void sendMapEdit(String deviceId, String editType, Map<String, dynamic> editData) {
-    sendMessage({
-      'type': 'map_edit',
-      'deviceId': deviceId,
-      'editType': editType,
-      'editData': editData,
-    });
-  }
-
-  void sendOrderCommand(String deviceId, String orderAction, Map<String, dynamic>? orderData) {
-    sendMessage({
-      'type': 'order_command',
-      'deviceId': deviceId,
-      'orderAction': orderAction,
-      'orderData': orderData ?? {},
-    });
-  }
-
-  void requestData(String requestType, {String? deviceId}) {
-    sendMessage({
-      'type': 'request_data',
-      'requestType': requestType,
-      'deviceId': deviceId,
-    });
-  }
-
-  // Convenience methods for common commands
   void moveRobot(String deviceId, double linear, double angular) {
     sendControlCommand(deviceId, 'move', {
       'linear': linear,
@@ -569,6 +710,18 @@ class WebSocketService {
       'x': x,
       'y': y,
       'orientation': orientation,
+    });
+  }
+
+  // ==========================================
+  // MAPPING CONTROL
+  // ==========================================
+  void sendMappingCommand(String deviceId, String command) {
+    sendMessage({
+      'type': 'mapping_command',
+      'deviceId': deviceId,
+      'command': command,
+      'timestamp': DateTime.now().toIso8601String(),
     });
   }
 
@@ -590,12 +743,25 @@ class WebSocketService {
     });
   }
 
-  // Map editing convenience methods
+  // ==========================================
+  // MAP EDITING METHODS
+  // ==========================================
+  void sendMapEdit(
+      String deviceId, String editType, Map<String, dynamic> editData) {
+    sendMessage({
+      'type': 'map_edit',
+      'deviceId': deviceId,
+      'editType': editType,
+      'editData': editData,
+    });
+  }
+
   void addMapShape(String deviceId, Map<String, dynamic> shapeData) {
     sendMapEdit(deviceId, 'add_shape', shapeData);
   }
 
-  void updateMapShape(String deviceId, String shapeId, Map<String, dynamic> updates) {
+  void updateMapShape(
+      String deviceId, String shapeId, Map<String, dynamic> updates) {
     sendMapEdit(deviceId, 'update_shape', {'id': shapeId, ...updates});
   }
 
@@ -607,7 +773,19 @@ class WebSocketService {
     sendMapEdit(deviceId, 'add_annotation', annotationData);
   }
 
-  // Order management convenience methods
+  // ==========================================
+  // ORDER MANAGEMENT METHODS
+  // ==========================================
+  void sendOrderCommand(
+      String deviceId, String orderAction, Map<String, dynamic>? orderData) {
+    sendMessage({
+      'type': 'order_command',
+      'deviceId': deviceId,
+      'orderAction': orderAction,
+      'orderData': orderData ?? {},
+    });
+  }
+
   void executeOrder(String deviceId, String orderId) {
     sendOrderCommand(deviceId, 'execute', {'orderId': orderId});
   }
@@ -620,7 +798,34 @@ class WebSocketService {
     sendOrderCommand(deviceId, 'cancel', {'orderId': orderId});
   }
 
-  // Utility methods
+  // ==========================================
+  // GENERAL CONTROL & DATA REQUESTS
+  // ==========================================
+  void sendControlCommand(
+      String deviceId, String command, Map<String, dynamic>? data) {
+    sendMessage({
+      'type': 'control_command',
+      'deviceId': deviceId,
+      'command': command,
+      'data': data ?? {},
+    });
+  }
+
+  void requestData(String requestType, {String? deviceId}) {
+    sendMessage({
+      'type': 'request_data',
+      'requestType': requestType,
+      'deviceId': deviceId,
+    });
+  }
+
+  void requestDeviceDiscovery() {
+    sendMessage({'type': 'device_discovery_request'});
+  }
+
+  // ==========================================
+  // UTILITY METHODS
+  // ==========================================
   void ping() {
     sendMessage({
       'type': 'ping',
@@ -637,6 +842,23 @@ class WebSocketService {
     };
   }
 
+  // ==========================================
+  // CLEANUP METHODS
+  // ==========================================
+  void _cleanup() {
+    _isReconnecting = false;
+    _stopApplicationPing();
+    _stopHeartbeat();
+    if (_channel != null) {
+      try {
+        _channel!.sink.close();
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+      _channel = null;
+    }
+  }
+
   void dispose() {
     // Close all stream controllers
     _realTimeDataController?.close();
@@ -647,7 +869,7 @@ class WebSocketService {
     _deviceEventsController?.close();
     _connectionStateController?.close();
     _errorController?.close();
-    
+
     // Set them to null
     _realTimeDataController = null;
     _controlEventsController = null;
@@ -657,7 +879,7 @@ class WebSocketService {
     _deviceEventsController = null;
     _connectionStateController = null;
     _errorController = null;
-    
+
     disconnect();
   }
 }

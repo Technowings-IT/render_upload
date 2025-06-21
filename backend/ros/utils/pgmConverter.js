@@ -444,3 +444,4 @@ free_thresh: 0.196
 const pgmConverter = new PGMConverter();
 
 module.exports = pgmConverter;
+
