@@ -193,7 +193,7 @@ function subscribeToMap() {
 }
 
 /**
- * Subscribe to cmd_vel feedback
+ * Subscribe to wheel_velocity feedback
  */
 function subscribeToVelocityFeedback() {
     const callback = (twistMsg) => {
@@ -225,7 +225,7 @@ function subscribeToVelocityFeedback() {
         }
     };
     
-    getOrCreateSubscriber('/cmd_vel', 'geometry_msgs/msg/Twist', callback);
+    getOrCreateSubscriber('/wheel_velocity', 'std_msgs/msg/Float32MultiArray', callback);
 }
 
 /**

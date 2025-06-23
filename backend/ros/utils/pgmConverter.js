@@ -1,6 +1,11 @@
 // ros/utils/pgmconverter.js - PGM (Portable Gray Map) Converter for ROS Maps
-const fs = require('fs').promises;
+const fs = require('fs');
 const path = require('path');
+
+const mapsDir = path.resolve(__dirname, '../../maps');
+if (!fs.existsSync(mapsDir)) {
+    fs.mkdirSync(mapsDir, { recursive: true });
+}
 
 class PGMConverter {
   constructor() {

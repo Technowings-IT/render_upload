@@ -1,7 +1,7 @@
 [
   {
     "id": "piros",
-    "name": "Primary AGV",
+    "name": "piros",
     "ipAddress": "192.168.253.136",
     "type": "differential_drive",
     "capabilities": [
@@ -9,10 +9,10 @@
       "navigation",
       "remote_control"
     ],
-    "status": "disconnected",
+    "status": "connected",
     "connectedAt": "2025-06-21T07:00:57.160Z",
-    "lastSeen": "2025-06-21T07:00:57.160Z",
-    "lastStartup": "2025-06-21T08:44:17.412Z"
+    "lastSeen": "2025-06-23T06:48:16.827Z",
+    "lastStartup": "2025-06-23T06:46:57.729Z"
   },
   {
     "id": "agv_01",
@@ -29,6 +29,6 @@
     "status": "disconnected",
     "lastSeen": "2025-06-21T07:01:03.449Z",
     "lastSaved": "2025-06-21T07:01:03.449Z",
-    "lastStartup": "2025-06-21T08:44:17.412Z"
+    "lastStartup": "2025-06-23T06:46:57.729Z"
   }
 ]

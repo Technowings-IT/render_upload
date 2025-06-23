@@ -79,6 +79,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     // If not connected, try to connect
     if (!_isWebSocketConnected) {
       final wsUrl = _apiService.getWebSocketUrl();
+      if (wsUrl == null) {
+        _showErrorSnackBar('WebSocket URL is not available.');
+        return;
+      }
       final connected = await _webSocketService.connect(wsUrl);
       setState(() {
         _isWebSocketConnected = connected;
@@ -755,6 +759,10 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   void _reconnectWebSocket() async {
     final wsUrl = _apiService.getWebSocketUrl();
+    if (wsUrl == null) {
+      _showErrorSnackBar('WebSocket URL is not available.');
+      return;
+    }
     final connected = await _webSocketService.connect(wsUrl);
     setState(() {
       _isWebSocketConnected = connected;

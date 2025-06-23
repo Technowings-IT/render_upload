@@ -275,7 +275,23 @@ const config = {
         SIMULATE_AGV: process.env.SIMULATE_AGV === 'true'
     }
 };
+// ✅ ADD: Network discovery helper
+function getLocalIPAddress() {
+    const os = require('os');
+    const networkInterfaces = os.networkInterfaces();
+    
+    for (const [name, interfaces] of Object.entries(networkInterfaces)) {
+        for (const iface of interfaces) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                console.log(`📡 Found network interface ${name}: ${iface.address}`);
+                return iface.address;
+            }
+        }
+    }
+    return 'localhost';
+}
 
+module.exports = { ...config, getLocalIPAddress };
 // Environment-specific overrides
 if (config.SERVER.ENV === 'production') {
     config.LOGGING.LEVEL = 'warn';

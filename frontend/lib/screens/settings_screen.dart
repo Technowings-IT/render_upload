@@ -56,8 +56,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _loadSettings() {
     // Load current settings from API service
     setState(() {
-      _serverUrlController.text = _apiService.baseUrl;
-      _websocketUrlController.text = _apiService.getWebSocketUrl();
+      _serverUrlController.text = _apiService.baseUrl ?? '';
+      _websocketUrlController.text = _apiService.getWebSocketUrl() ?? '';
       _isLoading = false;
     });
   }
@@ -507,7 +507,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildInfoRow('Platform', 'Flutter'),
             _buildInfoRow('Connection Status',
                 _webSocketService.isConnected ? 'Connected' : 'Disconnected'),
-            _buildInfoRow('Server URL', _apiService.baseUrl),
+            _buildInfoRow('Server URL', _apiService.baseUrl ?? ''),
             SizedBox(height: 16),
             Row(
               children: [
