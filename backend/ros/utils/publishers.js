@@ -1,10 +1,16 @@
-// ros/utils/publishers.js - FIXED ROS2 Publishers with proper cmd_vel publishing
+// ros/utils/publishers.js - FIXED with proper speed limiting from UI
 const rclnodejs = require('rclnodejs');
 const config = require('../../config');
 
 let rosNode = null;
 let publishers = {};
 let isInitialized = false;
+
+// Store current max speeds from UI (updated via WebSocket)
+let currentMaxSpeeds = {
+    linear: 1.0,  // Default values
+    angular: 2.0
+};
 
 // Initialize with the node from ros_connection.js
 function initializePublishers(node) {
@@ -14,6 +20,22 @@ function initializePublishers(node) {
     
     // Pre-create essential publishers for better performance
     createEssentialPublishers();
+}
+
+// ✅ NEW: Update max speeds from UI
+function updateMaxSpeeds(maxLinearSpeed, maxAngularSpeed) {
+    currentMaxSpeeds.linear = Math.max(0.1, Math.min(2.0, maxLinearSpeed));
+    currentMaxSpeeds.angular = Math.max(0.1, Math.min(3.0, maxAngularSpeed));
+    
+    console.log(`🎯 Updated max speeds: Linear=${currentMaxSpeeds.linear} m/s, Angular=${currentMaxSpeeds.angular} rad/s`);
+    
+    return currentMaxSpeeds;
+}
+
+
+// ✅ NEW: Get current max speeds
+function getCurrentMaxSpeeds() {
+    return { ...currentMaxSpeeds };
 }
 
 // ✅ FIXED: Pre-create publishers for immediate use
@@ -135,46 +157,54 @@ function publishVelocity(linear = 0, angular = 0) {
 }
 
 /**
- * ✅ FIXED: Enhanced joystick publishing with deadman switch and smoothing
+ * ✅ FIXED: Enhanced joystick publishing with proper normalized value handling
  */
-function publishJoystick(x, y, deadman = false) {
+function publishJoystick(normalizedX, normalizedY, deadman = false, maxLinearSpeed = null, maxAngularSpeed = null) {
     try {
         if (!isInitialized) {
             throw new Error('Publishers not initialized');
         }
-        
+
         // Only send velocity if deadman switch is active
         if (!deadman) {
             return publishVelocity(0.0, 0.0);
         }
-        
-        // Convert joystick values to velocity with scaling
-        const maxLinear = config.AGV.MAX_LINEAR_SPEED;
-        const maxAngular = config.AGV.MAX_ANGULAR_SPEED;
-        
-        // Apply deadzone for stability
+
+        // Use provided max speeds or current stored ones
+        const maxLinear = maxLinearSpeed || currentMaxSpeeds.linear;
+        const maxAngular = maxAngularSpeed || currentMaxSpeeds.angular;
+
+        // Apply deadzone for stability on normalized values
         const deadzone = 0.1;
-        const processedX = Math.abs(x) < deadzone ? 0 : x;
-        const processedY = Math.abs(y) < deadzone ? 0 : y;
-        
-        // Scale to max velocities
-        const linear = processedY * maxLinear;   // Forward/backward
-        const angular = -processedX * maxAngular; // Left/right (inverted for correct rotation)
-        
-        const result = publishVelocity(linear, angular);
-        
+        const processedX = Math.abs(normalizedX) < deadzone ? 0 : normalizedX;
+        const processedY = Math.abs(normalizedY) < deadzone ? 0 : normalizedY;
+
+        // ✅ CRITICAL FIX: Convert normalized values to actual velocities
+        // normalizedY comes as linear (forward/backward)
+        // normalizedX comes as angular (left/right) 
+        const actualLinear = processedY * maxLinear;
+        const actualAngular = -processedX * maxAngular; // Negative for correct rotation direction
+
+        console.log(`🎮 Joystick: normalized(${normalizedX.toFixed(3)}, ${normalizedY.toFixed(3)}) → actual(${actualLinear.toFixed(3)}, ${actualAngular.toFixed(3)}) | max(${maxLinear}, ${maxAngular}) | deadman=${deadman}`);
+
+        const result = publishVelocity(actualLinear, actualAngular);
+
         // Add joystick-specific info
         result.joystickData = {
-            originalX: x,
-            originalY: y,
+            normalizedX: normalizedX,
+            normalizedY: normalizedY,
             processedX: processedX,
             processedY: processedY,
+            actualLinear: actualLinear,
+            actualAngular: actualAngular,
+            maxLinear: maxLinear,
+            maxAngular: maxAngular,
             deadman: deadman,
             deadzone: deadzone
         };
-        
+
         return result;
-        
+
     } catch (error) {
         console.error('❌ Failed to publish joystick command:', error);
         return {
@@ -464,6 +494,7 @@ function getPublisherStats() {
     const stats = {
         totalPublishers: Object.keys(publishers).length,
         isInitialized: isInitialized,
+        currentMaxSpeeds: getCurrentMaxSpeeds(),
         publishers: {}
     };
     
@@ -496,7 +527,8 @@ function testPublishing() {
             tests: {
                 velocity: velResult.success,
                 publishersCreated: Object.keys(publishers).length,
-                availableTopics: Object.keys(publishers)
+                availableTopics: Object.keys(publishers),
+                currentMaxSpeeds: getCurrentMaxSpeeds()
             },
             timestamp: new Date().toISOString()
         };
@@ -528,6 +560,8 @@ function cleanup() {
 
 module.exports = {
     initializePublishers,
+    updateMaxSpeeds,        // ✅ NEW
+    getCurrentMaxSpeeds,    // ✅ NEW
     publishVelocity,
     publishJoystick,
     publishGoal, 

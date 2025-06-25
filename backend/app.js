@@ -154,7 +154,7 @@ app.get('/api/devices', (req, res) => {
 app.get('/api/system/status', async (req, res) => {
     try {
         const rosStatus = rosConnection.getROS2Status();
-        const connectivityTest = await rosConnection.testConnectivity();
+        const connectivityTest = await rosConnection.testConnection();
         const publisherStats = require('./ros/utils/publishers').getPublisherStats();
         
         res.json({
@@ -294,7 +294,7 @@ async function initializeApplication() {
         
         // 3. Test ROS2 connectivity
         console.log('🔍 Testing ROS2 connectivity...');
-        const connectivityTest = await rosConnection.testConnectivity();
+        const connectivityTest = await rosConnection.testConnection();
         console.log(`📊 ROS2 connectivity: ${connectivityTest.requiredTopicsFound?.length || 0} required topics found`);
         
         // 4. Initialize WebSocket server
@@ -372,7 +372,7 @@ async function startServer() {
             console.log(`🔍 Discovery API: http://${serverInfo.ip}:${serverInfo.port}/api/discovery`);
             console.log(`📡 UDP Discovery: Port ${config.NETWORK.DISCOVERY.PORT}`);
             console.log(`\n📊 System Status:`);
-            console.log(`   - ROS2: ${rosConnection.isRosInitialized() ? '✅ Connected' : '❌ Disconnected'}`);
+            // console.log(`   - ROS2: ${rosConnection.isRosInitialized() ? '✅ Connected' : '❌ Disconnected'}`);
             console.log(`   - Storage: ✅ Ready`);
             console.log(`   - WebSocket: ✅ Ready`);
             console.log(`   - Device Discovery: ✅ Ready`);

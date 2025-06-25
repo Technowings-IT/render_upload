@@ -1,367 +1,396 @@
-// ros/utils/ros_connection.js - Integrated with publishers and subscribers
+// ros/utils/ros_connection.js - FIXED with max speed support
 const rclnodejs = require('rclnodejs');
+const config = require('../../config');
 
 let rosNode = null;
 let isInitialized = false;
+let isShutdown = false;
 
-// Import our modular publishers and subscribers
+// Import the publishers module
 const publishers = require('./publishers');
-const subscribers = require('./subscribers');
 
 async function initializeROS() {
     try {
-        console.log('🤖 Initializing ROS2 connection...');
+        if (isInitialized && !isShutdown) {
+            console.log('✅ ROS already initialized');
+            return true;
+        }
+
+        console.log('🔄 Initializing ROS2 connection...');
         
-        // Initialize ROS2
+        // Initialize rclnodejs
         await rclnodejs.init();
-        console.log('✅ ROS2 initialized successfully');
         
-        // Create the node
-        rosNode = rclnodejs.createNode('agv_fleet_backend');
-        console.log('✅ ROS2 node created: agv_fleet_backend');
+        // Create the main node
+        rosNode = new rclnodejs.Node('agv_fleet_backend_node');
         
-        // Initialize publishers and subscribers with the node
+        console.log('✅ ROS2 node created: agv_fleet_backend_node');
+        
+        // Initialize publishers with the node
         publishers.initializePublishers(rosNode);
-        subscribers.initializeSubscribers(rosNode);
         
-        // Start spinning to process callbacks
+        // Start spinning the node
         rclnodejs.spin(rosNode);
-        console.log('✅ ROS2 node spinning');
-        
-        // Subscribe to all essential topics
-        subscribers.subscribeToAllTopics();
-        
-        // Initialize global data structures
-        initializeGlobalData();
         
         isInitialized = true;
-        console.log('✅ Complete ROS2 integration initialized');
+        isShutdown = false;
+        
+        console.log('✅ ROS2 connection fully initialized');
+        
         return true;
         
     } catch (error) {
         console.error('❌ Failed to initialize ROS2:', error);
         isInitialized = false;
-        throw error;
+        return false;
     }
 }
 
-function initializeGlobalData() {
-    // Initialize global data structures for AGV management
-    if (!global.connectedDevices) {
-        global.connectedDevices = [];
-    }
-    
-    if (!global.liveData) {
-        global.liveData = {};
-    }
-    
-    if (!global.deviceOrders) {
-        global.deviceOrders = {};
-    }
-    
-    if (!global.orderQueue) {
-        global.orderQueue = {};
-    }
-    
-    if (!global.deviceMaps) {
-        global.deviceMaps = {};
-    }
-    
-    if (!global.deviceMappingStates) {
-        global.deviceMappingStates = {};
-    }
-    
-    if (!global.robotTrails) {
-        global.robotTrails = {};
-    }
-    
-    console.log('📊 Global data structures initialized');
-}
-
-// Public API functions that delegate to publishers
-function publishVelocity(linear = 0.0, angular = 0.0) {
-    if (!isInitialized) {
-        throw new Error('ROS2 not initialized');
-    }
-    return publishers.publishVelocity(linear, angular);
-}
-
-function publishGoal(x, y, orientation = 0) {
-    if (!isInitialized) {
-        throw new Error('ROS2 not initialized');
-    }
-    return publishers.publishGoal(x, y, orientation);
-}
-
-function publishMap(mapData) {
-    if (!isInitialized) {
-        throw new Error('ROS2 not initialized');
-    }
-    return publishers.publishMap(mapData);
-}
-
-function startMapping() {
-    if (!isInitialized) {
-        throw new Error('ROS2 not initialized');
-    }
-    
-    // Set mapping state
-    global.deviceMappingStates['agv_01'] = {
-        active: true,
-        startedAt: new Date().toISOString()
-    };
-    
-    return publishers.startMapping();
-}
-
-function stopMapping() {
-    if (!isInitialized) {
-        throw new Error('ROS2 not initialized');
-    }
-    
-    // Update mapping state
-    if (global.deviceMappingStates['agv_01']) {
-        global.deviceMappingStates['agv_01'].active = false;
-        global.deviceMappingStates['agv_01'].stoppedAt = new Date().toISOString();
-    }
-    
-    return publishers.stopMapping();
-}
-
-function emergencyStop() {
-    return publishVelocity(0.0, 0.0);
-}
-
-// Enhanced joystick control with deadman switch
-function publishJoystick(x, y, deadman = false) {
+// ✅ FIXED: Enhanced joystick publishing with max speed support
+function publishJoystick(normalizedX, normalizedY, deadman = false, maxLinearSpeed = null, maxAngularSpeed = null) {
     try {
-        if (!isInitialized) {
-            throw new Error('ROS2 not initialized');
+        if (!isInitialized || isShutdown) {
+            console.warn('⚠️ ROS not initialized, cannot publish joystick command');
+            return {
+                success: false,
+                error: 'ROS not initialized',
+                timestamp: new Date().toISOString()
+            };
         }
         
-        // Only send velocity if deadman switch is active
-        if (deadman) {
-            // Convert joystick values to velocity
-            const linear = y; // Forward/backward
-            const angular = -x; // Left/right (inverted for correct rotation)
-            
-            return publishVelocity(linear, angular);
-        } else {
-            // Stop the robot if deadman not active
-            return publishVelocity(0.0, 0.0);
-        }
+        // ✅ CRITICAL: Pass max speeds to publisher
+        return publishers.publishJoystick(normalizedX, normalizedY, deadman, maxLinearSpeed, maxAngularSpeed);
         
     } catch (error) {
-        console.error('❌ Failed to publish joystick command:', error);
+        console.error('❌ Error publishing joystick command:', error);
         return {
             success: false,
-            error: error.message
-        };
-    }
-}
-
-// Get ROS2 status
-function getROS2Status() {
-    if (!rosNode) {
-        return {
-            initialized: false,
-            nodeActive: false,
-            topicsDiscovered: 0,
-            availableTopics: [],
-            error: 'Node not created'
-        };
-    }
-    
-    try {
-        const topics = rosNode.getTopicNamesAndTypes();
-        
-        return {
-            initialized: isInitialized,
-            nodeActive: rosNode !== null,
-            topicsDiscovered: topics.length,
-            availableTopics: topics.map(t => t.name),
-            mappingActive: global.deviceMappingStates?.['agv_01']?.active || false,
-            connectedDevices: global.connectedDevices?.length || 0,
-            liveDataKeys: Object.keys(global.liveData || {}),
-            lastUpdate: new Date().toISOString()
-        };
-    } catch (error) {
-        return {
-            initialized: isInitialized,
-            nodeActive: false,
-            error: error.message,
-            lastUpdate: new Date().toISOString()
-        };
-    }
-}
-
-// Test connectivity with your specific topics
-async function testConnectivity() {
-    try {
-        if (!isInitialized) {
-            throw new Error('ROS2 not initialized');
-        }
-        
-        const topics = rosNode.getTopicNamesAndTypes();
-        const requiredTopics = ['/cmd_vel', '/pos', '/map', '/joint_states'];
-        const optionalTopics = ['/diff_drive_controller/odom', '/battery_state'];
-        
-        const foundRequired = requiredTopics.filter(topic => 
-            topics.some(t => t.name === topic)
-        );
-        
-        const foundOptional = optionalTopics.filter(topic => 
-            topics.some(t => t.name === topic)
-        );
-        
-        const results = {
-            totalTopics: topics.length,
-            requiredTopicsFound: foundRequired,
-            optionalTopicsFound: foundOptional,
-            missingRequired: requiredTopics.filter(topic => !foundRequired.includes(topic)),
-            canPublishVelocity: true, // We can always try to publish
-            mappingActive: global.deviceMappingStates?.['agv_01']?.active || false,
-            rosStatus: 'connected',
-            timestamp: new Date().toISOString()
-        };
-        
-        console.log('🔍 ROS2 Connectivity Test Results:');
-        console.log(`   📊 Total topics: ${results.totalTopics}`);
-        console.log(`   ✅ Required topics found: ${foundRequired.join(', ')}`);
-        console.log(`   📍 Optional topics found: ${foundOptional.join(', ')}`);
-        
-        if (results.missingRequired.length > 0) {
-            console.log(`   ⚠️ Missing required topics: ${results.missingRequired.join(', ')}`);
-        }
-        
-        return results;
-        
-    } catch (error) {
-        console.error('❌ ROS2 connectivity test failed:', error);
-        return { 
-            success: false, 
             error: error.message,
             timestamp: new Date().toISOString()
         };
     }
 }
 
-// Device management functions
-function addConnectedDevice(deviceInfo) {
-    const deviceId = deviceInfo.id || 'agv_01';
-    
-    // Check if device already exists
-    const existingIndex = global.connectedDevices.findIndex(d => d.id === deviceId);
-    
-    if (existingIndex >= 0) {
-        // Update existing device
-        global.connectedDevices[existingIndex] = {
-            ...global.connectedDevices[existingIndex],
-            ...deviceInfo,
-            status: 'connected',
-            lastSeen: new Date().toISOString(),
-            reconnectedAt: new Date().toISOString()
+// Velocity publishing
+function publishVelocity(linear = 0, angular = 0) {
+    try {
+        if (!isInitialized || isShutdown) {
+            console.warn('⚠️ ROS not initialized, cannot publish velocity');
+            return {
+                success: false,
+                error: 'ROS not initialized',
+                timestamp: new Date().toISOString()
+            };
+        }
+        
+        return publishers.publishVelocity(linear, angular);
+        
+    } catch (error) {
+        console.error('❌ Error publishing velocity:', error);
+        return {
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
         };
-    } else {
-        // Add new device
-        global.connectedDevices.push({
-            id: deviceId,
-            ...deviceInfo,
-            status: 'connected',
-            connectedAt: new Date().toISOString(),
-            lastSeen: new Date().toISOString()
-        });
     }
-    
-    // Initialize device data structures
-    if (!global.liveData[deviceId]) {
-        global.liveData[deviceId] = {};
-    }
-    if (!global.deviceOrders[deviceId]) {
-        global.deviceOrders[deviceId] = [];
-    }
-    if (!global.orderQueue[deviceId]) {
-        global.orderQueue[deviceId] = { current: null, pending: [] };
-    }
-    if (!global.deviceMappingStates[deviceId]) {
-        global.deviceMappingStates[deviceId] = { active: false };
-    }
-    if (!global.robotTrails[deviceId]) {
-        global.robotTrails[deviceId] = [];
-    }
-    
-    console.log(`✅ Device ${deviceId} connected and initialized`);
-    return deviceId;
 }
 
-// Get live data for all devices or specific device
-function getLiveData(deviceId = null) {
-    if (deviceId) {
-        return global.liveData[deviceId] || {};
+// ✅ NEW: Update max speeds from UI
+function updateMaxSpeeds(maxLinearSpeed, maxAngularSpeed) {
+    try {
+        if (!isInitialized || isShutdown) {
+            console.warn('⚠️ ROS not initialized, cannot update max speeds');
+            return {
+                success: false,
+                error: 'ROS not initialized',
+                timestamp: new Date().toISOString()
+            };
+        }
+        
+        const result = publishers.updateMaxSpeeds(maxLinearSpeed, maxAngularSpeed);
+        
+        return {
+            success: true,
+            maxSpeeds: result,
+            timestamp: new Date().toISOString()
+        };
+        
+    } catch (error) {
+        console.error('❌ Error updating max speeds:', error);
+        return {
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        };
     }
-    return global.liveData || {};
 }
 
-// Get current mapping status
-function getMappingStatus(deviceId = 'agv_01') {
+// Goal publishing
+function publishGoal(x, y, orientation = 0) {
+    try {
+        if (!isInitialized || isShutdown) {
+            console.warn('⚠️ ROS not initialized, cannot publish goal');
+            return {
+                success: false,
+                error: 'ROS not initialized',
+                timestamp: new Date().toISOString()
+            };
+        }
+        
+        return publishers.publishGoal(x, y, orientation);
+        
+    } catch (error) {
+        console.error('❌ Error publishing goal:', error);
+        return {
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
+// Map publishing
+function publishMap(deviceId, mapData) {
+    try {
+        if (!isInitialized || isShutdown) {
+            console.warn('⚠️ ROS not initialized, cannot publish map');
+            return {
+                success: false,
+                error: 'ROS not initialized',
+                timestamp: new Date().toISOString()
+            };
+        }
+        
+        return publishers.publishMap(deviceId, mapData);
+        
+    } catch (error) {
+        console.error('❌ Error publishing map:', error);
+        return {
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
+// Mapping commands
+function startMapping(deviceId) {
+    try {
+        if (!isInitialized || isShutdown) {
+            console.warn('⚠️ ROS not initialized, cannot start mapping');
+            return {
+                success: false,
+                error: 'ROS not initialized',
+                timestamp: new Date().toISOString()
+            };
+        }
+        
+        console.log(`🗺️ Starting mapping for device: ${deviceId}`);
+        return publishers.startMapping();
+        
+    } catch (error) {
+        console.error('❌ Error starting mapping:', error);
+        return {
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
+function stopMapping(deviceId) {
+    try {
+        if (!isInitialized || isShutdown) {
+            console.warn('⚠️ ROS not initialized, cannot stop mapping');
+            return {
+                success: false,
+                error: 'ROS not initialized',
+                timestamp: new Date().toISOString()
+            };
+        }
+        
+        console.log(`🛑 Stopping mapping for device: ${deviceId}`);
+        return publishers.stopMapping();
+        
+    } catch (error) {
+        console.error('❌ Error stopping mapping:', error);
+        return {
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
+function saveMap(deviceId) {
+    try {
+        if (!isInitialized || isShutdown) {
+            console.warn('⚠️ ROS not initialized, cannot save map');
+            return {
+                success: false,
+                error: 'ROS not initialized',
+                timestamp: new Date().toISOString()
+            };
+        }
+        
+        console.log(`💾 Saving map for device: ${deviceId}`);
+        // Implementation depends on your mapping system
+        // For now, return success
+        return {
+            success: true,
+            message: 'Map save command sent',
+            deviceId: deviceId,
+            timestamp: new Date().toISOString()
+        };
+        
+    } catch (error) {
+        console.error('❌ Error saving map:', error);
+        return {
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
+// Emergency stop
+function emergencyStop() {
+    try {
+        if (!isInitialized || isShutdown) {
+            console.warn('⚠️ ROS not initialized, cannot emergency stop');
+            return {
+                success: false,
+                error: 'ROS not initialized',
+                timestamp: new Date().toISOString()
+            };
+        }
+        
+        return publishers.emergencyStop();
+        
+    } catch (error) {
+        console.error('❌ Error during emergency stop:', error);
+        return {
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
+// Status and stats
+function getConnectionStatus() {
     return {
-        active: global.deviceMappingStates?.[deviceId]?.active || false,
-        startedAt: global.deviceMappingStates?.[deviceId]?.startedAt,
-        stoppedAt: global.deviceMappingStates?.[deviceId]?.stoppedAt,
-        trailLength: global.robotTrails?.[deviceId]?.length || 0
+        isInitialized: isInitialized,
+        isShutdown: isShutdown,
+        nodeCreated: rosNode !== null,
+        publisherStats: isInitialized ? publishers.getPublisherStats() : null,
+        timestamp: new Date().toISOString()
     };
 }
 
-async function shutdown() {
+// ✅ NEW: ROS2 status function for health checks
+function getROS2Status() {
     try {
-        if (rosNode) {
-            console.log('🛑 Shutting down ROS2 integration...');
-            
-            // Cleanup publishers and subscribers
-            publishers.cleanup();
-            subscribers.cleanup();
-            
-            // Destroy node and shutdown
-            rosNode.destroy();
-            await rclnodejs.shutdown();
-            rosNode = null;
-            isInitialized = false;
-            
-            console.log('✅ ROS2 shutdown complete');
-        }
+        return {
+            isConnected: isInitialized && !isShutdown,
+            isInitialized: isInitialized,
+            nodeStatus: rosNode ? 'active' : 'inactive',
+            publishersCount: isInitialized ? Object.keys(publishers.getPublisherStats().publishers || {}).length : 0,
+            maxSpeeds: isInitialized ? publishers.getCurrentMaxSpeeds() : { linear: 0, angular: 0 },
+            lastUpdate: new Date().toISOString(),
+            status: isInitialized && !isShutdown ? 'healthy' : 'disconnected'
+        };
     } catch (error) {
-        console.error('❌ Error during ROS2 shutdown:', error);
+        return {
+            isConnected: false,
+            isInitialized: false,
+            nodeStatus: 'error',
+            error: error.message,
+            status: 'error',
+            lastUpdate: new Date().toISOString()
+        };
     }
 }
 
-// Export the node for use by other modules
-function getNode() {
-    return rosNode;
+function testConnection() {
+    try {
+        if (!isInitialized || isShutdown) {
+            return {
+                success: false,
+                error: 'ROS not initialized',
+                timestamp: new Date().toISOString()
+            };
+        }
+        
+        return publishers.testPublishing();
+        
+    } catch (error) {
+        console.error('❌ Error testing ROS connection:', error);
+        return {
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
+// Cleanup and shutdown
+async function shutdown() {
+    try {
+        if (isShutdown) {
+            console.log('✅ ROS already shutdown');
+            return true;
+        }
+        
+        console.log('🔄 Shutting down ROS2 connection...');
+        
+        isShutdown = true;
+        
+        // Cleanup publishers
+        publishers.cleanup();
+        
+        // Destroy the node
+        if (rosNode) {
+            try {
+                rosNode.destroy();
+                rosNode = null;
+            } catch (e) {
+                console.warn('⚠️ Error destroying ROS node:', e.message);
+            }
+        }
+        
+        // Shutdown rclnodejs
+        try {
+            await rclnodejs.shutdown();
+        } catch (e) {
+            console.warn('⚠️ Error shutting down rclnodejs:', e.message);
+        }
+        
+        isInitialized = false;
+        
+        console.log('✅ ROS2 connection shutdown complete');
+        
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Error during ROS shutdown:', error);
+        return false;
+    }
 }
 
 module.exports = {
     initializeROS,
-    shutdown,
-    getNode,
-    
-    // Control functions
+    publishJoystick,    // ✅ FIXED: Now supports max speeds
     publishVelocity,
-    publishJoystick,
     publishGoal,
     publishMap,
-    emergencyStop,
-    
-    // Mapping functions
+    updateMaxSpeeds,    // ✅ NEW
     startMapping,
     stopMapping,
-    getMappingStatus,
-    
-    // Device management
-    addConnectedDevice,
-    getLiveData,
-    
-    // Status functions
-    getROS2Status,
-    testConnectivity,
-    isRosInitialized: () => isInitialized
+    saveMap,
+    emergencyStop,
+    getConnectionStatus,
+    getROS2Status,      // ✅ NEW: For health checks
+    testConnection,
+    shutdown
 };

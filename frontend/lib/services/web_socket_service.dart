@@ -137,12 +137,22 @@ class WebSocketService {
   }
 
   void _subscribeToTopics() {
-    subscribe('real_time_data');
-    subscribe('control_events');
-    subscribe('mapping_events');
-    subscribe('map_events');
-    subscribe('order_events');
-    subscribe('device_events');
+    if (_isConnected) {
+      subscribe('real_time_data');
+      subscribe('control_events');
+      subscribe('mapping_events');
+      subscribe('map_events');
+      subscribe('order_events');
+      subscribe('device_events');
+
+      // Add costmap subscriptions
+      subscribe('global_costmap_update');
+      subscribe('local_costmap_update');
+
+      // ✅ REMOVED: requestData calls that cause "Unknown message type" errors
+      // The server will send initial data automatically after connection
+      print('📡 Subscribed to all topics, waiting for server data...');
+    }
   }
 
   // ==========================================
@@ -186,7 +196,7 @@ class WebSocketService {
         protocols: ['websocket'],
         connectTimeout: connectionTimeout,
         pingInterval:
-            Duration(seconds: 20), // ✅ CRITICAL: Enable WebSocket-level ping
+            const Duration(seconds: 20), // ✅ CRITICAL: Enable WebSocket-level ping
       );
 
       // ✅ FIXED: Improved connection establishment
@@ -285,23 +295,6 @@ class WebSocketService {
     }
   }
 
-  void _setupPermanentListener() {
-    _channel!.stream.listen(
-      (data) {
-        _lastMessageReceived = DateTime.now();
-        _handleMessage(data);
-      },
-      onError: (error) {
-        print('❌ WebSocket error: $error');
-        _handleDisconnection();
-      },
-      onDone: () {
-        print('🔌 WebSocket connection closed');
-        _handleDisconnection();
-      },
-    );
-  }
-
   void disconnect() {
     print('📱 Disconnecting WebSocket...');
     _isConnected = false;
@@ -333,7 +326,7 @@ class WebSocketService {
   void _startApplicationPing() {
     _stopApplicationPing();
 
-    _pingTimer = Timer.periodic(Duration(seconds: 20), (timer) {
+    _pingTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
       // ✅ FIXED: Less frequent
       if (_isConnected && _channel != null) {
         try {
@@ -347,7 +340,7 @@ class WebSocketService {
           if (_lastMessageReceived != null) {
             final timeSinceLastMessage =
                 DateTime.now().difference(_lastMessageReceived!);
-            if (timeSinceLastMessage > Duration(minutes: 2)) {
+            if (timeSinceLastMessage > const Duration(minutes: 2)) {
               // ✅ FIXED: 2 minutes timeout
               print(
                   '💔 No messages received for ${timeSinceLastMessage.inSeconds}s, reconnecting...');
@@ -372,7 +365,7 @@ class WebSocketService {
 
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(Duration(seconds: 30), (timer) {
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       // ✅ FIXED: Less frequent
       if (_isConnected) {
         sendMessage({
@@ -646,7 +639,7 @@ class WebSocketService {
   void _startReconnectTimer([Duration? delay]) {
     _stopReconnectTimer();
 
-    _reconnectTimer = Timer(delay ?? Duration(seconds: 5), () async {
+    _reconnectTimer = Timer(delay ?? const Duration(seconds: 5), () async {
       if (!_isConnected && _serverUrl != null && !_isReconnecting) {
         print(
             '🔄 Attempting to reconnect... (attempt $_reconnectAttempts/$maxReconnectAttempts)');
@@ -706,13 +699,15 @@ class WebSocketService {
   // ==========================================
   // JOYSTICK & MOVEMENT CONTROL
   // ==========================================
-  void sendJoystickControl(String deviceId, double x, double y, bool deadman) {
+  void sendJoystickControl(String deviceId, double x, double y, bool deadman, {double? maxLinearSpeed, double? maxAngularSpeed}) {
     sendMessage({
       'type': 'joystick_control',
       'deviceId': deviceId,
       'x': x,
       'y': y,
       'deadman': deadman,
+      'maxLinearSpeed': maxLinearSpeed,  // ✅ NEW: Pass max speeds to server
+      'maxAngularSpeed': maxAngularSpeed, // ✅ NEW: Pass max speeds to server
       'timestamp': DateTime.now().toIso8601String(),
     });
   }
@@ -824,13 +819,8 @@ class WebSocketService {
     });
   }
 
-  void requestData(String requestType, {String? deviceId}) {
-    sendMessage({
-      'type': 'request_data',
-      'requestType': requestType,
-      'deviceId': deviceId,
-    });
-  }
+  // ✅ REMOVED: requestData method that causes server errors
+  // Data will be received automatically through subscriptions
 
   void requestDeviceDiscovery() {
     sendMessage({

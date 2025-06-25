@@ -10,25 +10,8 @@
       "remote_control"
     ],
     "status": "connected",
-    "connectedAt": "2025-06-21T07:00:57.160Z",
-    "lastSeen": "2025-06-23T06:48:16.827Z",
-    "lastStartup": "2025-06-23T06:46:57.729Z"
-  },
-  {
-    "id": "agv_01",
-    "name": "Primary AGV",
-    "type": "differential_drive",
-    "ipAddress": "192.168.253.79",
-    "capabilities": [
-      "mapping",
-      "navigation",
-      "remote_control"
-    ],
-    "autoConnected": true,
-    "connectedAt": "2025-06-21T07:01:03.449Z",
-    "status": "disconnected",
-    "lastSeen": "2025-06-21T07:01:03.449Z",
-    "lastSaved": "2025-06-21T07:01:03.449Z",
-    "lastStartup": "2025-06-23T06:46:57.729Z"
+    "connectedAt": "2025-06-25T04:31:46.881Z",
+    "lastSeen": "2025-06-25T05:15:40.019Z",
+    "lastStartup": "2025-06-25T05:14:59.675Z"
   }
 ]

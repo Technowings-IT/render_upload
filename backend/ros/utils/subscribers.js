@@ -1,13 +1,15 @@
-// ros/utils/subscribers.js - Fixed with /pos topic and integrated with working ros_connection.js
+// ros/utils/subscribers.js - Enhanced with Device ID Support and Better Integration
 const rclnodejs = require('rclnodejs');
 
 let rosNode = null;
 let subscribers = {};
 let broadcastToSubscribers;
+let currentDeviceId = 'piros'; // Default device ID
 
 // Initialize with the node from ros_connection.js
-function initializeSubscribers(node) {
+function initializeSubscribers(node, deviceId = 'piros') {
     rosNode = node;
+    currentDeviceId = deviceId;
     
     // Import WebSocket broadcasting
     try {
@@ -18,7 +20,7 @@ function initializeSubscribers(node) {
         broadcastToSubscribers = () => {}; // Fallback function
     }
     
-    console.log('✅ Subscribers initialized with ROS node');
+    console.log(`✅ Subscribers initialized with ROS node for device: ${currentDeviceId}`);
 }
 
 // Create subscriber if not exists
@@ -42,34 +44,42 @@ function getOrCreateSubscriber(topicName, messageType, callback) {
 }
 
 /**
- * Subscribe to /pos topic for live position tracking (as requested by user)
+ * Subscribe to /amcl_pose topic for live position tracking
  */
 function subscribeToPosition() {
-    const callback = (posMsg) => {
+    const callback = (poseMsg) => {
         try {
             const positionData = {
                 position: {
-                    x: posMsg.x || 0,
-                    y: posMsg.y || 0,
-                    z: posMsg.z || 0
+                    x: poseMsg.pose.pose.position.x || 0,
+                    y: poseMsg.pose.pose.position.y || 0,
+                    z: poseMsg.pose.pose.position.z || 0
+                },
+                orientation: {
+                    x: poseMsg.pose.pose.orientation.x || 0,
+                    y: poseMsg.pose.pose.orientation.y || 0,
+                    z: poseMsg.pose.pose.orientation.z || 0,
+                    w: poseMsg.pose.pose.orientation.w || 1,
+                    yaw: quaternionToYaw(poseMsg.pose.pose.orientation)
                 },
                 timestamp: new Date().toISOString(),
-                frame_id: posMsg.header?.frame_id || 'base_link'
+                frame_id: poseMsg.header?.frame_id || 'map'
             };
             
             // Update global live data
             updateGlobalLiveData('position', positionData);
             
-            // Broadcast position update
+            // Broadcast position update with device ID
             broadcastToSubscribers('real_time_data', {
                 type: 'position_update',
                 data: positionData,
+                deviceId: currentDeviceId,
                 timestamp: new Date().toISOString()
             });
             
             // Console log every 2 seconds to avoid spam
             if (Date.now() % 2000 < 100) {
-                console.log(`📍 Position: (${positionData.position.x.toFixed(2)}, ${positionData.position.y.toFixed(2)})`);
+                console.log(`📍 [${currentDeviceId}] Position: (${positionData.position.x.toFixed(2)}, ${positionData.position.y.toFixed(2)})`);
             }
             
         } catch (error) {
@@ -77,12 +87,12 @@ function subscribeToPosition() {
         }
     };
     
-    // Try to subscribe to /pos topic first (user's preference)
+    // Subscribe to /amcl_pose topic for position tracking
     try {
-        getOrCreateSubscriber('/pos', 'geometry_msgs/msg/Point', callback);
-        console.log('✅ Subscribed to /pos topic for position tracking');
+        getOrCreateSubscriber('/amcl_pose', 'geometry_msgs/msg/PoseWithCovarianceStamped', callback);
+        console.log('✅ Subscribed to /amcl_pose topic for position tracking');
     } catch (error) {
-        console.warn('⚠️ /pos topic not available, falling back to /diff_drive_controller/odom');
+        console.warn('⚠️ /amcl_pose topic not available, falling back to /diff_drive_controller/odom');
         subscribeToOdometry(); // Fallback to odometry
     }
 }
@@ -124,10 +134,11 @@ function subscribeToOdometry() {
             // Update global live data
             updateGlobalLiveData('odometry', processedOdom);
             
-            // Broadcast odometry update 
+            // Broadcast odometry update with device ID
             broadcastToSubscribers('real_time_data', {
                 type: 'odometry_update',
                 data: processedOdom,
+                deviceId: currentDeviceId,
                 timestamp: new Date().toISOString()
             });
             
@@ -172,16 +183,17 @@ function subscribeToMap() {
             // Update global live data
             updateGlobalLiveData('map', mapData);
             
-            // Broadcast map update (throttled to avoid overwhelming)
+            // Broadcast map update (throttled to avoid overwhelming) with device ID
             if (!global.lastMapBroadcast || Date.now() - global.lastMapBroadcast > 2000) {
                 broadcastToSubscribers('real_time_data', {
                     type: 'map_update',
                     data: mapData,
+                    deviceId: currentDeviceId,
                     timestamp: new Date().toISOString()
                 });
                 global.lastMapBroadcast = Date.now();
                 
-                console.log(`🗺️ Map update: ${mapData.info.width}x${mapData.info.height} (${(mapData.data.length/1024).toFixed(1)}KB)`);
+                console.log(`🗺️ [${currentDeviceId}] Map update: ${mapData.info.width}x${mapData.info.height} (${(mapData.data.length/1024).toFixed(1)}KB)`);
             }
             
         } catch (error) {
@@ -196,30 +208,33 @@ function subscribeToMap() {
  * Subscribe to wheel_velocity feedback
  */
 function subscribeToVelocityFeedback() {
-    const callback = (twistMsg) => {
+    const callback = (msg) => {
         try {
+            // msg.data is an array, e.g. [vx, vy, vz, wx, wy, wz]
+            const arr = msg.data || [];
             const velocityData = {
                 linear: {
-                    x: twistMsg.linear.x,
-                    y: twistMsg.linear.y,
-                    z: twistMsg.linear.z
+                    x: arr[0] || 0,
+                    y: arr[1] || 0,
+                    z: arr[2] || 0
                 },
                 angular: {
-                    x: twistMsg.angular.x,
-                    y: twistMsg.angular.y,
-                    z: twistMsg.angular.z
+                    x: arr[3] || 0,
+                    y: arr[4] || 0,
+                    z: arr[5] || 0
                 },
                 timestamp: new Date().toISOString()
             };
-            
+
             updateGlobalLiveData('velocity_feedback', velocityData);
-            
+
             broadcastToSubscribers('real_time_data', {
                 type: 'velocity_feedback',
                 data: velocityData,
+                deviceId: currentDeviceId,
                 timestamp: new Date().toISOString()
             });
-            
+
         } catch (error) {
             console.error('❌ Error processing velocity feedback:', error);
         }
@@ -249,6 +264,7 @@ function subscribeToJointStates() {
                 broadcastToSubscribers('real_time_data', {
                     type: 'joint_states_update',
                     data: jointData,
+                    deviceId: currentDeviceId,
                     timestamp: new Date().toISOString()
                 });
             }
@@ -286,10 +302,11 @@ function subscribeToBattery() {
             broadcastToSubscribers('real_time_data', {
                 type: 'battery_update',
                 data: batteryData,
+                deviceId: currentDeviceId,
                 timestamp: new Date().toISOString()
             });
             
-            console.log(`🔋 Battery: ${batteryData.percentage?.toFixed(1) || 'N/A'}%`);
+            console.log(`🔋 [${currentDeviceId}] Battery: ${batteryData.percentage?.toFixed(1) || 'N/A'}%`);
             
         } catch (error) {
             console.error('❌ Error processing battery data:', error);
@@ -304,12 +321,118 @@ function subscribeToBattery() {
 }
 
 /**
+ * Subscribe to global costmap - ENHANCED for Flutter Integration
+ */
+function subscribeToGlobalCostmap() {
+    const callback = (costmapMsg) => {
+        try {
+            const costmapData = {
+                info: {
+                    resolution: costmapMsg.info.resolution,
+                    width: costmapMsg.info.width,
+                    height: costmapMsg.info.height,
+                    origin: {
+                        position: {
+                            x: costmapMsg.info.origin.position.x,
+                            y: costmapMsg.info.origin.position.y,
+                            z: costmapMsg.info.origin.position.z
+                        },
+                        orientation: {
+                            x: costmapMsg.info.origin.orientation.x,
+                            y: costmapMsg.info.origin.orientation.y,
+                            z: costmapMsg.info.origin.orientation.z,
+                            w: costmapMsg.info.origin.orientation.w
+                        }
+                    }
+                },
+                data: Array.from(costmapMsg.data),
+                timestamp: new Date().toISOString(),
+                frame_id: costmapMsg.header.frame_id
+            };
+
+            updateGlobalLiveData('global_costmap', costmapData);
+
+            // Broadcast with device ID for Flutter app consumption
+            broadcastToSubscribers('real_time_data', {
+                type: 'global_costmap_update',
+                data: costmapData,
+                deviceId: currentDeviceId,
+                timestamp: new Date().toISOString()
+            });
+
+            // Optional: log occasionally
+            if (!global.lastGlobalCostmapBroadcast || Date.now() - global.lastGlobalCostmapBroadcast > 3000) {
+                console.log(`🌍 [${currentDeviceId}] Global costmap update: ${costmapData.info.width}x${costmapData.info.height}`);
+                global.lastGlobalCostmapBroadcast = Date.now();
+            }
+        } catch (error) {
+            console.error('❌ Error processing global costmap:', error);
+        }
+    };
+
+    getOrCreateSubscriber('/global_costmap/costmap', 'nav_msgs/msg/OccupancyGrid', callback);
+}
+
+/**
+ * Subscribe to local costmap - ENHANCED for Flutter Integration
+ */
+function subscribeToLocalCostmap() {
+    const callback = (costmapMsg) => {
+        try {
+            const costmapData = {
+                info: {
+                    resolution: costmapMsg.info.resolution,
+                    width: costmapMsg.info.width,
+                    height: costmapMsg.info.height,
+                    origin: {
+                        position: {
+                            x: costmapMsg.info.origin.position.x,
+                            y: costmapMsg.info.origin.position.y,
+                            z: costmapMsg.info.origin.position.z
+                        },
+                        orientation: {
+                            x: costmapMsg.info.origin.orientation.x,
+                            y: costmapMsg.info.origin.orientation.y,
+                            z: costmapMsg.info.origin.orientation.z,
+                            w: costmapMsg.info.origin.orientation.w
+                        }
+                    }
+                },
+                data: Array.from(costmapMsg.data),
+                timestamp: new Date().toISOString(),
+                frame_id: costmapMsg.header.frame_id
+            };
+
+            updateGlobalLiveData('local_costmap', costmapData);
+
+            // Broadcast with device ID for Flutter app consumption
+            broadcastToSubscribers('real_time_data', {
+                type: 'local_costmap_update',
+                data: costmapData,
+                deviceId: currentDeviceId,
+                timestamp: new Date().toISOString()
+            });
+
+            // Optional: log occasionally (more frequent for local costmap)
+            if (!global.lastLocalCostmapBroadcast || Date.now() - global.lastLocalCostmapBroadcast > 1500) {
+                console.log(`🏠 [${currentDeviceId}] Local costmap update: ${costmapData.info.width}x${costmapData.info.height}`);
+                global.lastLocalCostmapBroadcast = Date.now();
+            }
+        } catch (error) {
+            console.error('❌ Error processing local costmap:', error);
+        }
+    };
+
+    getOrCreateSubscriber('/local_costmap/costmap', 'nav_msgs/msg/OccupancyGrid', callback);
+}
+
+/**
  * Subscribe to all essential topics for AGV operation
  */
 function subscribeToAllTopics() {
-    console.log('📥 Subscribing to all AGV topics...');
+    console.log(`📥 Subscribing to all AGV topics for device: ${currentDeviceId}...`);
     
-    // Core position tracking (user's preference for /pos)
+    // Core position tracking
     subscribeToPosition();
     
     // Live mapping
@@ -324,7 +447,19 @@ function subscribeToAllTopics() {
     // Battery monitoring
     subscribeToBattery();
     
-    console.log('✅ All topic subscriptions initiated');
+    // Costmaps for navigation visualization
+    subscribeToGlobalCostmap();
+    subscribeToLocalCostmap();
+    
+    console.log(`✅ All topic subscriptions initiated for device: ${currentDeviceId}`);
+}
+
+/**
+ * Set device ID for multi-robot support
+ */
+function setDeviceId(deviceId) {
+    currentDeviceId = deviceId;
+    console.log(`🏷️ Device ID updated to: ${currentDeviceId}`);
 }
 
 // Utility functions
@@ -337,15 +472,12 @@ function updateGlobalLiveData(dataType, data) {
         global.liveData = {};
     }
     
-    // For single AGV setup, use 'agv_01' as default device ID
-    const deviceId = 'agv_01';
-    
-    if (!global.liveData[deviceId]) {
-        global.liveData[deviceId] = {};
+    if (!global.liveData[currentDeviceId]) {
+        global.liveData[currentDeviceId] = {};
     }
     
-    global.liveData[deviceId][dataType] = data;
-    global.liveData[deviceId].lastUpdate = new Date().toISOString();
+    global.liveData[currentDeviceId][dataType] = data;
+    global.liveData[currentDeviceId].lastUpdate = new Date().toISOString();
 }
 
 /**
@@ -372,5 +504,8 @@ module.exports = {
     subscribeToVelocityFeedback,
     subscribeToJointStates,
     subscribeToBattery,
+    subscribeToGlobalCostmap,
+    subscribeToLocalCostmap,
+    setDeviceId,
     cleanup
 };

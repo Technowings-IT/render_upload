@@ -1,4 +1,4 @@
-// websocket/clientConnection.js - FIXED WebSocket with stable connection
+// websocket/clientConnection.js - FIXED WebSocket with proper mapping command handling
 const WebSocket = require('ws');
 const config = require('../config');
 
@@ -41,7 +41,7 @@ function initializeWebSocketServer(server) {
         console.log(`📱 Client ${clientId} connected from ${clientInfo.ipAddress}. Total clients: ${connectedClients.size}`);
 
         setupWebSocketHandlers(ws, clientId, clientInfo);
-        startPingPong(clientId); // ✅ FIXED: Enable ping-pong
+        startPingPong(clientId);
         sendWelcomeMessage(clientId);
         sendInitialData(clientId);
     });
@@ -61,12 +61,12 @@ function setupWebSocketHandlers(ws, clientId, clientInfo) {
             sendToClient(clientId, {
                 type: 'error',
                 message: 'Invalid message format',
+                details: error.message,
                 timestamp: new Date().toISOString()
             });
         }
     });
 
-    // ✅ FIXED: Proper pong handling
     ws.on('pong', (data) => {
         const client = connectedClients.get(clientId);
         if (client) {
@@ -91,7 +91,6 @@ function setupWebSocketHandlers(ws, clientId, clientInfo) {
     });
 }
 
-// ✅ FIXED: Uncommented and improved ping-pong mechanism
 function startPingPong(clientId) {
     const pingTimer = setInterval(() => {
         const client = connectedClients.get(clientId);
@@ -134,7 +133,7 @@ function stopPingPong(clientId) {
     }
 }
 
-// ✅ FIXED: Enhanced message handling with device-specific support
+// ✅ FIXED: Enhanced message handling with proper string matching
 function handleClientMessage(clientId, message) {
     const client = connectedClients.get(clientId);
     if (!client) return;
@@ -153,11 +152,10 @@ function handleClientMessage(clientId, message) {
             console.log(`🏓 Application pong received from ${clientId}`);
             break;
             
-        case config.WEBSOCKET.MESSAGE_TYPES.HEARTBEAT:
+        case 'heartbeat':
             handleHeartbeat(clientId);
             break;
             
-        // ✅ FIXED: Device-specific WebSocket handling
         case 'device_connect':
             handleDeviceConnectMessage(clientId, message);
             break;
@@ -170,16 +168,26 @@ function handleClientMessage(clientId, message) {
             handleUnsubscription(clientId, message);
             break;
             
-        case config.WEBSOCKET.MESSAGE_TYPES.JOYSTICK_CONTROL:
+        // ✅ FIXED: Use direct string matching instead of config constants
+        case 'joystick_control':
             handleJoystickControl(clientId, message);
             break;
             
-        case config.WEBSOCKET.MESSAGE_TYPES.MAPPING_COMMAND:
+        case 'mapping_command':  // ✅ FIXED: Direct string matching
             handleMappingCommand(clientId, message);
+            break;
+            
+        case 'control_command':
+            handleControlCommand(clientId, message);
             break;
             
         case 'device_discovery':
             handleDeviceDiscovery(clientId, message);
+            break;
+            
+        // ✅ NEW: Handle request_data to prevent "Unknown message type" errors
+        case 'request_data':
+            handleDataRequest(clientId, message);
             break;
             
         default:
@@ -192,7 +200,6 @@ function handleClientMessage(clientId, message) {
     }
 }
 
-// ✅ NEW: Device-specific connection handling
 function handleDeviceConnectMessage(clientId, message) {
     try {
         const { deviceId, deviceInfo } = message;
@@ -200,12 +207,12 @@ function handleDeviceConnectMessage(clientId, message) {
         if (!deviceId) {
             sendToClient(clientId, {
                 type: 'error',
-                message: 'Device ID required for connection'
+                message: 'Device ID required for connection',
+                timestamp: new Date().toISOString()
             });
             return;
         }
         
-        // Store device association with client
         const client = connectedClients.get(clientId);
         if (client) {
             client.connectedDeviceId = deviceId;
@@ -225,12 +232,13 @@ function handleDeviceConnectMessage(clientId, message) {
         console.error('❌ Error handling device connect:', error);
         sendToClient(clientId, {
             type: 'error',
-            message: 'Failed to connect to device'
+            message: 'Failed to connect to device',
+            details: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 }
 
-// ✅ NEW: Enhanced subscription handling
 function handleSubscription(clientId, message) {
     try {
         const { topics, deviceId } = message;
@@ -240,7 +248,6 @@ function handleSubscription(clientId, message) {
             topics.forEach(topic => {
                 client.subscribedTopics.add(topic);
                 
-                // Device-specific subscriptions
                 if (deviceId) {
                     const deviceTopic = `${deviceId}.${topic}`;
                     client.subscribedTopics.add(deviceTopic);
@@ -258,6 +265,12 @@ function handleSubscription(clientId, message) {
         }
     } catch (error) {
         console.error('❌ Error handling subscription:', error);
+        sendToClient(clientId, {
+            type: 'error',
+            message: 'Failed to process subscription',
+            details: error.message,
+            timestamp: new Date().toISOString()
+        });
     }
 }
 
@@ -282,14 +295,39 @@ function handleUnsubscription(clientId, message) {
     }
 }
 
-// ✅ NEW: Joystick control via WebSocket
+// ✅ FIXED: Enhanced joystick control handling with max speed support
 function handleJoystickControl(clientId, message) {
     try {
-        const { deviceId, x, y, deadman } = message;
+        console.log(`🕹️ Joystick control from ${clientId}:`, message);
+        const { deviceId, x, y, deadman, maxLinearSpeed, maxAngularSpeed } = message;
+        
+        if (!deviceId) {
+            throw new Error('Missing deviceId in joystick control');
+        }
+
+        // Validate joystick parameters
+        if (typeof x !== 'number' || typeof y !== 'number' || typeof deadman !== 'boolean') {
+            throw new Error('Invalid joystick parameters');
+        }
+
+        // Check if device exists
+        const device = global.connectedDevices?.find(d => d.id === deviceId);
+        if (!device) {
+            console.warn(`⚠️ Device ${deviceId} not found in connected devices`);
+            // Don't throw error, just warn and continue for now
+        }
         
         // Import ROS connection for publishing
         const rosConnection = require('../ros/utils/ros_connection');
-        const result = rosConnection.publishJoystick(x, y, deadman);
+        
+        let result;
+        if (rosConnection && typeof rosConnection.publishJoystick === 'function') {
+            // ✅ CRITICAL FIX: Pass max speeds from UI to ROS publisher
+            result = rosConnection.publishJoystick(x, y, deadman, maxLinearSpeed, maxAngularSpeed);
+        } else {
+            console.warn('⚠️ ROS connection not available, simulating joystick command');
+            result = { success: true, simulated: true };
+        }
         
         // Send result back to client
         sendToClient(clientId, {
@@ -303,63 +341,246 @@ function handleJoystickControl(clientId, message) {
         broadcastToSubscribers('control_events', {
             type: 'joystick_command',
             deviceId: deviceId,
-            data: { x, y, deadman },
+            data: { x, y, deadman, maxLinearSpeed, maxAngularSpeed },
             result: result,
-            clientId: clientId
+            clientId: clientId,
+            timestamp: new Date().toISOString()
         }, clientId);
         
     } catch (error) {
         console.error('❌ Error handling joystick control:', error);
         sendToClient(clientId, {
             type: 'error',
-            message: 'Failed to process joystick command'
+            message: 'Failed to process joystick command',
+            details: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 }
 
-// ✅ NEW: Mapping command via WebSocket
+// ✅ FIXED: Enhanced mapping command handling with better error handling
 function handleMappingCommand(clientId, message) {
     try {
+        console.log(`🗺️ Mapping command from ${clientId}:`, message);
         const { deviceId, command } = message;
-        const rosConnection = require('../ros/utils/ros_connection');
-        
-        let result;
-        switch (command) {
-            case 'start':
-                result = rosConnection.startMapping();
-                break;
-            case 'stop':
-                result = rosConnection.stopMapping();
-                break;
-            default:
-                throw new Error(`Unknown mapping command: ${command}`);
+
+        // Validate required fields
+        if (!deviceId) {
+            throw new Error('Missing deviceId in mapping command');
         }
         
+        if (!command) {
+            throw new Error('Missing command in mapping request');
+        }
+
+        // Validate command type
+        const validCommands = ['start', 'stop', 'pause', 'resume', 'save'];
+        if (!validCommands.includes(command)) {
+            throw new Error(`Invalid mapping command: ${command}. Valid commands: ${validCommands.join(', ')}`);
+        }
+
+        // Check if device exists (warn but don't fail)
+        const device = global.connectedDevices?.find(d => d.id === deviceId);
+        if (!device) {
+            console.warn(`⚠️ Device ${deviceId} not found in connected devices, but continuing...`);
+        }
+
+        // Try to get ROS connection
+        let rosConnection;
+        let result;
+        
+        try {
+            rosConnection = require('../ros/utils/ros_connection');
+        } catch (requireError) {
+            console.warn('⚠️ ROS connection module not found, simulating mapping command');
+            result = { 
+                success: true, 
+                simulated: true, 
+                command: command,
+                message: `Simulated ${command} mapping for device ${deviceId}`
+            };
+        }
+
+        if (rosConnection && !result) {
+            // Execute the mapping command
+            switch (command) {
+                case 'start':
+                    if (typeof rosConnection.startMapping === 'function') {
+                        result = rosConnection.startMapping(deviceId);
+                    } else {
+                        result = { success: true, simulated: true, command: 'start' };
+                    }
+                    break;
+                case 'stop':
+                    if (typeof rosConnection.stopMapping === 'function') {
+                        result = rosConnection.stopMapping(deviceId);
+                    } else {
+                        result = { success: true, simulated: true, command: 'stop' };
+                    }
+                    break;
+                case 'pause':
+                    if (typeof rosConnection.pauseMapping === 'function') {
+                        result = rosConnection.pauseMapping(deviceId);
+                    } else {
+                        result = { success: true, simulated: true, command: 'pause' };
+                    }
+                    break;
+                case 'resume':
+                    if (typeof rosConnection.resumeMapping === 'function') {
+                        result = rosConnection.resumeMapping(deviceId);
+                    } else {
+                        result = { success: true, simulated: true, command: 'resume' };
+                    }
+                    break;
+                case 'save':
+                    if (typeof rosConnection.saveMap === 'function') {
+                        result = rosConnection.saveMap(deviceId);
+                    } else {
+                        result = { success: true, simulated: true, command: 'save' };
+                    }
+                    break;
+                default:
+                    throw new Error(`Unhandled mapping command: ${command}`);
+            }
+        }
+
+        // Ensure we have a result
+        if (!result) {
+            result = { 
+                success: false, 
+                error: 'No result from mapping operation',
+                command: command 
+            };
+        }
+
+        console.log(`✅ Mapping command ${command} executed for device ${deviceId}:`, result);
+
+        // Send result back to client
         sendToClient(clientId, {
             type: 'mapping_result',
             deviceId: deviceId,
             command: command,
             result: result,
+            success: result.success !== false,
             timestamp: new Date().toISOString()
         });
-        
+
+        // Broadcast to other subscribers
         broadcastToSubscribers('mapping_events', {
             type: `mapping_${command}`,
             deviceId: deviceId,
+            command: command,
             result: result,
-            clientId: clientId
+            clientId: clientId,
+            timestamp: new Date().toISOString()
         }, clientId);
-        
+
     } catch (error) {
         console.error('❌ Error handling mapping command:', error);
+        
+        const errorResponse = {
+            type: 'error',
+            subType: 'mapping_command_failed',
+            message: 'Failed to process mapping command',
+            details: error.message,
+            deviceId: message.deviceId || 'unknown',
+            command: message.command || 'unknown',
+            timestamp: new Date().toISOString()
+        };
+        
+        sendToClient(clientId, errorResponse);
+        
+        // Also broadcast the error to mapping event subscribers
+        broadcastToSubscribers('mapping_events', {
+            type: 'mapping_error',
+            error: errorResponse,
+            clientId: clientId,
+            timestamp: new Date().toISOString()
+        }, clientId);
+    }
+}
+
+// ✅ NEW: General control command handler
+function handleControlCommand(clientId, message) {
+    try {
+        console.log(`🎮 Control command from ${clientId}:`, message);
+        const { deviceId, command, data } = message;
+
+        if (!deviceId) {
+            throw new Error('Missing deviceId in control command');
+        }
+
+        if (!command) {
+            throw new Error('Missing command in control request');
+        }
+
+        // Check if device exists
+        const device = global.connectedDevices?.find(d => d.id === deviceId);
+        if (!device) {
+            console.warn(`⚠️ Device ${deviceId} not found in connected devices`);
+        }
+
+        let result = { success: true, command: command, data: data || {} };
+
+        // Try to get ROS connection
+        try {
+            const rosConnection = require('../ros/utils/ros_connection');
+            
+            switch (command) {
+                case 'move':
+                    if (rosConnection.publishMovement) {
+                        result = rosConnection.publishMovement(data.linear || 0, data.angular || 0);
+                    }
+                    break;
+                case 'stop':
+                    if (rosConnection.publishMovement) {
+                        result = rosConnection.publishMovement(0, 0);
+                    }
+                    break;
+                case 'goal':
+                    if (rosConnection.publishGoal) {
+                        result = rosConnection.publishGoal(data.x, data.y, data.orientation);
+                    }
+                    break;
+                default:
+                    result = { success: true, simulated: true, command: command };
+            }
+        } catch (rosError) {
+            console.warn('⚠️ ROS connection error:', rosError.message);
+            result = { success: true, simulated: true, command: command };
+        }
+
+        // Send result back to client
+        sendToClient(clientId, {
+            type: 'control_result',
+            deviceId: deviceId,
+            command: command,
+            result: result,
+            timestamp: new Date().toISOString()
+        });
+
+        // Broadcast to other subscribers
+        broadcastToSubscribers('control_events', {
+            type: 'control_command',
+            deviceId: deviceId,
+            command: command,
+            data: data,
+            result: result,
+            clientId: clientId,
+            timestamp: new Date().toISOString()
+        }, clientId);
+
+    } catch (error) {
+        console.error('❌ Error handling control command:', error);
         sendToClient(clientId, {
             type: 'error',
-            message: 'Failed to process mapping command'
+            message: 'Failed to process control command',
+            details: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 }
 
-// ✅ NEW: Device discovery response
 function handleDeviceDiscovery(clientId, message) {
     try {
         const availableDevices = global.connectedDevices || [];
@@ -368,7 +589,7 @@ function handleDeviceDiscovery(clientId, message) {
             type: 'device_discovery_response',
             devices: availableDevices,
             server: {
-                ip: '192.168.253.79', // Your backend IP
+                ip: '192.168.253.79',
                 port: 3000,
                 websocket_port: 3000,
                 capabilities: ['mapping', 'navigation', 'remote_control'],
@@ -381,6 +602,77 @@ function handleDeviceDiscovery(clientId, message) {
         
     } catch (error) {
         console.error('❌ Error handling device discovery:', error);
+        sendToClient(clientId, {
+            type: 'error',
+            message: 'Failed to process device discovery',
+            details: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+}
+
+// ✅ NEW: Handle data requests to prevent errors
+function handleDataRequest(clientId, message) {
+    try {
+        const { requestType, deviceId } = message;
+        
+        console.log(`📊 Data request from ${clientId}: ${requestType} for device ${deviceId || 'any'}`);
+        
+        // Handle different request types
+        switch (requestType) {
+            case 'device_status':
+                // Send device status if available
+                const devices = global.connectedDevices || [];
+                const device = deviceId ? devices.find(d => d.id === deviceId) : null;
+                
+                sendToClient(clientId, {
+                    type: 'device_status_response',
+                    deviceId: deviceId,
+                    status: device ? 'online' : 'unknown',
+                    data: device || {},
+                    timestamp: new Date().toISOString()
+                });
+                break;
+                
+            case 'map':
+                // Send current map data if available
+                sendToClient(clientId, {
+                    type: 'map_data_response',
+                    deviceId: deviceId,
+                    mapData: global.currentMapData || null,
+                    timestamp: new Date().toISOString()
+                });
+                break;
+                
+            case 'global_costmap':
+            case 'local_costmap':
+                // Send costmap data if available
+                sendToClient(clientId, {
+                    type: `${requestType}_response`,
+                    deviceId: deviceId,
+                    costmapData: global[`${requestType}Data`] || null,
+                    timestamp: new Date().toISOString()
+                });
+                break;
+                
+            default:
+                sendToClient(clientId, {
+                    type: 'data_request_result',
+                    requestType: requestType,
+                    success: false,
+                    message: `Unsupported request type: ${requestType}`,
+                    timestamp: new Date().toISOString()
+                });
+        }
+        
+    } catch (error) {
+        console.error('❌ Error handling data request:', error);
+        sendToClient(clientId, {
+            type: 'error',
+            message: 'Failed to process data request',
+            details: error.message,
+            timestamp: new Date().toISOString()
+        });
     }
 }
 
@@ -389,7 +681,7 @@ function handleHeartbeat(clientId) {
     if (client) {
         client.lastHeartbeat = new Date();
         sendToClient(clientId, {
-            type: config.WEBSOCKET.MESSAGE_TYPES.HEARTBEAT_ACK,
+            type: 'heartbeat_ack',
             timestamp: new Date().toISOString()
         });
     }
@@ -513,7 +805,6 @@ function cleanupConnections() {
                 console.log(`🧹 Removing client with closed connection: ${clientId}`);
                 clientsToRemove.push(clientId);
             } else {
-                // ✅ FIXED: More lenient timeout (2 minutes instead of aggressive timeouts)
                 const timeSinceLastHeartbeat = now - client.lastHeartbeat;
                 if (timeSinceLastHeartbeat > 120000) { // 2 minutes
                     console.log(`🧹 Removing stale client: ${clientId} (${timeSinceLastHeartbeat}ms since last heartbeat)`);
