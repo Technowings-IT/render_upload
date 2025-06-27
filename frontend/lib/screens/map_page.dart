@@ -4,7 +4,7 @@ import '../services/api_service.dart';
 import '../services/web_socket_service.dart';
 import '../models/map_data.dart';
 import '../models/odom.dart' as odom;
-import '../widgets/map_canvas.dart';
+import '../widgets/map_canvas.dart'; // Ensure this file exports MapCanvasWidget
 import 'dart:async';
 
 class EnhancedMapPage extends StatefulWidget {
@@ -828,13 +828,11 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           ],
         ),
       ),
-      child: MapCanvasWidget(
+      child: EnhancedMapCanvas(
         mapData: _currentMap,
         onMapChanged: _onMapChanged,
         deviceId: _selectedDeviceId,
         enableRealTimeUpdates: _isWebSocketConnected,
-        width: MediaQuery.of(context).size.width,
-        height: MediaQuery.of(context).size.height,
       ),
     );
   }

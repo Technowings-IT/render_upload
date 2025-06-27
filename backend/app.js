@@ -12,6 +12,7 @@ const { initializeWebSocketServer } = require('./websocket/clientConnection');
 
 // Import routes
 const controlRoutes = require('./routes/controlRoutes');
+const mapRoutes = require('./routes/mapRoutes');
 const { router: discoveryRoutes, initializeUDPDiscovery } = require('./routes/discoveryRoutes');
 
 const app = express();
@@ -57,7 +58,7 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
+app.use('/api', mapRoutes);
 // Request logging middleware
 app.use((req, res, next) => {
     console.log(`📝 ${req.method} ${req.path} - ${req.ip || 'unknown'} - ${new Date().toISOString()}`);
@@ -603,6 +604,7 @@ async function startServer() {
             console.log(`   - WebSocket: ✅ Ready`);
             console.log(`   - Device Discovery: ✅ Ready`);
             console.log(`   - ROS Health Monitor: ✅ Active`);
+            console.log('✅ Map and PGM conversion routes added');
             console.log(`   - Connected Devices: ${global.connectedDevices.length}`);
             console.log(`\n🤖 Ready for AGV connections!\n`);
             

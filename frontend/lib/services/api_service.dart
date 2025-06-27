@@ -135,7 +135,515 @@ class ApiService {
     
     return null;
   }
+  // services/enhanced_api_service.dart - Add these methods to your existing ApiService class
 
+// ==========================================
+// PGM CONVERSION & MAP MANAGEMENT METHODS
+// ==========================================
+
+/// Export current map data to PGM format
+Future<Map<String, dynamic>> exportMapToPGM({
+  required String deviceId,
+  bool includeGlobalCostmap = true,
+  bool includeLocalCostmap = true,
+  bool includeStaticMap = true,
+  String? mapName,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/maps/$deviceId/export/pgm', {
+      'mapName': mapName ?? 'exported_map_${DateTime.now().millisecondsSinceEpoch}',
+      'includeGlobalCostmap': includeGlobalCostmap,
+      'includeLocalCostmap': includeLocalCostmap,
+      'includeStaticMap': includeStaticMap,
+      'exportTimestamp': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ Map exported to PGM: ${response['files']}');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error exporting map to PGM: $e');
+    throw ApiException('Failed to export map to PGM: $e');
+  }
+}
+
+/// Upload map to AGV (send PGM + YAML back to ROS)
+Future<Map<String, dynamic>> uploadMapToAGV({
+  required String deviceId,
+  required String mapName,
+  bool setAsActiveMap = true,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/maps/$deviceId/upload', {
+      'mapName': mapName,
+      'setAsActiveMap': setAsActiveMap,
+      'uploadTimestamp': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ Map uploaded to AGV: $mapName');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error uploading map to AGV: $e');
+    throw ApiException('Failed to upload map to AGV: $e');
+  }
+}
+
+/// Get available PGM exports for a device
+Future<List<Map<String, dynamic>>> getAvailableMaps(String deviceId) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _get('/api/maps/$deviceId/available');
+
+    if (response['success'] == true) {
+      final maps = response['maps'] as List?;
+      if (maps != null) {
+        return maps.cast<Map<String, dynamic>>();
+      }
+    }
+
+    return [];
+  } catch (e) {
+    print('❌ Error getting available maps: $e');
+    throw ApiException('Failed to get available maps: $e');
+  }
+}
+
+/// Download a PGM file for external use
+Future<Map<String, dynamic>> downloadPGMFile({
+  required String deviceId,
+  required String fileName,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _get('/api/maps/$deviceId/download/$fileName');
+    return response;
+  } catch (e) {
+    print('❌ Error downloading PGM file: $e');
+    throw ApiException('Failed to download PGM file: $e');
+  }
+}
+
+/// Convert occupancy grid to different formats
+Future<Map<String, dynamic>> convertMapFormat({
+  required String deviceId,
+  required String sourceFormat, // 'occupancy_grid', 'pgm', 'yaml'
+  required String targetFormat, // 'pgm', 'yaml', 'json', 'png'
+  String? mapName,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/maps/$deviceId/convert', {
+      'sourceFormat': sourceFormat,
+      'targetFormat': targetFormat,
+      'mapName': mapName,
+      'conversionTimestamp': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ Map converted from $sourceFormat to $targetFormat');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error converting map format: $e');
+    throw ApiException('Failed to convert map format: $e');
+  }
+}
+
+/// Get real-time costmap data directly (alternative to WebSocket)
+Future<Map<String, dynamic>> getCostmapData({
+  required String deviceId,
+  String costmapType = 'both', // 'global', 'local', 'both'
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _get('/api/maps/$deviceId/costmaps?type=$costmapType');
+
+    if (response['success'] == true) {
+      return response;
+    }
+
+    throw ApiException('Failed to get costmap data: ${response['error']}');
+  } catch (e) {
+    print('❌ Error getting costmap data: $e');
+    throw ApiException('Failed to get costmap data: $e');
+  }
+}
+
+/// Update map metadata (resolution, origin, etc.)
+Future<Map<String, dynamic>> updateMapMetadata({
+  required String deviceId,
+  required String mapName,
+  double? resolution,
+  Map<String, double>? origin,
+  Map<String, dynamic>? additionalMetadata,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final updateData = <String, dynamic>{
+      'mapName': mapName,
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+
+    if (resolution != null) updateData['resolution'] = resolution;
+    if (origin != null) updateData['origin'] = origin;
+    if (additionalMetadata != null) updateData.addAll(additionalMetadata);
+
+    final response = await _put('/api/maps/$deviceId/metadata', updateData);
+
+    if (response['success'] == true) {
+      print('✅ Map metadata updated: $mapName');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error updating map metadata: $e');
+    throw ApiException('Failed to update map metadata: $e');
+  }
+}
+
+/// Apply image processing operations to map
+Future<Map<String, dynamic>> processMap({
+  required String deviceId,
+  required String mapName,
+  required String operation, // 'erode', 'dilate', 'open', 'close', 'blur', 'sharpen'
+  Map<String, dynamic>? operationParams,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/maps/$deviceId/process', {
+      'mapName': mapName,
+      'operation': operation,
+      'operationParams': operationParams ?? {},
+      'processedAt': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ Map processed with operation: $operation');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error processing map: $e');
+    throw ApiException('Failed to process map: $e');
+  }
+}
+
+/// Merge multiple maps into one
+Future<Map<String, dynamic>> mergeMaps({
+  required String deviceId,
+  required List<String> mapNames,
+  required String outputMapName,
+  String mergeStrategy = 'overlay', // 'overlay', 'average', 'maximum', 'minimum'
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/maps/$deviceId/merge', {
+      'mapNames': mapNames,
+      'outputMapName': outputMapName,
+      'mergeStrategy': mergeStrategy,
+      'mergedAt': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ Maps merged into: $outputMapName');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error merging maps: $e');
+    throw ApiException('Failed to merge maps: $e');
+  }
+}
+
+/// Delete map files
+Future<Map<String, dynamic>> deleteMap({
+  required String deviceId,
+  required String mapName,
+  bool deleteAllFormats = true,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _delete('/api/maps/$deviceId/$mapName?deleteAllFormats=$deleteAllFormats');
+
+    if (response['success'] == true) {
+      print('✅ Map deleted: $mapName');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error deleting map: $e');
+    throw ApiException('Failed to delete map: $e');
+  }
+}
+
+/// Get map conversion status for long-running operations
+Future<Map<String, dynamic>> getConversionStatus({
+  required String deviceId,
+  required String conversionId,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _get('/api/maps/$deviceId/conversions/$conversionId/status');
+    return response;
+  } catch (e) {
+    print('❌ Error getting conversion status: $e');
+    throw ApiException('Failed to get conversion status: $e');
+  }
+}
+
+/// Set map as active on the AGV
+Future<Map<String, dynamic>> setActiveMap({
+  required String deviceId,
+  required String mapName,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/maps/$deviceId/set-active', {
+      'mapName': mapName,
+      'activatedAt': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ Active map set to: $mapName');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error setting active map: $e');
+    throw ApiException('Failed to set active map: $e');
+  }
+}
+
+/// Get map statistics and information
+Future<Map<String, dynamic>> getMapStatistics({
+  required String deviceId,
+  required String mapName,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _get('/api/maps/$deviceId/$mapName/statistics');
+
+    if (response['success'] == true) {
+      return response;
+    }
+
+    throw ApiException('Failed to get map statistics: ${response['error']}');
+  } catch (e) {
+    print('❌ Error getting map statistics: $e');
+    throw ApiException('Failed to get map statistics: $e');
+  }
+}
+
+// ==========================================
+// ENHANCED COSTMAP-SPECIFIC METHODS
+// ==========================================
+
+/// Subscribe to costmap updates via HTTP polling (fallback for WebSocket)
+Future<Map<String, dynamic>> startCostmapPolling({
+  required String deviceId,
+  int intervalMs = 1000,
+  List<String> costmapTypes = const ['global', 'local'],
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/costmaps/$deviceId/polling/start', {
+      'intervalMs': intervalMs,
+      'costmapTypes': costmapTypes,
+      'startedAt': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ Costmap polling started for: $costmapTypes');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error starting costmap polling: $e');
+    throw ApiException('Failed to start costmap polling: $e');
+  }
+}
+
+/// Stop costmap polling
+Future<Map<String, dynamic>> stopCostmapPolling({
+  required String deviceId,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/costmaps/$deviceId/polling/stop', {
+      'stoppedAt': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ Costmap polling stopped');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error stopping costmap polling: $e');
+    throw ApiException('Failed to stop costmap polling: $e');
+  }
+}
+
+/// Configure costmap parameters
+Future<Map<String, dynamic>> configureCostmap({
+  required String deviceId,
+  required String costmapType, // 'global' or 'local'
+  Map<String, dynamic>? parameters,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/costmaps/$deviceId/$costmapType/configure', {
+      'parameters': parameters ?? {},
+      'configuredAt': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ $costmapType costmap configured');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error configuring costmap: $e');
+    throw ApiException('Failed to configure costmap: $e');
+  }
+}
+
+/// Clear costmap (remove dynamic obstacles)
+Future<Map<String, dynamic>> clearCostmap({
+  required String deviceId,
+  required String costmapType, // 'global', 'local', or 'both'
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/costmaps/$deviceId/clear', {
+      'costmapType': costmapType,
+      'clearedAt': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ $costmapType costmap cleared');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error clearing costmap: $e');
+    throw ApiException('Failed to clear costmap: $e');
+  }
+}
+
+/// Export costmap as image (PNG/JPEG)
+Future<Map<String, dynamic>> exportCostmapAsImage({
+  required String deviceId,
+  required String costmapType,
+  String format = 'png', // 'png', 'jpeg'
+  bool includeColorbar = true,
+  Map<String, dynamic>? visualization,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/costmaps/$deviceId/$costmapType/export', {
+      'format': format,
+      'includeColorbar': includeColorbar,
+      'visualization': visualization ?? {},
+      'exportedAt': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ $costmapType costmap exported as $format');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error exporting costmap as image: $e');
+    throw ApiException('Failed to export costmap as image: $e');
+  }
+}
+
+// ==========================================
+// BATCH OPERATIONS FOR MULTIPLE DEVICES
+// ==========================================
+
+/// Export maps from multiple devices
+Future<Map<String, dynamic>> batchExportMaps({
+  required List<String> deviceIds,
+  String format = 'pgm',
+  bool includeMetadata = true,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/maps/batch/export', {
+      'deviceIds': deviceIds,
+      'format': format,
+      'includeMetadata': includeMetadata,
+      'batchExportedAt': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ Batch export completed for ${deviceIds.length} devices');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error in batch export: $e');
+    throw ApiException('Failed to batch export maps: $e');
+  }
+}
+
+/// Sync maps between devices
+Future<Map<String, dynamic>> syncMapsBetweenDevices({
+  required String sourceDeviceId,
+  required List<String> targetDeviceIds,
+  required String mapName,
+  bool overwriteExisting = false,
+}) async {
+  _ensureInitialized();
+  
+  try {
+    final response = await _post('/api/maps/sync', {
+      'sourceDeviceId': sourceDeviceId,
+      'targetDeviceIds': targetDeviceIds,
+      'mapName': mapName,
+      'overwriteExisting': overwriteExisting,
+      'syncedAt': DateTime.now().toIso8601String(),
+    });
+
+    if (response['success'] == true) {
+      print('✅ Map synced from $sourceDeviceId to ${targetDeviceIds.length} devices');
+    }
+
+    return response;
+  } catch (e) {
+    print('❌ Error syncing maps: $e');
+    throw ApiException('Failed to sync maps between devices: $e');
+  }
+}
   bool _isAGVBackend(Map<String, dynamic> data) {
     final dataStr = data.toString().toLowerCase();
     return data['success'] == true ||
