@@ -217,8 +217,8 @@ function getServerInfo() {
     for (const [name, interfaces] of Object.entries(networkInterfaces)) {
         for (const iface of interfaces) {
             if (iface.family === 'IPv4' && !iface.internal) {
-                // Prefer 192.168.253.x subnet if available
-                if (iface.address.startsWith('192.168.253.')) {
+                // Prefer 192.168.0.x subnet if available
+                if (iface.address.startsWith('192.168.0.')) {
                     primaryIP = iface.address;
                     break;
                 } else if (primaryIP === '127.0.0.1') {
@@ -226,7 +226,7 @@ function getServerInfo() {
                 }
             }
         }
-        if (primaryIP.startsWith('192.168.253.')) break;
+        if (primaryIP.startsWith('192.168.0.')) break;
     }
     
     return {

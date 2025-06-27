@@ -1,5 +1,4 @@
-// screens/control_page.dart - Fixed Responsive Design with Live Mapping Integration
-// Compatible with provided map_data.dart structure
+// screens/control_page.dart - FIXED Enhanced Control Page with Complete Save Functions
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -42,8 +41,8 @@ class _ControlPageState extends State<ControlPage>
   bool _isConnected = false;
   bool _mappingActive = false;
   bool _controlEnabled = true;
-  MapData? _currentMapData; // Fixed: Added missing variable
-  List<odom.Position> _robotTrail = []; // Using Position from odom.dart
+  MapData? _currentMapData;
+  List<odom.Position> _robotTrail = [];
   odom.OdometryData? _currentOdometry;
 
   // Control settings with mobile-friendly defaults
@@ -93,12 +92,9 @@ class _ControlPageState extends State<ControlPage>
     );
 
     _tabController = TabController(
-      length: 2, // EXACTLY 2 tabs: Live Control, Settings
+      length: 2,
       vsync: this,
     );
-
-    // Debug check
-    print('📋 TabController initialized with length: ${_tabController.length}');
   }
 
   void _initializeConnection() {
@@ -107,7 +103,7 @@ class _ControlPageState extends State<ControlPage>
     });
 
     if (!_webSocketService.isConnected) {
-      _webSocketService.connect('ws://192.168.253.79:3000',
+      _webSocketService.connect('ws://192.168.0.113:3000',
           deviceId: widget.deviceId,
           deviceInfo: {
             'type': 'mobile_controller',
@@ -123,7 +119,6 @@ class _ControlPageState extends State<ControlPage>
   }
 
   void _setupSubscriptions() {
-    // Connection state changes
     _connectionStateSubscription =
         _webSocketService.connectionState.listen((connected) {
       if (mounted) {
@@ -141,28 +136,24 @@ class _ControlPageState extends State<ControlPage>
       }
     });
 
-    // Real-time data (position, map updates)
     _realTimeDataSubscription = _webSocketService.realTimeData.listen((data) {
       if (mounted) {
         _handleRealTimeData(data);
       }
     });
 
-    // Mapping events
     _mappingEventsSubscription = _webSocketService.mappingEvents.listen((data) {
       if (mounted) {
         _handleMappingEvent(data);
       }
     });
 
-    // Control events
     _controlEventsSubscription = _webSocketService.controlEvents.listen((data) {
       if (mounted) {
         _handleControlEvent(data);
       }
     });
 
-    // Error handling
     _errorSubscription = _webSocketService.errors.listen((error) {
       if (mounted) {
         _showSnackBar('WebSocket Error: $error', Colors.red);
@@ -179,7 +170,6 @@ class _ControlPageState extends State<ControlPage>
     }
   }
 
-  // Data handling methods
   void _handleRealTimeData(Map<String, dynamic> data) {
     setState(() {
       _messagesReceived++;
@@ -215,7 +205,6 @@ class _ControlPageState extends State<ControlPage>
         _currentOdometry = odometryData;
         _lastPositionUpdate = DateTime.now();
         if (_mappingActive) {
-          // Convert odom.Position to odom.Position (they're the same type)
           _addToRobotTrail(odometryData.position);
         }
       });
@@ -316,10 +305,8 @@ class _ControlPageState extends State<ControlPage>
         .sqrt((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y));
   }
 
-  // Helper method to determine device type
   DeviceType _getDeviceType(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-
     if (screenWidth > 1024) {
       return DeviceType.desktop;
     } else if (screenWidth > 768) {
@@ -332,20 +319,12 @@ class _ControlPageState extends State<ControlPage>
   @override
   Widget build(BuildContext context) {
     final deviceType = _getDeviceType(context);
-
-    // Safety check: ensure TabController has correct length
-    if (_tabController.length != 2) {
-      print(
-          '🚨 TabController length mismatch! Expected: 2, Actual: ${_tabController.length}');
-      // Recreate TabController with correct length
-      _tabController.dispose();
-      _tabController = TabController(length: 2, vsync: this);
-    }
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Live Control - ${widget.deviceId}'),
-        backgroundColor: _mappingActive ? Colors.green : Colors.blue,
+        backgroundColor: _mappingActive ? Colors.green : theme.primaryColor,
         elevation: 2,
         actions: [
           _buildConnectionIndicator(),
@@ -362,36 +341,105 @@ class _ControlPageState extends State<ControlPage>
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           tabs: const [
-            Tab(
-                icon: Icon(Icons.control_camera),
-                text: 'Live Control'), // Tab 1
-            Tab(icon: Icon(Icons.settings), text: 'Settings'), // Tab 2
-          ], // EXACTLY 2 tabs
+            Tab(icon: Icon(Icons.control_camera), text: 'Live Control'),
+            Tab(icon: Icon(Icons.settings), text: 'Settings'),
+          ],
         ),
       ),
       body: Column(
         children: [
-          // Compact status bar
-          _buildCompactStatusBar(),
-
-          // Main content with tabs
+          _buildEnhancedStatusBar(),
           Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildLiveMappingTab(deviceType), // Child 1
-                _buildSettingsTab(), // Child 2
-              ], // EXACTLY 2 children
+                _buildLiveMappingTab(deviceType),
+                _buildSettingsTab(),
+              ],
             ),
           ),
         ],
       ),
-      // Floating action button for quick emergency stop
       floatingActionButton: FloatingActionButton(
         onPressed: _emergencyStop,
         backgroundColor: Colors.red,
         child: const Icon(Icons.stop, color: Colors.white),
         tooltip: 'Emergency Stop',
+      ),
+    );
+  }
+
+  Widget _buildEnhancedStatusBar() {
+    final theme = Theme.of(context);
+    return Container(
+      height: 50,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            theme.primaryColor.withOpacity(0.1),
+            theme.primaryColor.withOpacity(0.05),
+          ],
+        ),
+        border: Border(
+          bottom: BorderSide(color: theme.dividerColor),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            _buildEnhancedStatusItem(
+                Icons.location_on, _getPositionText(), Colors.blue),
+            const SizedBox(width: 20),
+            _buildEnhancedStatusItem(Icons.speed, _getVelocityText(), Colors.green),
+            const SizedBox(width: 20),
+            _buildEnhancedStatusItem(
+                Icons.timeline, 'Trail: ${_robotTrail.length}', Colors.orange),
+            const SizedBox(width: 20),
+            _buildEnhancedStatusItem(
+                Icons.layers,
+                'Shapes: ${_currentMapData?.shapes.length ?? 0}',
+                Colors.purple),
+            const SizedBox(width: 20),
+            _buildEnhancedStatusItem(
+                Icons.message, 'Msgs: $_messagesReceived', Colors.indigo),
+            if (_globalCostmap != null) ...[
+              const SizedBox(width: 20),
+              _buildEnhancedStatusItem(Icons.public, 'Global', Colors.blue),
+            ],
+            if (_localCostmap != null) ...[
+              const SizedBox(width: 20),
+              _buildEnhancedStatusItem(Icons.near_me, 'Local', Colors.red),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEnhancedStatusItem(IconData icon, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -411,17 +459,22 @@ class _ControlPageState extends State<ControlPage>
   Widget _buildDesktopLayout() {
     return Row(
       children: [
-        // Map takes 60% of width
         Expanded(
           flex: 6,
           child: Container(
             margin: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               child: LiveMappingCanvas(
                 mapData: _currentMapData,
                 currentOdometry: _currentOdometry,
@@ -442,13 +495,13 @@ class _ControlPageState extends State<ControlPage>
             ),
           ),
         ),
-
-        // Controls take 40% of width
         Expanded(
           flex: 4,
           child: Container(
             padding: const EdgeInsets.all(16),
-            child: _buildControlPanel(isCompact: false),
+            child: SingleChildScrollView(
+              child: _buildEnhancedControlPanel(isCompact: false),
+            ),
           ),
         ),
       ],
@@ -458,17 +511,22 @@ class _ControlPageState extends State<ControlPage>
   Widget _buildTabletLayout() {
     return Row(
       children: [
-        // Map takes 55% of width
         Expanded(
           flex: 55,
           child: Container(
             margin: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               child: LiveMappingCanvas(
                 mapData: _currentMapData,
                 currentOdometry: _currentOdometry,
@@ -489,13 +547,13 @@ class _ControlPageState extends State<ControlPage>
             ),
           ),
         ),
-
-        // Controls take 45% of width
         Expanded(
           flex: 45,
           child: Container(
             padding: const EdgeInsets.all(12),
-            child: _buildControlPanel(isCompact: true),
+            child: SingleChildScrollView(
+              child: _buildEnhancedControlPanel(isCompact: true),
+            ),
           ),
         ),
       ],
@@ -504,20 +562,25 @@ class _ControlPageState extends State<ControlPage>
 
   Widget _buildPhoneLayout() {
     final screenHeight = MediaQuery.of(context).size.height;
-    final mapHeight = screenHeight * 0.45; // 45% for map
+    final mapHeight = screenHeight * 0.45;
 
     return Column(
       children: [
-        // Map section
         Container(
           height: mapHeight,
           margin: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             child: LiveMappingCanvas(
               mapData: _currentMapData,
               currentOdometry: _currentOdometry,
@@ -537,19 +600,17 @@ class _ControlPageState extends State<ControlPage>
             ),
           ),
         ),
-
-        // Controls section
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: _buildControlPanel(isCompact: true),
+            child: _buildEnhancedControlPanel(isCompact: true),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildControlPanel({required bool isCompact}) {
+  Widget _buildEnhancedControlPanel({required bool isCompact}) {
     final screenWidth = MediaQuery.of(context).size.width;
     final joystickSize = isCompact
         ? math.min(screenWidth * 0.4, 200.0)
@@ -557,201 +618,98 @@ class _ControlPageState extends State<ControlPage>
 
     return Column(
       children: [
-        // Speed controls - compact version
-        _buildCompactSpeedControls(),
-
+        _buildGradientSpeedControls(),
         SizedBox(height: isCompact ? 12 : 20),
-
-        // Main joystick control
         Center(
-          child: JoystickWidget(
-            size: joystickSize,
-            maxLinearSpeed: _maxLinearSpeed,
-            maxAngularSpeed: _maxAngularSpeed,
-            enabled: _controlEnabled && _isConnected,
-            requireDeadman: _useDeadmanSwitch,
-            onChanged: _onJoystickChanged,
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: JoystickWidget(
+              size: joystickSize,
+              maxLinearSpeed: _maxLinearSpeed,
+              maxAngularSpeed: _maxAngularSpeed,
+              enabled: _controlEnabled && _isConnected,
+              requireDeadman: _useDeadmanSwitch,
+              onChanged: _onJoystickChanged,
+            ),
           ),
         ),
-
         SizedBox(height: isCompact ? 12 : 20),
-
-        // Current velocity display
-        _buildVelocityDisplay(),
-
+        _buildEnhancedVelocityDisplay(),
         SizedBox(height: isCompact ? 12 : 20),
-
-        // Control buttons
-        _buildMobileControlButtons(),
-
+        _buildGradientControlButtons(),
         SizedBox(height: isCompact ? 12 : 20),
-
-        // Mapping quick controls
-        _buildMappingQuickControls(),
-
+        _buildEnhancedMappingControls(),
         SizedBox(height: isCompact ? 12 : 20),
-
-        // Map overlay controls
-        _buildMapOverlayControls(),
+        _buildEnhancedMapOverlayControls(),
       ],
     );
   }
 
-  Widget _buildConnectionIndicator() {
+  Widget _buildGradientSpeedControls() {
+    final theme = Theme.of(context);
     return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: _isConnected ? Colors.green : Colors.red,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _isConnected ? Icons.wifi : Icons.wifi_off,
-            size: 14,
-            color: Colors.white,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            _isConnected ? 'Online' : 'Offline',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMappingIndicator() {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.green,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 10,
-            height: 10,
-            child: CircularProgressIndicator(
-              strokeWidth: 1.5,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          ),
-          SizedBox(width: 4),
-          Text(
-            'MAPPING',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 9,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompactStatusBar() {
-    return Container(
-      height: 40,
-      color: Colors.grey[100],
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            _buildStatusItem(
-                Icons.location_on, _getPositionText(), Colors.blue),
-            const SizedBox(width: 16),
-            _buildStatusItem(Icons.speed, _getVelocityText(), Colors.green),
-            const SizedBox(width: 16),
-            _buildStatusItem(
-                Icons.timeline, 'Trail: ${_robotTrail.length}', Colors.orange),
-            const SizedBox(width: 16),
-            _buildStatusItem(
-                Icons.layers,
-                'Shapes: ${_currentMapData?.shapes.length ?? 0}',
-                Colors.purple),
-            const SizedBox(width: 16),
-            _buildStatusItem(
-                Icons.message, 'Msgs: $_messagesReceived', Colors.indigo),
-            const SizedBox(width: 16),
-            if (_globalCostmap != null)
-              _buildStatusItem(Icons.public, 'Global', Colors.blue),
-            if (_localCostmap != null) ...[
-              const SizedBox(width: 16),
-              _buildStatusItem(Icons.near_me, 'Local', Colors.red),
-            ],
+        gradient: LinearGradient(
+          colors: [
+            theme.primaryColor.withOpacity(0.1),
+            theme.primaryColor.withOpacity(0.05),
           ],
         ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.primaryColor.withOpacity(0.2)),
       ),
-    );
-  }
-
-  Widget _buildStatusItem(IconData icon, String text, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: const TextStyle(fontSize: 12),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCompactSpeedControls() {
-    return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Row(
               children: [
-                const Icon(Icons.info, size: 16, color: Colors.blue),
-                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.speed, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
                 const Expanded(
                   child: Text(
-                    'Speed Limits',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    'Speed Controls',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ),
-                TextButton(
+                TextButton.icon(
                   onPressed: () {
                     setState(() {
                       _showAdvancedSettings = !_showAdvancedSettings;
                     });
                   },
-                  child: Text(_showAdvancedSettings ? 'Hide' : 'Adjust'),
+                  icon: Icon(_showAdvancedSettings ? Icons.expand_less : Icons.expand_more),
+                  label: Text(_showAdvancedSettings ? 'Hide' : 'Adjust'),
                 ),
               ],
             ),
-
-            // Always show current limits
+            const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildSpeedChip('Linear', _maxLinearSpeed, 'm/s', Colors.blue),
-                _buildSpeedChip(
-                    'Angular', _maxAngularSpeed, 'rad/s', Colors.orange),
+                _buildEnhancedSpeedChip('Linear', _maxLinearSpeed, 'm/s', Colors.blue),
+                _buildEnhancedSpeedChip('Angular', _maxAngularSpeed, 'rad/s', Colors.orange),
               ],
             ),
-
-            // Show sliders when expanded
             if (_showAdvancedSettings) ...[
-              const SizedBox(height: 12),
-              _buildSpeedSlider(
+              const SizedBox(height: 16),
+              _buildEnhancedSpeedSlider(
                 'Linear Speed',
                 _maxLinearSpeed,
                 0.1,
@@ -759,7 +717,8 @@ class _ControlPageState extends State<ControlPage>
                 'm/s',
                 (value) => setState(() => _maxLinearSpeed = value),
               ),
-              _buildSpeedSlider(
+              const SizedBox(height: 8),
+              _buildEnhancedSpeedSlider(
                 'Angular Speed',
                 _maxAngularSpeed,
                 0.1,
@@ -774,26 +733,54 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  Widget _buildSpeedChip(String label, double value, String unit, Color color) {
-    return Chip(
-      avatar: CircleAvatar(
-        backgroundColor: color,
-        radius: 12,
-        child: Text(
-          label[0],
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
+  Widget _buildEnhancedSpeedChip(String label, double value, String unit, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.8), color],
         ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.3),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      label: Text('${value.toStringAsFixed(1)} $unit'),
-      backgroundColor: color.withOpacity(0.1),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              label[0],
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${value.toStringAsFixed(1)} $unit',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildSpeedSlider(
+  Widget _buildEnhancedSpeedSlider(
     String label,
     double value,
     double min,
@@ -806,47 +793,97 @@ class _ControlPageState extends State<ControlPage>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(fontSize: 14)),
-            Text('${value.toStringAsFixed(1)} $unit',
-                style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${value.toStringAsFixed(1)} $unit',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ),
           ],
         ),
-        Slider(
-          value: value,
-          min: min,
-          max: max,
-          divisions: ((max - min) / 0.1).round(),
-          onChanged: onChanged,
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 6,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+          ),
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: ((max - min) / 0.1).round(),
+            onChanged: onChanged,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildVelocityDisplay() {
-    return Card(
+  Widget _buildEnhancedVelocityDisplay() {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.grey.shade50,
+            Colors.grey.shade100,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.dividerColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildVelocityItem(
+            _buildEnhancedVelocityItem(
               'Linear',
               _currentLinear,
               _maxLinearSpeed,
               'm/s',
               Icons.arrow_upward,
+              Colors.blue,
             ),
             Container(
-              width: 1,
-              height: 40,
-              color: Colors.grey.shade300,
+              width: 2,
+              height: 50,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    theme.dividerColor,
+                    Colors.transparent,
+                  ],
+                ),
+              ),
             ),
-            _buildVelocityItem(
+            _buildEnhancedVelocityItem(
               'Angular',
               _currentAngular,
               _maxAngularSpeed,
               'rad/s',
               Icons.rotate_right,
+              Colors.orange,
             ),
           ],
         ),
@@ -854,30 +891,62 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  Widget _buildVelocityItem(
+  Widget _buildEnhancedVelocityItem(
     String label,
     double value,
     double maxValue,
     String unit,
     IconData icon,
+    Color color,
   ) {
     final percentage = maxValue > 0 ? (value.abs() / maxValue * 100) : 0.0;
-    Color color = value > 0
-        ? Colors.green
+    final displayColor = value > 0
+        ? color
         : value < 0
-            ? Colors.red
+            ? color.withRed(255)
             : Colors.grey;
 
     return Column(
       children: [
-        Icon(icon, color: color, size: 20),
-        Text(label, style: const TextStyle(fontSize: 12)),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: displayColor.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: displayColor, size: 24),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 4),
         Text(
           '${value.toStringAsFixed(2)} $unit',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: value != 0 ? Colors.blue : Colors.grey,
-            fontSize: 14,
+            color: value != 0 ? displayColor : Colors.grey,
+            fontSize: 16,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          width: 60,
+          height: 4,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade300,
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: percentage / 100,
+            child: Container(
+              decoration: BoxDecoration(
+                color: displayColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
           ),
         ),
         Text(
@@ -891,111 +960,246 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  Widget _buildMobileControlButtons() {
-    return Column(
+  Widget _buildGradientControlButtons() {
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _isConnected ? _toggleControl : null,
-                icon: Icon(_controlEnabled ? Icons.pause : Icons.play_arrow),
-                label: Text(_controlEnabled ? 'Disable' : 'Enable'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      _controlEnabled ? Colors.orange : Colors.green,
-                  minimumSize: const Size(0, 48),
+        Expanded(
+          child: Container(
+            height: 50,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: _controlEnabled 
+                    ? [Colors.orange.shade400, Colors.orange.shade600]
+                    : [Colors.green.shade400, Colors.green.shade600],
+              ),
+              borderRadius: BorderRadius.circular(25),
+              boxShadow: [
+                BoxShadow(
+                  color: (_controlEnabled ? Colors.orange : Colors.green).withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: _isConnected ? _toggleControl : null,
+              icon: Icon(_controlEnabled ? Icons.pause : Icons.play_arrow),
+              label: Text(_controlEnabled ? 'Disable' : 'Enable'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _isConnected ? _emergencyStop : null,
-                icon: const Icon(Icons.stop),
-                label: const Text('STOP'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(0, 48),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            height: 50,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Colors.red, Colors.redAccent],
+              ),
+              borderRadius: BorderRadius.circular(25),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.red.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: _isConnected ? _emergencyStop : null,
+              icon: const Icon(Icons.stop),
+              label: const Text('STOP'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
                 ),
               ),
             ),
-          ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildMappingQuickControls() {
+  Widget _buildEnhancedMappingControls() {
     if (!_isConnected) return const SizedBox.shrink();
 
-    return Card(
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.green.shade50,
+            Colors.green.shade100,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.green.withOpacity(0.3)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Mapping Controls',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.map, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Mapping Controls',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _toggleMapping(),
-                    icon: Icon(_mappingActive ? Icons.stop : Icons.play_arrow),
-                    label: Text(_mappingActive ? 'Stop' : 'Start'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          _mappingActive ? Colors.red : Colors.green,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(0, 40),
+                  child: Container(
+                    height: 45,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: _mappingActive 
+                            ? [Colors.red.shade400, Colors.red.shade600]
+                            : [Colors.green.shade400, Colors.green.shade600],
+                      ),
+                      borderRadius: BorderRadius.circular(22.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_mappingActive ? Colors.red : Colors.green).withOpacity(0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton.icon(
+                      onPressed: () => _toggleMapping(),
+                      icon: Icon(_mappingActive ? Icons.stop : Icons.play_arrow),
+                      label: Text(_mappingActive ? 'Stop' : 'Start'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22.5),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _currentMapData != null ? _saveMap : null,
-                    icon: const Icon(Icons.save),
-                    label: const Text('Save'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(0, 40),
+                  child: Container(
+                    height: 45,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.blue.shade400, Colors.blue.shade600],
+                      ),
+                      borderRadius: BorderRadius.circular(22.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withOpacity(0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton.icon(
+                      onPressed: _isMapSaveable() ? _saveMap : null,
+                      icon: const Icon(Icons.save),
+                      label: const Text('Save'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22.5),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _robotTrail.isNotEmpty ? _saveTrailAsMap : null,
-                    icon: const Icon(Icons.timeline),
-                    label: const Text('Save Trail'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(0, 40),
+                  child: Container(
+                    height: 45,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.purple.shade400, Colors.purple.shade600],
+                      ),
+                      borderRadius: BorderRadius.circular(22.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.purple.withOpacity(0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton.icon(
+                      onPressed: _isTrailSaveable() ? _saveTrailAsMap : null,
+                      icon: const Icon(Icons.timeline),
+                      label: const Text('Save Trail'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22.5),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _openMapEditor,
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Edit'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(0, 40),
+                  child: Container(
+                    height: 45,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.orange.shade400, Colors.orange.shade600],
+                      ),
+                      borderRadius: BorderRadius.circular(22.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.orange.withOpacity(0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton.icon(
+                      onPressed: _openMapEditor,
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22.5),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -1007,98 +1211,140 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  Widget _buildMapOverlayControls() {
-    return Card(
+  // ✅ FIXED: Helper methods to determine if save buttons should be enabled
+  bool _isMapSaveable() {
+    return _currentMapData != null || _mappingActive;
+  }
+
+  bool _isTrailSaveable() {
+    return _robotTrail.isNotEmpty;
+  }
+
+  Widget _buildEnhancedMapOverlayControls() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.blue.shade50,
+            Colors.blue.shade100,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Map Layers',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-
-            // Occupancy grid toggle
-            SwitchListTile(
-              title: const Text('Occupancy Grid'),
-              subtitle: const Text('Show main SLAM map'),
-              value: _showOccupancyGrid,
-              onChanged: (value) {
-                setState(() {
-                  _showOccupancyGrid = value;
-                });
-              },
-              dense: true,
-            ),
-
-            // Global costmap toggle
-            SwitchListTile(
-              title: const Text('Global Costmap'),
-              subtitle: const Text('Show global path planning layer'),
-              value: _showGlobalCostmap,
-              onChanged: (value) {
-                setState(() {
-                  _showGlobalCostmap = value;
-                });
-              },
-              dense: true,
-            ),
-
-            // Local costmap toggle
-            SwitchListTile(
-              title: const Text('Local Costmap'),
-              subtitle: const Text('Show local obstacle detection'),
-              value: _showLocalCostmap,
-              onChanged: (value) {
-                setState(() {
-                  _showLocalCostmap = value;
-                });
-              },
-              dense: true,
-            ),
-
-            // Robot trail toggle
-            SwitchListTile(
-              title: const Text('Robot Trail'),
-              subtitle:
-                  Text('Show path history (${_robotTrail.length} points)'),
-              value: _showTrail,
-              onChanged: (value) {
-                setState(() {
-                  _showTrail = value;
-                });
-              },
-              dense: true,
-            ),
-
-            // Costmap opacity slider
-            const SizedBox(height: 8),
             Row(
               children: [
-                const Text('Layer Opacity: '),
-                Expanded(
-                  child: Slider(
-                    value: _costmapOpacity,
-                    min: 0.1,
-                    max: 1.0,
-                    divisions: 9,
-                    label: '${(_costmapOpacity * 100).round()}%',
-                    onChanged: (value) {
-                      setState(() {
-                        _costmapOpacity = value;
-                      });
-                    },
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  child: const Icon(Icons.layers, color: Colors.white, size: 20),
                 ),
-                Text('${(_costmapOpacity * 100).round()}%'),
+                const SizedBox(width: 12),
+                const Text(
+                  'Map Layers',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
               ],
             ),
+            const SizedBox(height: 12),
 
-            // Trail controls with enhanced options
+            _buildEnhancedSwitchTile(
+              'Occupancy Grid',
+              'Show main SLAM map',
+              _showOccupancyGrid,
+              Colors.blue,
+              (value) => setState(() => _showOccupancyGrid = value),
+            ),
+
+            _buildEnhancedSwitchTile(
+              'Global Costmap',
+              'Show global path planning layer',
+              _showGlobalCostmap,
+              Colors.green,
+              (value) => setState(() => _showGlobalCostmap = value),
+            ),
+
+            _buildEnhancedSwitchTile(
+              'Local Costmap',
+              'Show local obstacle detection',
+              _showLocalCostmap,
+              Colors.red,
+              (value) => setState(() => _showLocalCostmap = value),
+            ),
+
+            _buildEnhancedSwitchTile(
+              'Robot Trail',
+              'Show path history (${_robotTrail.length} points)',
+              _showTrail,
+              Colors.orange,
+              (value) => setState(() => _showTrail = value),
+            ),
+
+            const SizedBox(height: 16),
+            
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.opacity, color: Colors.blue, size: 20),
+                      const SizedBox(width: 8),
+                      const Text('Layer Opacity: '),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${(_costmapOpacity * 100).round()}%',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 6,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                    ),
+                    child: Slider(
+                      value: _costmapOpacity,
+                      min: 0.1,
+                      max: 1.0,
+                      divisions: 9,
+                      onChanged: (value) {
+                        setState(() {
+                          _costmapOpacity = value;
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             if (_robotTrail.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
@@ -1111,6 +1357,10 @@ class _ControlPageState extends State<ControlPage>
                       },
                       icon: const Icon(Icons.clear),
                       label: const Text('Clear Trail'),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.orange),
+                        foregroundColor: Colors.orange,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1119,6 +1369,10 @@ class _ControlPageState extends State<ControlPage>
                       onPressed: _convertTrailToWaypoints,
                       icon: const Icon(Icons.route),
                       label: const Text('To Waypoints'),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.purple),
+                        foregroundColor: Colors.purple,
+                      ),
                     ),
                   ),
                 ],
@@ -1130,181 +1384,58 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  Widget _buildSettingsTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildEnhancedSwitchTile(
+    String title,
+    String subtitle,
+    bool value,
+    Color color,
+    Function(bool) onChanged,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
         children: [
-          // Control Settings
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Control Settings',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
-                  SwitchListTile(
-                    title: const Text('Deadman Switch'),
-                    subtitle: const Text('Require holding joystick to move'),
-                    value: _useDeadmanSwitch,
-                    onChanged: (value) {
-                      setState(() {
-                        _useDeadmanSwitch = value;
-                      });
-                    },
-                  ),
-                  SwitchListTile(
-                    title: const Text('Auto Center Map'),
-                    subtitle: const Text('Center map on robot position'),
-                    value: _autoCenter,
-                    onChanged: (value) {
-                      setState(() {
-                        _autoCenter = value;
-                      });
-                    },
-                  ),
-                  SwitchListTile(
-                    title: const Text('Show Robot Trail'),
-                    subtitle: const Text('Display path history on map'),
-                    value: _showTrail,
-                    onChanged: (value) {
-                      setState(() {
-                        _showTrail = value;
-                      });
-                    },
-                  ),
-                  SwitchListTile(
-                    title: const Text('Show Global Costmap'),
-                    subtitle: const Text('Display global planning layer'),
-                    value: _showGlobalCostmap,
-                    onChanged: (value) {
-                      setState(() {
-                        _showGlobalCostmap = value;
-                      });
-                    },
-                  ),
-                  SwitchListTile(
-                    title: const Text('Show Local Costmap'),
-                    subtitle: const Text('Display local obstacle layer'),
-                    value: _showLocalCostmap,
-                    onChanged: (value) {
-                      setState(() {
-                        _showLocalCostmap = value;
-                      });
-                    },
-                  ),
-                ],
-              ),
+          Container(
+            width: 4,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-
-          const SizedBox(height: 16),
-
-          // Speed Settings
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Speed Settings',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
                   ),
-                  const SizedBox(height: 16),
-                  _buildSpeedSlider(
-                    'Max Linear Speed',
-                    _maxLinearSpeed,
-                    0.1,
-                    2.0,
-                    'm/s',
-                    (value) => setState(() => _maxLinearSpeed = value),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildSpeedSlider(
-                    'Max Angular Speed',
-                    _maxAngularSpeed,
-                    0.1,
-                    3.0,
-                    'rad/s',
-                    (value) => setState(() => _maxAngularSpeed = value),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Map Analysis Card
-          if (_currentMapData != null) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Map Analysis',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildMapAnalysis(_currentMapData!),
-                  ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          // Status Information
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Status Information',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
                   ),
-                  const SizedBox(height: 16),
-                  _buildStatusRow('Connected', _isConnected ? 'Yes' : 'No'),
-                  _buildStatusRow(
-                      'Mapping Active', _mappingActive ? 'Yes' : 'No'),
-                  _buildStatusRow(
-                      'Control Enabled', _controlEnabled ? 'Yes' : 'No'),
-                  _buildStatusRow(
-                      'Messages Received', _messagesReceived.toString()),
-                  _buildStatusRow(
-                      'Trail Points', _robotTrail.length.toString()),
-                  _buildStatusRow('Map Shapes',
-                      _currentMapData?.shapes.length.toString() ?? '0'),
-                  _buildStatusRow('Global Costmap',
-                      _globalCostmap != null ? 'Available' : 'N/A'),
-                  _buildStatusRow('Local Costmap',
-                      _localCostmap != null ? 'Available' : 'N/A'),
-                  if (_currentMapData != null) ...[
-                    _buildStatusRow(
-                        'Map Version', _currentMapData!.version.toString()),
-                    _buildStatusRow('Map Size',
-                        '${_currentMapData!.info.width}x${_currentMapData!.info.height}'),
-                    _buildStatusRow('Resolution',
-                        '${_currentMapData!.info.resolution.toStringAsFixed(3)}m/px'),
-                  ],
-                  if (_currentOdometry?.position != null)
-                    _buildStatusRow(
-                      'Position',
-                      '(${_currentOdometry!.position.x.toStringAsFixed(2)}, ${_currentOdometry!.position.y.toStringAsFixed(2)})',
-                    ),
-                ],
-              ),
+                ),
+              ],
+            ),
+          ),
+          Transform.scale(
+            scale: 0.8,
+            child: Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: color,
             ),
           ),
         ],
@@ -1312,28 +1443,194 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
+  Widget _buildSettingsTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSettingsSection(
+            'Control Settings',
+            Icons.control_camera,
+            Colors.blue,
+            [
+              _buildSettingsSwitchTile(
+                'Deadman Switch',
+                'Require holding joystick to move',
+                _useDeadmanSwitch,
+                (value) => setState(() => _useDeadmanSwitch = value),
+              ),
+              _buildSettingsSwitchTile(
+                'Auto Center Map',
+                'Center map on robot position',
+                _autoCenter,
+                (value) => setState(() => _autoCenter = value),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          _buildSettingsSection(
+            'Speed Settings',
+            Icons.speed,
+            Colors.orange,
+            [
+              _buildEnhancedSpeedSlider(
+                'Max Linear Speed',
+                _maxLinearSpeed,
+                0.1,
+                2.0,
+                'm/s',
+                (value) => setState(() => _maxLinearSpeed = value),
+              ),
+              const SizedBox(height: 16),
+              _buildEnhancedSpeedSlider(
+                'Max Angular Speed',
+                _maxAngularSpeed,
+                0.1,
+                3.0,
+                'rad/s',
+                (value) => setState(() => _maxAngularSpeed = value),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          if (_currentMapData != null) ...[
+            _buildSettingsSection(
+              'Map Analysis',
+              Icons.analytics,
+              Colors.green,
+              [_buildMapAnalysis(_currentMapData!)],
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          _buildSettingsSection(
+            'Status Information',
+            Icons.info,
+            Colors.purple,
+            [_buildStatusInformation()],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsSection(
+    String title,
+    IconData icon,
+    Color color,
+    List<Widget> children,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            color.withOpacity(0.1),
+            color.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsSwitchTile(
+    String title,
+    String subtitle,
+    bool value,
+    Function(bool) onChanged,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMapAnalysis(MapData mapData) {
-    // Analyze the map data
     final shapesByType = <String, int>{};
     for (final shape in mapData.shapes) {
       shapesByType[shape.type] = (shapesByType[shape.type] ?? 0) + 1;
     }
 
-    final occupiedCells =
-        mapData.occupancyData.where((cell) => cell == 100).length;
+    final occupiedCells = mapData.occupancyData.where((cell) => cell == 100).length;
     final freeCells = mapData.occupancyData.where((cell) => cell == 0).length;
-    final unknownCells =
-        mapData.occupancyData.where((cell) => cell == -1).length;
+    final unknownCells = mapData.occupancyData.where((cell) => cell == -1).length;
     final totalCells = mapData.occupancyData.length;
 
-    // Map area calculation moved outside widget tree
     final mapAreaM2 = (mapData.info.width * mapData.info.resolution) *
         (mapData.info.height * mapData.info.resolution);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Map coverage
         _buildAnalysisRow(
           'Map Coverage',
           '${((freeCells + occupiedCells) / totalCells * 100).toStringAsFixed(1)}%',
@@ -1351,12 +1648,11 @@ class _ControlPageState extends State<ControlPage>
         ),
 
         if (shapesByType.isNotEmpty) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           const Divider(),
           const SizedBox(height: 8),
-          const Text('Shape Summary:',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
+          const Text('Shape Summary:', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
           ...shapesByType.entries.map(
             (entry) => _buildAnalysisRow(
               '${entry.key.toUpperCase()}',
@@ -1366,7 +1662,7 @@ class _ControlPageState extends State<ControlPage>
           ),
         ],
 
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         const Divider(),
         const SizedBox(height: 8),
 
@@ -1386,19 +1682,24 @@ class _ControlPageState extends State<ControlPage>
   }
 
   Widget _buildAnalysisRow(String label, String value, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Row(
         children: [
           Container(
-            width: 8,
-            height: 8,
+            width: 4,
+            height: 20,
             decoration: BoxDecoration(
               color: color,
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           Expanded(child: Text(label)),
           Text(
             value,
@@ -1441,9 +1742,39 @@ class _ControlPageState extends State<ControlPage>
     }
   }
 
+  Widget _buildStatusInformation() {
+    return Column(
+      children: [
+        _buildStatusRow('Connected', _isConnected ? 'Yes' : 'No'),
+        _buildStatusRow('Mapping Active', _mappingActive ? 'Yes' : 'No'),
+        _buildStatusRow('Control Enabled', _controlEnabled ? 'Yes' : 'No'),
+        _buildStatusRow('Messages Received', _messagesReceived.toString()),
+        _buildStatusRow('Trail Points', _robotTrail.length.toString()),
+        _buildStatusRow('Map Shapes', _currentMapData?.shapes.length.toString() ?? '0'),
+        _buildStatusRow('Global Costmap', _globalCostmap != null ? 'Available' : 'N/A'),
+        _buildStatusRow('Local Costmap', _localCostmap != null ? 'Available' : 'N/A'),
+        if (_currentMapData != null) ...[
+          _buildStatusRow('Map Version', _currentMapData!.version.toString()),
+          _buildStatusRow('Map Size', '${_currentMapData!.info.width}x${_currentMapData!.info.height}'),
+          _buildStatusRow('Resolution', '${_currentMapData!.info.resolution.toStringAsFixed(3)}m/px'),
+        ],
+        if (_currentOdometry?.position != null)
+          _buildStatusRow(
+            'Position',
+            '(${_currentOdometry!.position.x.toStringAsFixed(2)}, ${_currentOdometry!.position.y.toStringAsFixed(2)})',
+          ),
+      ],
+    );
+  }
+
   Widget _buildStatusRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -1451,6 +1782,89 @@ class _ControlPageState extends State<ControlPage>
           Text(
             value,
             style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectionIndicator() {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: _isConnected 
+              ? [Colors.green.shade400, Colors.green.shade600]
+              : [Colors.red.shade400, Colors.red.shade600],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: (_isConnected ? Colors.green : Colors.red).withOpacity(0.3),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _isConnected ? Icons.wifi : Icons.wifi_off,
+            size: 14,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _isConnected ? 'Online' : 'Offline',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMappingIndicator() {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Colors.green, Colors.lightGreen],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withOpacity(0.3),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+          SizedBox(width: 6),
+          Text(
+            'MAPPING',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
@@ -1469,7 +1883,10 @@ class _ControlPageState extends State<ControlPage>
     return '${speed.toStringAsFixed(2)} m/s';
   }
 
-  // Control methods (UNCHANGED - as requested)
+  // ==========================================
+  // ✅ FIXED: COMPLETE CONTROL METHODS
+  // ==========================================
+
   void _onJoystickChanged(double linear, double angular, bool deadmanActive) {
     if (!_isConnected) return;
 
@@ -1500,22 +1917,43 @@ class _ControlPageState extends State<ControlPage>
   }
 
   Future<void> _saveMap() async {
-    if (_currentMapData == null) {
+    if (!_isMapSaveable()) {
       _showSnackBar('No map data to save', Colors.red);
       return;
     }
 
     try {
       _webSocketService.sendMappingCommand(widget.deviceId, 'save');
-      final response = await _apiService.saveMapData(
-        deviceId: widget.deviceId,
-        mapData: _currentMapData!,
-      );
+      
+      MapData? mapToSave = _currentMapData;
+      if (mapToSave == null && _mappingActive) {
+        mapToSave = MapData(
+          deviceId: widget.deviceId,
+          timestamp: DateTime.now(),
+          info: MapInfo(
+            resolution: 0.05,
+            width: 1000,
+            height: 1000,
+            origin: odom.Position(x: -25.0, y: -25.0, z: 0.0),
+            originOrientation: odom.Orientation(x: 0, y: 0, z: 0, w: 1),
+          ),
+          occupancyData: List.filled(1000 * 1000, -1),
+          shapes: [],
+          version: 1,
+        );
+      }
 
-      if (response['success'] == true) {
-        _showSnackBar('Map saved successfully!', Colors.green);
-      } else {
-        _showSnackBar('Failed to save map: ${response['error']}', Colors.red);
+      if (mapToSave != null) {
+        final response = await _apiService.saveMapData(
+          deviceId: widget.deviceId,
+          mapData: mapToSave,
+        );
+
+        if (response['success'] == true) {
+          _showSnackBar('Map saved successfully!', Colors.green);
+        } else {
+          _showSnackBar('Failed to save map: ${response['error']}', Colors.red);
+        }
       }
     } catch (e) {
       _showSnackBar('Error saving map: $e', Colors.red);
@@ -1523,36 +1961,26 @@ class _ControlPageState extends State<ControlPage>
   }
 
   Future<void> _saveTrailAsMap() async {
-    if (_robotTrail.isEmpty) {
+    if (!_isTrailSaveable()) {
       _showSnackBar('No trail data to save', Colors.orange);
       return;
     }
 
     try {
-      // Convert trail to map shape for editing
       final trailShape = MapShape(
         id: 'trail_${DateTime.now().millisecondsSinceEpoch}',
-        name:
-            'Robot Trail ${DateTime.now().toLocal().toString().split('.')[0]}',
+        name: 'Robot Trail ${DateTime.now().toLocal().toString().split('.')[0]}',
         type: 'waypoint',
-        points: List<odom.Position>.from(_robotTrail), // Use all trail points
-        color: 'FF9800', // Orange color for trails
-        sides: {
-          'left': '',
-          'right': '',
-          'front': '',
-          'back': '',
-        },
+        points: List<odom.Position>.from(_robotTrail),
+        color: 'FF9800',
+        sides: {'left': '', 'right': '', 'front': '', 'back': ''},
         createdAt: DateTime.now(),
       );
 
-      // Create or update map data with trail
       MapData mapToSave;
       if (_currentMapData != null) {
-        mapToSave =
-            _currentMapData!.addShape(trailShape); // Use built-in method
+        mapToSave = _currentMapData!.addShape(trailShape);
       } else {
-        // Create new map with trail
         mapToSave = MapData(
           deviceId: widget.deviceId,
           timestamp: DateTime.now(),
@@ -1592,7 +2020,6 @@ class _ControlPageState extends State<ControlPage>
       '/map',
       arguments: {'deviceId': widget.deviceId},
     ).then((_) {
-      // Refresh map data when returning from editor
       if (_currentMapData != null) {
         _loadCurrentMapData();
       }
@@ -1619,14 +2046,11 @@ class _ControlPageState extends State<ControlPage>
     }
 
     try {
-      // Convert trail points to individual waypoints with simplified trail
-      // Take every 10th point to avoid too many waypoints
       final simplifiedTrail = <odom.Position>[];
       for (int i = 0; i < _robotTrail.length; i += 10) {
         simplifiedTrail.add(_robotTrail[i]);
       }
 
-      // Always include the last point
       if (_robotTrail.length > 1 &&
           simplifiedTrail.isNotEmpty &&
           simplifiedTrail.last != _robotTrail.last) {
@@ -1640,20 +2064,14 @@ class _ControlPageState extends State<ControlPage>
           id: 'waypoint_${DateTime.now().millisecondsSinceEpoch}_$i',
           name: 'Waypoint ${i + 1}',
           type: 'waypoint',
-          points: [point], // Single point waypoint
-          color: 'FF2196F3', // Blue color for waypoints
-          sides: {
-            'left': '',
-            'right': '',
-            'front': '',
-            'back': '',
-          },
+          points: [point],
+          color: 'FF2196F3',
+          sides: {'left': '', 'right': '', 'front': '', 'back': ''},
           createdAt: DateTime.now(),
         );
         waypoints.add(waypoint);
       }
 
-      // Create or update map data with waypoints
       MapData mapToSave;
       if (_currentMapData != null) {
         mapToSave = _currentMapData!;
@@ -1661,7 +2079,6 @@ class _ControlPageState extends State<ControlPage>
           mapToSave = mapToSave.addShape(waypoint);
         }
       } else {
-        // Create new map with waypoints
         mapToSave = MapData(
           deviceId: widget.deviceId,
           timestamp: DateTime.now(),
@@ -1687,11 +2104,9 @@ class _ControlPageState extends State<ControlPage>
         setState(() {
           _currentMapData = mapToSave;
         });
-        _showSnackBar(
-            'Trail converted to ${waypoints.length} waypoints!', Colors.green);
+        _showSnackBar('Trail converted to ${waypoints.length} waypoints!', Colors.green);
       } else {
-        _showSnackBar(
-            'Failed to save waypoints: ${response['error']}', Colors.red);
+        _showSnackBar('Failed to save waypoints: ${response['error']}', Colors.red);
       }
     } catch (e) {
       _showSnackBar('Error converting trail: $e', Colors.red);
@@ -1728,6 +2143,10 @@ class _ControlPageState extends State<ControlPage>
           content: Text(message),
           backgroundColor: color,
           duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
       );
     }
@@ -1746,5 +2165,4 @@ class _ControlPageState extends State<ControlPage>
   }
 }
 
-// Enum for device types
 enum DeviceType { phone, tablet, desktop }

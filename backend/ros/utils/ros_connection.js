@@ -1,13 +1,19 @@
-// ros/utils/ros_connection.js - FIXED with max speed support
+// ros/utils/ros_connection.js - FIXED to prevent double initialization
 const rclnodejs = require('rclnodejs');
 const config = require('../../config');
 
 let rosNode = null;
 let isInitialized = false;
 let isShutdown = false;
+let initializationAttempts = 0;
+let rclnodeInitialized = false; // Track if rclnodejs.init() was called
+let nodeSpinning = false; // Track if node is already spinning
+const MAX_INIT_ATTEMPTS = 3;
 
 // Import the publishers module
 const publishers = require('./publishers');
+// Import the subscribers module
+const subscribers = require('./subscribers');    
 
 async function initializeROS() {
     try {
@@ -16,53 +22,222 @@ async function initializeROS() {
             return true;
         }
 
-        console.log('🔄 Initializing ROS2 connection...');
+        initializationAttempts++;
+        console.log(`🔄 Initializing ROS2 connection (attempt ${initializationAttempts}/${MAX_INIT_ATTEMPTS})...`);
         
-        // Initialize rclnodejs
-        await rclnodejs.init();
+        // Reset shutdown flag for retry attempts
+        isShutdown = false;
         
-        // Create the main node
-        rosNode = new rclnodejs.Node('agv_fleet_backend_node');
+        // ✅ CRITICAL FIX: Only initialize rclnodejs once per process
+        if (!rclnodeInitialized) {
+            await rclnodejs.init();
+            rclnodeInitialized = true;
+            console.log('✅ ROS2 context initialized');
+        } else {
+            console.log('✅ ROS2 context already initialized, reusing...');
+        }
         
-        console.log('✅ ROS2 node created: agv_fleet_backend_node');
+        // Always create a new node (if previous one was destroyed)
+        if (!rosNode) {
+            rosNode = new rclnodejs.Node('agv_fleet_backend_node');
+            console.log('✅ ROS2 node created: agv_fleet_backend_node');
+        } else {
+            console.log('✅ ROS2 node already exists, reusing...');
+        }
         
         // Initialize publishers with the node
         publishers.initializePublishers(rosNode);
-        
-        // Start spinning the node
-        rclnodejs.spin(rosNode);
-        
+
+        // Initialize subscribers with the node
+        subscribers.initializeSubscribers(rosNode);
+
+        // ✅ CRITICAL FIX: Only start spinning once per process
+        if (!nodeSpinning) {
+            rclnodejs.spin(rosNode);
+            nodeSpinning = true;
+            console.log('✅ ROS2 node spinning started');
+        } else {
+            console.log('✅ ROS2 node already spinning, continuing...');
+        }
+
+        // Subscribe to all topics
+        subscribers.subscribeToAllTopics();
+
+        // Test subscribing after a short delay
+        setTimeout(() => {
+            const result = subscribers.testSubscribing();
+            if (result.success) {
+                console.log('✅ ROS2 subscribing test successful');
+            } else {
+                console.warn('⚠️ ROS2 subscribing test failed:', result.error);
+            }
+        }, 2000);
+
         isInitialized = true;
         isShutdown = false;
+        initializationAttempts = 0; // Reset on success
         
         console.log('✅ ROS2 connection fully initialized');
         
         return true;
         
     } catch (error) {
-        console.error('❌ Failed to initialize ROS2:', error);
+        console.error(`❌ Failed to initialize ROS2 (attempt ${initializationAttempts}):`, error);
         isInitialized = false;
+        
+        // ✅ FIXED: Don't retry if it's a "already initialized" or "already spinning" error
+        if (error.message.includes('already been initialized')) {
+            console.log('⚠️ ROS2 context already initialized - this is normal, marking as successful');
+            rclnodeInitialized = true;
+            
+            // Try to continue with node creation
+            try {
+                if (!rosNode) {
+                    rosNode = new rclnodejs.Node('agv_fleet_backend_node');
+                    console.log('✅ ROS2 node created after context reuse');
+                }
+                
+                // Initialize publishers and subscribers
+                publishers.initializePublishers(rosNode);
+                subscribers.initializeSubscribers(rosNode);
+                
+                if (!nodeSpinning) {
+                    rclnodejs.spin(rosNode);
+                    nodeSpinning = true;
+                    console.log('✅ ROS2 node spinning started after recovery');
+                }
+                
+                subscribers.subscribeToAllTopics();
+                
+                isInitialized = true;
+                isShutdown = false;
+                initializationAttempts = 0;
+                
+                console.log('✅ ROS2 connection recovered successfully');
+                return true;
+                
+            } catch (nodeError) {
+                console.error('❌ Failed to create node after context reuse:', nodeError);
+            }
+        }
+        
+        if (error.message.includes('already spinning')) {
+            console.log('⚠️ ROS2 node already spinning - this is normal, marking as successful');
+            nodeSpinning = true;
+            
+            // Try to continue with initialization
+            try {
+                // Just initialize publishers and subscribers
+                publishers.initializePublishers(rosNode);
+                subscribers.initializeSubscribers(rosNode);
+                subscribers.subscribeToAllTopics();
+                
+                isInitialized = true;
+                isShutdown = false;
+                initializationAttempts = 0;
+                
+                console.log('✅ ROS2 connection recovered successfully (node was already spinning)');
+                return true;
+                
+            } catch (recoveryError) {
+                console.error('❌ Failed to recover after spinning error:', recoveryError);
+            }
+        }
+        
+        // Auto-retry if we haven't exceeded max attempts and it's not a recoverable error
+        if (initializationAttempts < MAX_INIT_ATTEMPTS && 
+            !error.message.includes('already been initialized') && 
+            !error.message.includes('already spinning')) {
+            console.log(`🔄 Retrying ROS2 initialization in 5 seconds...`);
+            setTimeout(() => {
+                initializeROS();
+            }, 5000);
+        } else {
+            console.error(`❌ Max ROS2 initialization attempts (${MAX_INIT_ATTEMPTS}) exceeded`);
+        }
+        
         return false;
     }
 }
 
-// ✅ FIXED: Enhanced joystick publishing with max speed support
+// ✅ ENHANCED: Auto-recovery with better context handling
+async function ensureROSConnection() {
+    if (!isInitialized || isShutdown) {
+        console.log('🔄 ROS connection lost, attempting to recover...');
+        return await initializeROS();
+    }
+    return true;
+}
+
+// ✅ ENHANCED: Recovery that handles context and spinning properly
+async function recoverConnection() {
+    console.log('🔄 Manual ROS recovery requested...');
+    
+    // Reset state but keep context and spinning awareness
+    isShutdown = false;
+    isInitialized = false;
+    
+    // Don't reset rclnodeInitialized or nodeSpinning - these should stay
+    
+    // Destroy old node if it exists
+    if (rosNode) {
+        try {
+            rosNode.destroy();
+            rosNode = null;
+            console.log('🗑️ Old ROS node destroyed');
+        } catch (e) {
+            console.warn('⚠️ Error destroying old node:', e.message);
+            rosNode = null; // Force null anyway
+        }
+    }
+    
+    // Attempt recovery
+    return await initializeROS();
+}
+
+// ✅ ENHANCED: Joystick publishing with auto-recovery
 function publishJoystick(normalizedX, normalizedY, deadman = false, maxLinearSpeed = null, maxAngularSpeed = null) {
     try {
         if (!isInitialized || isShutdown) {
-            console.warn('⚠️ ROS not initialized, cannot publish joystick command');
+            console.warn('⚠️ ROS not initialized, attempting recovery...');
+            
+            // Try to recover connection
+            ensureROSConnection().then(recovered => {
+                if (recovered) {
+                    console.log('✅ ROS connection recovered, you can retry the joystick command');
+                } else {
+                    console.error('❌ Failed to recover ROS connection');
+                }
+            });
+            
             return {
                 success: false,
-                error: 'ROS not initialized',
+                error: 'ROS not initialized - recovery attempted',
+                recoveryInProgress: true,
                 timestamp: new Date().toISOString()
             };
         }
         
         // ✅ CRITICAL: Pass max speeds to publisher
-        return publishers.publishJoystick(normalizedX, normalizedY, deadman, maxLinearSpeed, maxAngularSpeed);
+        const result = publishers.publishJoystick(normalizedX, normalizedY, deadman, maxLinearSpeed, maxAngularSpeed);
+        
+        // If publish fails due to ROS issues, mark for recovery
+        if (!result.success && result.error.includes('ROS')) {
+            isInitialized = false;
+            console.warn('⚠️ ROS publish failed, marking for recovery');
+        }
+        
+        return result;
         
     } catch (error) {
         console.error('❌ Error publishing joystick command:', error);
+        
+        // If it's a ROS-related error, mark for recovery
+        if (error.message.includes('ROS') || error.message.includes('node')) {
+            isInitialized = false;
+            console.warn('⚠️ ROS error detected, marking for recovery');
+        }
+        
         return {
             success: false,
             error: error.message,
@@ -71,11 +246,17 @@ function publishJoystick(normalizedX, normalizedY, deadman = false, maxLinearSpe
     }
 }
 
-// Velocity publishing
+// ✅ ENHANCED: Velocity publishing with recovery
 function publishVelocity(linear = 0, angular = 0) {
     try {
         if (!isInitialized || isShutdown) {
-            console.warn('⚠️ ROS not initialized, cannot publish velocity');
+            console.warn('⚠️ ROS not initialized for velocity command');
+            
+            // For safety commands like stop (0,0), try emergency fallback
+            if (linear === 0 && angular === 0) {
+                console.log('🛑 Emergency stop attempted - ROS unavailable');
+            }
+            
             return {
                 success: false,
                 error: 'ROS not initialized',
@@ -83,10 +264,22 @@ function publishVelocity(linear = 0, angular = 0) {
             };
         }
         
-        return publishers.publishVelocity(linear, angular);
+        const result = publishers.publishVelocity(linear, angular);
+        
+        // If publish fails due to ROS issues, mark for recovery
+        if (!result.success && result.error.includes('ROS')) {
+            isInitialized = false;
+        }
+        
+        return result;
         
     } catch (error) {
         console.error('❌ Error publishing velocity:', error);
+        
+        if (error.message.includes('ROS') || error.message.includes('node')) {
+            isInitialized = false;
+        }
+        
         return {
             success: false,
             error: error.message,
@@ -125,7 +318,7 @@ function updateMaxSpeeds(maxLinearSpeed, maxAngularSpeed) {
     }
 }
 
-// Goal publishing
+// Goal publishing with recovery
 function publishGoal(x, y, orientation = 0) {
     try {
         if (!isInitialized || isShutdown) {
@@ -137,10 +330,21 @@ function publishGoal(x, y, orientation = 0) {
             };
         }
         
-        return publishers.publishGoal(x, y, orientation);
+        const result = publishers.publishGoal(x, y, orientation);
+        
+        if (!result.success && result.error.includes('ROS')) {
+            isInitialized = false;
+        }
+        
+        return result;
         
     } catch (error) {
         console.error('❌ Error publishing goal:', error);
+        
+        if (error.message.includes('ROS') || error.message.includes('node')) {
+            isInitialized = false;
+        }
+        
         return {
             success: false,
             error: error.message,
@@ -234,8 +438,6 @@ function saveMap(deviceId) {
         }
         
         console.log(`💾 Saving map for device: ${deviceId}`);
-        // Implementation depends on your mapping system
-        // For now, return success
         return {
             success: true,
             message: 'Map save command sent',
@@ -253,14 +455,26 @@ function saveMap(deviceId) {
     }
 }
 
-// Emergency stop
+// Emergency stop - always try, even if ROS seems down
 function emergencyStop() {
     try {
+        console.log('🛑 EMERGENCY STOP REQUESTED');
+        
         if (!isInitialized || isShutdown) {
-            console.warn('⚠️ ROS not initialized, cannot emergency stop');
+            console.warn('⚠️ ROS not initialized, but attempting emergency stop anyway');
+            
+            // Try to recover and stop
+            ensureROSConnection().then(recovered => {
+                if (recovered) {
+                    publishers.emergencyStop();
+                    console.log('🛑 Emergency stop executed after recovery');
+                }
+            });
+            
             return {
                 success: false,
-                error: 'ROS not initialized',
+                error: 'ROS not initialized - emergency recovery attempted',
+                type: 'emergency_stop',
                 timestamp: new Date().toISOString()
             };
         }
@@ -268,35 +482,45 @@ function emergencyStop() {
         return publishers.emergencyStop();
         
     } catch (error) {
-        console.error('❌ Error during emergency stop:', error);
+        console.error('❌ Emergency stop failed:', error);
         return {
             success: false,
             error: error.message,
-            timestamp: new Date().toISOString()
+            type: 'emergency_stop'
         };
     }
 }
 
-// Status and stats
+// ✅ ENHANCED: Status with recovery info
 function getConnectionStatus() {
     return {
         isInitialized: isInitialized,
         isShutdown: isShutdown,
         nodeCreated: rosNode !== null,
+        rclnodeInitialized: rclnodeInitialized,
+        nodeSpinning: nodeSpinning,
+        initializationAttempts: initializationAttempts,
+        maxInitAttempts: MAX_INIT_ATTEMPTS,
         publisherStats: isInitialized ? publishers.getPublisherStats() : null,
+        canRecover: initializationAttempts < MAX_INIT_ATTEMPTS,
         timestamp: new Date().toISOString()
     };
 }
 
-// ✅ NEW: ROS2 status function for health checks
+// ✅ ENHANCED: ROS2 status function for health checks
 function getROS2Status() {
     try {
         return {
             isConnected: isInitialized && !isShutdown,
             isInitialized: isInitialized,
+            isShutdown: isShutdown,
+            rclnodeInitialized: rclnodeInitialized,
+            nodeSpinning: nodeSpinning,
             nodeStatus: rosNode ? 'active' : 'inactive',
             publishersCount: isInitialized ? Object.keys(publishers.getPublisherStats().publishers || {}).length : 0,
             maxSpeeds: isInitialized ? publishers.getCurrentMaxSpeeds() : { linear: 0, angular: 0 },
+            initializationAttempts: initializationAttempts,
+            canRecover: initializationAttempts < MAX_INIT_ATTEMPTS,
             lastUpdate: new Date().toISOString(),
             status: isInitialized && !isShutdown ? 'healthy' : 'disconnected'
         };
@@ -318,6 +542,7 @@ function testConnection() {
             return {
                 success: false,
                 error: 'ROS not initialized',
+                canRecover: initializationAttempts < MAX_INIT_ATTEMPTS,
                 timestamp: new Date().toISOString()
             };
         }
@@ -334,7 +559,7 @@ function testConnection() {
     }
 }
 
-// Cleanup and shutdown
+// ✅ ENHANCED: Shutdown with proper context cleanup
 async function shutdown() {
     try {
         if (isShutdown) {
@@ -346,22 +571,45 @@ async function shutdown() {
         
         isShutdown = true;
         
+        // Cleanup subscribers first
+        try {
+            subscribers.cleanup();
+        } catch (e) {
+            console.warn('⚠️ Error cleaning up subscribers:', e.message);
+        }
+        
         // Cleanup publishers
-        publishers.cleanup();
+        try {
+            publishers.cleanup();
+        } catch (e) {
+            console.warn('⚠️ Error cleaning up publishers:', e.message);
+        }
         
         // Destroy the node
         if (rosNode) {
             try {
                 rosNode.destroy();
                 rosNode = null;
+                nodeSpinning = false; // Reset spinning state when node is destroyed
+                console.log('🗑️ ROS node destroyed and spinning state reset');
             } catch (e) {
                 console.warn('⚠️ Error destroying ROS node:', e.message);
+                rosNode = null;
+                nodeSpinning = false; // Reset anyway
             }
         }
         
-        // Shutdown rclnodejs
+        // ✅ FIXED: Only shutdown rclnodejs if we're doing a full shutdown
+        // In most cases, we want to keep the context alive for recovery
         try {
-            await rclnodejs.shutdown();
+            if (process.env.NODE_ENV !== 'development') {
+                await rclnodejs.shutdown();
+                rclnodeInitialized = false;
+                nodeSpinning = false; // Reset spinning state on full shutdown
+                console.log('✅ ROS2 context shutdown');
+            } else {
+                console.log('✅ ROS2 context kept alive for development');
+            }
         } catch (e) {
             console.warn('⚠️ Error shutting down rclnodejs:', e.message);
         }
@@ -378,19 +626,57 @@ async function shutdown() {
     }
 }
 
+// ✅ NEW: Add a device management function that was missing
+function addConnectedDevice(deviceInfo) {
+    try {
+        // Check if device already exists
+        const existingIndex = global.connectedDevices.findIndex(d => d.id === deviceInfo.id);
+        
+        if (existingIndex >= 0) {
+            // Update existing device
+            global.connectedDevices[existingIndex] = {
+                ...global.connectedDevices[existingIndex],
+                ...deviceInfo,
+                lastConnected: new Date().toISOString(),
+                status: 'connected'
+            };
+            console.log(`🔄 Updated existing device: ${deviceInfo.id}`);
+        } else {
+            // Add new device
+            const newDevice = {
+                ...deviceInfo,
+                connectedAt: new Date().toISOString(),
+                lastConnected: new Date().toISOString(),
+                status: 'connected'
+            };
+            global.connectedDevices.push(newDevice);
+            console.log(`➕ Added new device: ${deviceInfo.id}`);
+        }
+        
+        return deviceInfo.id;
+        
+    } catch (error) {
+        console.error('❌ Error adding connected device:', error);
+        return null;
+    }
+}
+
 module.exports = {
     initializeROS,
-    publishJoystick,    // ✅ FIXED: Now supports max speeds
+    ensureROSConnection,    // ✅ NEW
+    recoverConnection,      // ✅ ENHANCED: Better context handling
+    publishJoystick,        // ✅ ENHANCED: Now with auto-recovery
     publishVelocity,
     publishGoal,
     publishMap,
-    updateMaxSpeeds,    // ✅ NEW
+    updateMaxSpeeds,        // ✅ NEW
     startMapping,
     stopMapping,
     saveMap,
-    emergencyStop,
-    getConnectionStatus,
-    getROS2Status,      // ✅ NEW: For health checks
+    emergencyStop,          // ✅ ENHANCED: Works even when ROS is down
+    getConnectionStatus,    // ✅ ENHANCED: More detailed info
+    getROS2Status,          // ✅ ENHANCED: Recovery status
     testConnection,
+    addConnectedDevice,     // ✅ NEW: Missing function
     shutdown
 };

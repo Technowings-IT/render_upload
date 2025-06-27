@@ -1,8 +1,8 @@
 [
   {
     "id": "piros",
-    "name": "piros",
-    "ipAddress": "192.168.253.136",
+    "name": "PIROS",
+    "ipAddress": "192.168.0.156",
     "type": "differential_drive",
     "capabilities": [
       "mapping",
@@ -10,8 +10,7 @@
       "remote_control"
     ],
     "status": "connected",
-    "connectedAt": "2025-06-25T04:31:46.881Z",
-    "lastSeen": "2025-06-25T05:15:40.019Z",
-    "lastStartup": "2025-06-25T05:14:59.675Z"
+    "connectedAt": "2025-06-27T06:35:38.097Z",
+    "lastSeen": "2025-06-27T06:35:38.097Z"
   }
 ]

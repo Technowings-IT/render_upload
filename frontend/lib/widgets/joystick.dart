@@ -300,7 +300,7 @@ class _JoystickWidgetState extends State<JoystickWidget> {
 
     // Convert to linear and angular velocities with strict limits
     final linear = (normalizedY * widget.maxLinearSpeed).clamp(-widget.maxLinearSpeed, widget.maxLinearSpeed);
-    final angular = (-normalizedX * widget.maxAngularSpeed).clamp(-widget.maxAngularSpeed, widget.maxAngularSpeed);
+    final angular = (normalizedX * widget.maxAngularSpeed).clamp(-widget.maxAngularSpeed, widget.maxAngularSpeed);
 
     // Only send commands if deadman is active (or not required)
     final deadmanOk = !widget.requireDeadman || _deadmanActive;

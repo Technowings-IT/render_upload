@@ -1,4 +1,4 @@
-// services/web_socket_service.dart - FIXED with Proper Ping-Pong Handling
+// services/web_socket_service.dart - FIXED with Complete Implementation
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -24,6 +24,16 @@ class WebSocketService {
   WebSocketChannel? _channel;
   String? _clientId;
   String? _serverUrl;
+  
+  // ✅ FIXED: Added missing analytics fields
+  final Map<String, int> _messageStats = {};
+  int _totalMessagesReceived = 0;
+  int _totalMessagesSent = 0;
+  DateTime? _lastConnectionTime;
+
+  // ✅ FIXED: Added missing message queue fields
+  final List<Map<String, dynamic>> _messageQueue = [];
+  static const int _maxQueueSize = 100;
 
   // Connection state
   bool _isConnected = false;
@@ -46,12 +56,24 @@ class WebSocketService {
   StreamController<Map<String, dynamic>>? _deviceEventsController;
   StreamController<bool>? _connectionStateController;
   StreamController<String>? _errorController;
+  
+  // ✅ FIXED: Added analytics controller
+  final StreamController<Map<String, dynamic>> _analyticsDataController = 
+      StreamController<Map<String, dynamic>>.broadcast();
 
   // ==========================================
   // GETTERS - PROPERTIES
   // ==========================================
   bool get isConnected => _isConnected;
   String? get clientId => _clientId;
+  
+  // ✅ FIXED: Analytics getters
+  Map<String, int> get messageStats => Map.unmodifiable(_messageStats);
+  int get totalMessagesReceived => _totalMessagesReceived;
+  int get totalMessagesSent => _totalMessagesSent;
+  Duration? get connectionDuration => _lastConnectionTime != null
+      ? DateTime.now().difference(_lastConnectionTime!)
+      : null;
 
   // ==========================================
   // GETTERS - STREAMS
@@ -95,6 +117,9 @@ class WebSocketService {
     _initializeControllers();
     return _errorController!.stream;
   }
+
+  // ✅ FIXED: Analytics stream
+  Stream<Map<String, dynamic>> get analyticsData => _analyticsDataController.stream;
 
   // Legacy streams for backward compatibility
   Stream<Map<String, dynamic>> get odometry => realTimeData
@@ -149,8 +174,9 @@ class WebSocketService {
       subscribe('global_costmap_update');
       subscribe('local_costmap_update');
 
-      // ✅ REMOVED: requestData calls that cause "Unknown message type" errors
-      // The server will send initial data automatically after connection
+      // Process any queued messages
+      _processMessageQueue();
+
       print('📡 Subscribed to all topics, waiting for server data...');
     }
   }
@@ -195,8 +221,7 @@ class WebSocketService {
         uri,
         protocols: ['websocket'],
         connectTimeout: connectionTimeout,
-        pingInterval:
-            const Duration(seconds: 20), // ✅ CRITICAL: Enable WebSocket-level ping
+        pingInterval: const Duration(seconds: 20),
       );
 
       // ✅ FIXED: Improved connection establishment
@@ -214,7 +239,6 @@ class WebSocketService {
         }
       });
 
-      // Only one subscription, handle both connection and messages
       subscription = _channel!.stream.listen(
         (data) {
           _lastMessageReceived = DateTime.now();
@@ -222,8 +246,8 @@ class WebSocketService {
           if (!connectionEstablished) {
             connectionEstablished = true;
             timeoutTimer?.cancel();
+            _lastConnectionTime = DateTime.now();
 
-            // Set _isConnected to true BEFORE sending device_connect
             _isConnected = true;
 
             if (deviceId != null || deviceInfo != null) {
@@ -238,7 +262,6 @@ class WebSocketService {
             completer.complete(true);
           }
 
-          // Always handle messages
           _handleMessage(data);
         },
         onError: (error) {
@@ -327,21 +350,17 @@ class WebSocketService {
     _stopApplicationPing();
 
     _pingTimer = Timer.periodic(const Duration(seconds: 20), (timer) {
-      // ✅ FIXED: Less frequent
       if (_isConnected && _channel != null) {
         try {
-          // ✅ FIXED: Send application-level ping
           sendMessage({
             'type': 'ping',
             'timestamp': DateTime.now().toIso8601String(),
           });
 
-          // ✅ FIXED: More lenient connection check
           if (_lastMessageReceived != null) {
             final timeSinceLastMessage =
                 DateTime.now().difference(_lastMessageReceived!);
             if (timeSinceLastMessage > const Duration(minutes: 2)) {
-              // ✅ FIXED: 2 minutes timeout
               print(
                   '💔 No messages received for ${timeSinceLastMessage.inSeconds}s, reconnecting...');
               _handleDisconnection();
@@ -366,7 +385,6 @@ class WebSocketService {
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      // ✅ FIXED: Less frequent
       if (_isConnected) {
         sendMessage({
           'type': 'heartbeat',
@@ -388,14 +406,47 @@ class WebSocketService {
     });
   }
 
+  // ✅ FIXED: MESSAGE QUEUE HANDLING
+  void _queueMessage(Map<String, dynamic> message) {
+    if (_messageQueue.length < _maxQueueSize) {
+      _messageQueue.add(message);
+      print('📥 Message queued: ${message['type']}');
+    } else {
+      print('🗑️ Message queue full, dropping message: ${message['type']}');
+    }
+  }
+
+  void _processMessageQueue() {
+    if (_messageQueue.isNotEmpty) {
+      print('📤 Processing ${_messageQueue.length} queued messages');
+      final messages = List<Map<String, dynamic>>.from(_messageQueue);
+      _messageQueue.clear();
+      for (final message in messages) {
+        sendMessage(message);
+      }
+    }
+  }
+
   // ==========================================
   // ✅ FIXED: MESSAGE HANDLING METHODS
   // ==========================================
   void _handleMessage(dynamic data) {
     try {
+      _totalMessagesReceived++;
       final message = json.decode(data);
+      final type = message['type'];
+      if (type != null) {
+        _messageStats[type] = (_messageStats[type] ?? 0) + 1;
+      }
 
-      // ✅ CRITICAL: Handle all ping/pong messages properly
+      // Handle analytics data routing
+      if (type != null && ['battery_update', 'velocity_update', 'error_event', 
+          'system_metrics', 'order_completed'].contains(type)) {
+        if (!_analyticsDataController.isClosed) {
+          _analyticsDataController.add(message);
+        }
+      }
+
       switch (message['type']) {
         case 'connection':
           _isConnected = true;
@@ -408,7 +459,6 @@ class WebSocketService {
           break;
 
         case 'ping':
-          // ✅ CRITICAL: Immediately respond to server ping
           _sendPongResponse();
           break;
 
@@ -538,7 +588,6 @@ class WebSocketService {
     }
   }
 
-  // ✅ CRITICAL: Proper pong response
   void _sendPongResponse() {
     try {
       sendMessage({
@@ -620,7 +669,6 @@ class WebSocketService {
       print(
           '🔄 WebSocket disconnected, attempting to reconnect... (attempt $_reconnectAttempts/$maxReconnectAttempts)');
 
-      // ✅ FIXED: More reasonable reconnection delays
       final baseDelay = Duration(seconds: math.min(2 + _reconnectAttempts, 10));
       final jitter = Duration(milliseconds: math.Random().nextInt(1000));
       final totalDelay = baseDelay + jitter;
@@ -662,7 +710,7 @@ class WebSocketService {
   void subscribe(String topic, {String? deviceId}) {
     sendMessage({
       'type': 'subscribe',
-      'topics': [topic], // ✅ FIXED: Backend expects array
+      'topics': [topic],
       'deviceId': deviceId,
       'timestamp': DateTime.now().toIso8601String(),
     });
@@ -671,7 +719,7 @@ class WebSocketService {
   void unsubscribe(String topic, {String? deviceId}) {
     sendMessage({
       'type': 'unsubscribe',
-      'topics': [topic], // ✅ FIXED: Backend expects array
+      'topics': [topic],
       'deviceId': deviceId,
       'timestamp': DateTime.now().toIso8601String(),
     });
@@ -680,34 +728,53 @@ class WebSocketService {
   // ==========================================
   // CORE MESSAGING METHOD
   // ==========================================
-  void sendMessage(Map<String, dynamic> message) {
-    if (_isConnected && _channel != null) {
-      try {
-        _channel!.sink.add(json.encode(message));
-      } catch (e) {
-        print('❌ Error sending message: $e');
-        if (_errorController != null && !_errorController!.isClosed) {
-          _errorController!.add('Failed to send message: $e');
+  bool sendMessage(Map<String, dynamic> message) {
+    try {
+      if (!_isConnected || _channel == null) {
+        if (_messageQueue.length < _maxQueueSize) {
+          _messageQueue.add({
+            ...message,
+            'queued_at': DateTime.now().toIso8601String(),
+          });
+          print('📮 Message queued (offline): ${message['type']}');
+          return true;
+        } else {
+          print('❌ Message queue full, dropping message: ${message['type']}');
+          return false;
         }
       }
-    } else {
-      print(
-          '⚠️ WebSocket not connected, cannot send message: ${message['type']}');
+
+      final jsonMessage = json.encode({
+        ...message,
+        'client_timestamp': DateTime.now().toIso8601String(),
+      });
+
+      _channel!.sink.add(jsonMessage);
+      _totalMessagesSent++;
+      _messageStats[message['type']] = (_messageStats[message['type']] ?? 0) + 1;
+
+      print('📤 Sent: ${message['type']} to ${message['deviceId'] ?? 'server'}');
+      return true;
+    } catch (e) {
+      print('❌ Error sending message: $e');
+      _errorController?.add('Failed to send message: $e');
+      return false;
     }
   }
 
   // ==========================================
   // JOYSTICK & MOVEMENT CONTROL
   // ==========================================
-  void sendJoystickControl(String deviceId, double x, double y, bool deadman, {double? maxLinearSpeed, double? maxAngularSpeed}) {
+  void sendJoystickControl(String deviceId, double x, double y, bool deadman, 
+      {double? maxLinearSpeed, double? maxAngularSpeed}) {
     sendMessage({
       'type': 'joystick_control',
       'deviceId': deviceId,
       'x': x,
       'y': y,
       'deadman': deadman,
-      'maxLinearSpeed': maxLinearSpeed,  // ✅ NEW: Pass max speeds to server
-      'maxAngularSpeed': maxAngularSpeed, // ✅ NEW: Pass max speeds to server
+      'maxLinearSpeed': maxLinearSpeed,
+      'maxAngularSpeed': maxAngularSpeed,
       'timestamp': DateTime.now().toIso8601String(),
     });
   }
@@ -819,9 +886,6 @@ class WebSocketService {
     });
   }
 
-  // ✅ REMOVED: requestData method that causes server errors
-  // Data will be received automatically through subscriptions
-
   void requestDeviceDiscovery() {
     sendMessage({
       'type': 'device_discovery',
@@ -847,7 +911,22 @@ class WebSocketService {
       'reconnectAttempts': _reconnectAttempts,
       'lastMessageReceived': _lastMessageReceived?.toIso8601String(),
       'lastPongReceived': _lastPongReceived?.toIso8601String(),
+      'messageStats': messageStats,
+      'totalMessagesReceived': totalMessagesReceived,
+      'totalMessagesSent': totalMessagesSent,
+      'connectionDuration': connectionDuration?.inSeconds,
     };
+  }
+
+  void clearMessageStats() {
+    _messageStats.clear();
+    _totalMessagesReceived = 0;
+    _totalMessagesSent = 0;
+  }
+
+  void clearMessageQueue() {
+    _messageQueue.clear();
+    print('🗑️ Message queue cleared');
   }
 
   // ==========================================
@@ -879,7 +958,8 @@ class WebSocketService {
     _deviceEventsController?.close();
     _connectionStateController?.close();
     _errorController?.close();
-
+    _analyticsDataController.close();
+    
     // Set them to null
     _realTimeDataController = null;
     _controlEventsController = null;

@@ -137,7 +137,7 @@ class NetworkDiscoveryService {
     
     // Add your known AGV IPs here
     final knownIPs = [
-      '192.168.253.136',  // Your current AGV
+      '192.168.0.156',  // Your current AGV
       '192.168.1.100',   // Common AGV IP
       '192.168.0.100',   // Common AGV IP
       '10.0.0.100',      // Common AGV IP

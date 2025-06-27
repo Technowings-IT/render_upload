@@ -48,7 +48,7 @@ function createEssentialPublishers() {
         getOrCreatePublisher('/map', 'nav_msgs/msg/OccupancyGrid');
         
         // Create goal publisher for navigation
-        getOrCreatePublisher('/move_base_simple/goal', 'geometry_msgs/msg/PoseStamped');
+        getOrCreatePublisher('/goal_pose', 'geometry_msgs/msg/PoseStamped');
         
         console.log('✅ Essential publishers created');
         

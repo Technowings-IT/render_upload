@@ -113,9 +113,9 @@ const config = {
             'http://localhost:8080',
             'http://127.0.0.1:3000',
             'http://127.0.0.1:8080',
-            'http://192.168.253.136:3000', // ✅ FIXED: Your AGV IP
-            'http://192.168.253.79:3000',  // ✅ FIXED: Your backend IP
-            'http://192.168.253.*:*',      // ✅ FIXED: Allow entire subnet
+            'http://192.168.0.156:3000', // ✅ FIXED: Your AGV IP
+            'http://192.168.0.113:3000',  // ✅ FIXED: Your backend IP
+            'http://192.168.0.*:*',      // ✅ FIXED: Allow entire subnet
             '*' // ✅ FIXED: Allow all origins for development
         ],
         CREDENTIALS: true
@@ -232,15 +232,15 @@ const config = {
             BROADCAST_INTERVAL: 5000,
             TIMEOUT: 10000,
             // ✅ NEW: AGV subnet configuration
-            AGV_SUBNET: '192.168.253',
+            AGV_SUBNET: '192.168.0',
             AGV_IP_RANGE: {
                 START: 100,
                 END: 200
             },
             KNOWN_AGVS: [
                 {
-                    id: 'agv_01',
-                    ip: '192.168.253.136',
+                    id: 'piros',
+                    ip: '192.168.0.103',
                     name: 'Primary AGV'
                 }
             ]
@@ -298,8 +298,8 @@ if (config.SERVER.ENV === 'production') {
     config.DEVELOPMENT.VERBOSE_LOGGING = false;
     config.DEVELOPMENT.DEBUG_WEBSOCKET = false;
     config.CORS.ALLOWED_ORIGINS = [
-        'http://192.168.253.136:3000',
-        'http://192.168.253.79:3000'
+        'http://192.168.0.103:3000',
+        'http://192.168.0.101:3000'
     ]; // Restrict CORS in production
 }
 

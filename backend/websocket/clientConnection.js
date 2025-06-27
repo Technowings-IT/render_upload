@@ -589,7 +589,7 @@ function handleDeviceDiscovery(clientId, message) {
             type: 'device_discovery_response',
             devices: availableDevices,
             server: {
-                ip: '192.168.253.79',
+                ip: '192.168.0.113',
                 port: 3000,
                 websocket_port: 3000,
                 capabilities: ['mapping', 'navigation', 'remote_control'],

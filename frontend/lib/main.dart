@@ -18,7 +18,7 @@ import 'services/api_service.dart';
 // Configuration constants - Update these for your setup
 class AppConfig {
   // Your AGV backend server configuration
-  static const String DEFAULT_SERVER_IP = '192.168.253.79'; // Your AGV IP
+  static const String DEFAULT_SERVER_IP = '192.168.0.156'; // Your AGV IP
   static const int DEFAULT_SERVER_PORT = 3000; // Backend port
   static const int AGV_SSH_PORT = 22; // AGV SSH port (mentioned by user)
 
@@ -90,7 +90,7 @@ class AGVFleetManagementApp extends StatelessWidget {
               case '/map':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) => MapPage(
+                  builder: (context) => EnhancedMapPage(
                     deviceId: args?['deviceId'],
                   ),
                 );
@@ -132,7 +132,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   final List<Widget> _screens = [
     DashboardScreen(),
     ConnectScreen(), // Note: Using standard ConnectScreen, not EnhancedConnectScreen
-    AnalyticsScreen(),
+    EnhancedAnalyticsScreen(),
     SettingsScreen(),
   ];
 
@@ -200,8 +200,8 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
           // Initialize WebSocket connection
           print(
               '🔌 Connecting WebSocket to ${_apiService.getWebSocketUrl()}...');
-          final wsConnected =
-              await _webSocketService.connect(_apiService.getWebSocketUrl() ?? '');
+          final wsConnected = await _webSocketService
+              .connect(_apiService.getWebSocketUrl() ?? '');
 
           setState(() {
             _isWebSocketConnected = wsConnected;
@@ -688,8 +688,10 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildConnectionItem('API Server', _apiService.baseUrl ?? 'Unknown'),
-            _buildConnectionItem('WebSocket', _apiService.getWebSocketUrl() ?? ''),
+            _buildConnectionItem(
+                'API Server', _apiService.baseUrl ?? 'Unknown'),
+            _buildConnectionItem(
+                'WebSocket', _apiService.getWebSocketUrl() ?? ''),
             _buildConnectionItem('AGV SSH Port', '${AppConfig.AGV_SSH_PORT}'),
             _buildConnectionItem(
                 'Client ID', connectionInfo['clientId'] ?? 'Not assigned'),

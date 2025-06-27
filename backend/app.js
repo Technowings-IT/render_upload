@@ -1,4 +1,4 @@
-// app.js - UPDATED with device discovery integration
+// app.js - UPDATED with ROS health monitoring and debug endpoints
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
@@ -7,6 +7,7 @@ const config = require('./config');
 // Import core modules
 const rosConnection = require('./ros/utils/ros_connection');
 const storageManager = require('./ros/utils/storageManager');
+const rosHealthMonitor = require('./ros/utils/rosHealthMonitor');
 const { initializeWebSocketServer } = require('./websocket/clientConnection');
 
 // Import routes
@@ -42,8 +43,8 @@ app.use(cors({
             return callback(null, true);
         }
         
-        // Allow 192.168.253.x subnet
-        if (origin.includes('192.168.253.')) {
+        // Allow 192.168.0.x subnet
+        if (origin.includes('192.168.0.')) {
             return callback(null, true);
         }
         
@@ -88,9 +89,9 @@ app.get('/health', (req, res) => {
             },
             services: {
                 ros2: {
-                    initialized: rosStatus.initialized,
-                    nodeActive: rosStatus.nodeActive,
-                    topicsDiscovered: rosStatus.topicsDiscovered,
+                    initialized: rosStatus.isInitialized,
+                    nodeActive: rosStatus.nodeStatus === 'active',
+                    isConnected: rosStatus.isConnected,
                     publishersActive: publisherStats.totalPublishers
                 },
                 webSocket: {
@@ -150,7 +151,7 @@ app.get('/api/devices', (req, res) => {
     }
 });
 
-// ✅ ENHANCED: System status endpoint
+// ✅ FIXED: System status endpoint (fixed syntax error)
 app.get('/api/system/status', async (req, res) => {
     try {
         const rosStatus = rosConnection.getROS2Status();
@@ -193,6 +194,226 @@ app.get('/api/system/status', async (req, res) => {
             success: false,
             error: 'Failed to get system status',
             details: error.message 
+        });
+    }
+});
+
+// ✅ NEW: ROS Debug and Recovery Endpoints
+app.get('/api/ros/status', (req, res) => {
+    try {
+        const rosStatus = rosConnection.getROS2Status();
+        const connectionStatus = rosConnection.getConnectionStatus();
+        
+        res.json({
+            success: true,
+            ros2Status: rosStatus,
+            connectionDetails: connectionStatus,
+            debug: {
+                canRecover: connectionStatus.canRecover,
+                hasNode: connectionStatus.nodeCreated,
+                shutdownFlag: rosStatus.isShutdown,
+                initializedFlag: rosStatus.isInitialized
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ✅ NEW: Manual ROS recovery endpoint
+app.post('/api/ros/recover', async (req, res) => {
+    try {
+        console.log('🔄 Manual ROS recovery requested via API');
+        
+        const result = await rosConnection.recoverConnection();
+        
+        if (result) {
+            res.json({
+                success: true,
+                message: 'ROS2 connection recovered successfully',
+                status: rosConnection.getROS2Status(),
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: 'Failed to recover ROS2 connection',
+                status: rosConnection.getROS2Status(),
+                timestamp: new Date().toISOString()
+            });
+        }
+    } catch (error) {
+        console.error('❌ Error during manual ROS recovery:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ✅ NEW: Test ROS publishing endpoint
+app.post('/api/ros/test', async (req, res) => {
+    try {
+        const testResult = rosConnection.testConnection();
+        
+        res.json({
+            success: testResult.success,
+            testResults: testResult,
+            rosStatus: rosConnection.getROS2Status(),
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ✅ NEW: Emergency stop endpoint
+app.post('/api/ros/emergency-stop', (req, res) => {
+    try {
+        console.log('🛑 Emergency stop requested via API');
+        
+        const result = rosConnection.emergencyStop();
+        
+        res.json({
+            success: result.success,
+            message: 'Emergency stop command sent',
+            result: result,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Error during emergency stop:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ✅ NEW: Update max speeds endpoint  
+app.post('/api/ros/max-speeds', (req, res) => {
+    try {
+        const { maxLinearSpeed, maxAngularSpeed } = req.body;
+        
+        if (typeof maxLinearSpeed !== 'number' || typeof maxAngularSpeed !== 'number') {
+            return res.status(400).json({
+                success: false,
+                error: 'maxLinearSpeed and maxAngularSpeed must be numbers',
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        const result = rosConnection.updateMaxSpeeds(maxLinearSpeed, maxAngularSpeed);
+        
+        res.json({
+            success: result.success,
+            maxSpeeds: result.maxSpeeds,
+            message: 'Max speeds updated successfully',
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Error updating max speeds:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ✅ NEW: Manual joystick test endpoint
+app.post('/api/ros/test-joystick', (req, res) => {
+    try {
+        const { x = 0, y = 0, deadman = false, maxLinearSpeed = 0.3, maxAngularSpeed = 0.8 } = req.body;
+        
+        console.log(`🎮 Manual joystick test: x=${x}, y=${y}, deadman=${deadman}`);
+        
+        const result = rosConnection.publishJoystick(x, y, deadman, maxLinearSpeed, maxAngularSpeed);
+        
+        res.json({
+            success: result.success,
+            result: result,
+            joystickData: {
+                x, y, deadman, maxLinearSpeed, maxAngularSpeed
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Error testing joystick:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// ✅ NEW: ROS Health Monitor endpoints
+app.get('/api/ros/monitor/status', (req, res) => {
+    try {
+        const monitorStatus = rosHealthMonitor.getMonitorStatus();
+        const rosStatus = rosConnection.getROS2Status();
+        
+        res.json({
+            success: true,
+            monitor: monitorStatus,
+            ros: rosStatus,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+app.post('/api/ros/monitor/reset', (req, res) => {
+    try {
+        rosHealthMonitor.resetFailureCount();
+        
+        res.json({
+            success: true,
+            message: 'Monitor failure count reset',
+            status: rosHealthMonitor.getMonitorStatus(),
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+app.post('/api/ros/monitor/force-recovery', async (req, res) => {
+    try {
+        console.log('🚑 Forced ROS recovery requested via API');
+        await rosHealthMonitor.attemptRecovery();
+        
+        res.json({
+            success: true,
+            message: 'Forced recovery attempted',
+            status: rosConnection.getROS2Status(),
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 });
@@ -292,6 +513,11 @@ async function initializeApplication() {
         await rosConnection.initializeROS();
         console.log('✅ ROS2 connection established');
         
+        // ✅ NEW: Initialize ROS health monitor
+        console.log('🔍 Starting ROS health monitor...');
+        rosHealthMonitor.initializeMonitor(rosConnection);
+        console.log('✅ ROS health monitor started');
+        
         // 3. Test ROS2 connectivity
         console.log('🔍 Testing ROS2 connectivity...');
         const connectivityTest = await rosConnection.testConnection();
@@ -323,10 +549,10 @@ async function initializeApplication() {
                 console.log('🔍 No devices found, attempting auto-connection...');
                 try {
                     const deviceInfo = {
-                        id: 'agv_01',
+                        id: 'piros', // Changed to match your device name
                         name: 'Primary AGV',
                         type: 'differential_drive',
-                        ipAddress: '192.168.253.136', // Your AGV's IP
+                        ipAddress: '192.168.0.156', // Your AGV's IP
                         capabilities: config.DEVICE.CAPABILITIES,
                         autoConnected: true
                     };
@@ -334,7 +560,7 @@ async function initializeApplication() {
                     rosConnection.addConnectedDevice(deviceInfo);
                     
                     try {
-                        await storageManager.saveDevice('agv_01');
+                        await storageManager.saveDevice('piros');
                     } catch (saveError) {
                         console.warn('⚠️ Could not save auto-connected device:', saveError.message);
                     }
@@ -370,12 +596,13 @@ async function startServer() {
             console.log(`🗂️ Health Check: http://${serverInfo.ip}:${serverInfo.port}/health`);
             console.log(`🎮 Control API: http://${serverInfo.ip}:${serverInfo.port}/api/control`);
             console.log(`🔍 Discovery API: http://${serverInfo.ip}:${serverInfo.port}/api/discovery`);
+            console.log(`🔧 ROS Debug API: http://${serverInfo.ip}:${serverInfo.port}/api/ros/*`);
             console.log(`📡 UDP Discovery: Port ${config.NETWORK.DISCOVERY.PORT}`);
             console.log(`\n📊 System Status:`);
-            // console.log(`   - ROS2: ${rosConnection.isRosInitialized() ? '✅ Connected' : '❌ Disconnected'}`);
             console.log(`   - Storage: ✅ Ready`);
             console.log(`   - WebSocket: ✅ Ready`);
             console.log(`   - Device Discovery: ✅ Ready`);
+            console.log(`   - ROS Health Monitor: ✅ Active`);
             console.log(`   - Connected Devices: ${global.connectedDevices.length}`);
             console.log(`\n🤖 Ready for AGV connections!\n`);
             
@@ -392,6 +619,20 @@ async function startServer() {
                     console.warn('⚠️ Could not test ROS2 publishing:', testError.message);
                 }
             }, 2000);
+            
+            // Test ROS2 subscribing capability
+            setTimeout(async () => {
+                try {
+                    const subscriberTest = require('./ros/utils/subscribers').testSubscribing();
+                    if (subscriberTest.success) {
+                        console.log('✅ ROS2 subscribing test successful');
+                    } else {
+                        console.warn('⚠️ ROS2 subscribing test failed:', subscriberTest.error);
+                    }
+                } catch (testError) {
+                    console.warn('⚠️ Could not test ROS2 subscribing:', testError.message);
+                }
+            }, 2500);
         });
         
     } catch (error) {
@@ -408,6 +649,10 @@ async function gracefulShutdown(signal) {
     console.log(`\n📴 Received ${signal}, starting graceful shutdown...`);
     
     try {
+        // ✅ NEW: Stop health monitoring first
+        console.log('🔍 Stopping ROS health monitor...');
+        rosHealthMonitor.cleanup();
+        
         // Stop accepting new connections
         server.close(() => {
             console.log('🔌 HTTP server closed');

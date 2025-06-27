@@ -96,8 +96,8 @@ class _ConnectScreenState extends State<ConnectScreen> {
     // You can implement SharedPreferences here to save/load last used IPs
     // For now, we'll populate with common defaults
     setState(() {
-      _manualBackendIpController.text = '192.168.253.79'; // Your current setup
-      _manualDeviceIpController.text = '192.168.253.136'; // Your AGV IP
+      _manualBackendIpController.text = '192.168.0.113'; // Your current setup
+      _manualDeviceIpController.text = '192.168.0.156'; // Your AGV IP
     });
   }
 
@@ -674,7 +674,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
                     decoration: InputDecoration(
                       labelText: 'Backend IP Address',
                       prefixIcon: Icon(Icons.computer),
-                      hintText: '192.168.253.79',
+                      hintText: '192.168.0.113',
                       border: OutlineInputBorder(),
                     ),
                     keyboardType:
@@ -771,7 +771,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
                     decoration: InputDecoration(
                       labelText: 'AGV IP Address',
                       prefixIcon: Icon(Icons.smart_toy),
-                      hintText: '192.168.253.136',
+                      hintText: '192.168.0.156',
                       border: OutlineInputBorder(),
                     ),
                     keyboardType:
