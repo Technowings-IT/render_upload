@@ -2,13 +2,17 @@
 const express = require('express');
 const router = express.Router();
 
-// Import ROS connection and WebSocket broadcasting
 const rosConnection = require('../ros/utils/ros_connection');
 const { broadcastToSubscribers } = require('../websocket/clientConnection');
 const storageManager = require('../ros/utils/storageManager');
 const publishers = require('../ros/utils/publishers');
 const pgmConverter = require('../ros/utils/pgmConverter');
 const path = require('path');
+
+// Initialize global storage if not exists
+if (!global.deviceOrders) global.deviceOrders = {};
+if (!global.connectedDevices) global.connectedDevices = [];
+if (!global.deviceMaps) global.deviceMaps = {};
 
 // Middleware for device validation
 function validateDevice(req, res, next) {
@@ -20,57 +24,499 @@ function validateDevice(req, res, next) {
     next();
 }
 
+// Middleware for order validation
+function validateOrder(req, res, next) {
+    const { orderId } = req.params;
+    if (!orderId) {
+        return res.status(400).json({ error: 'Order ID is required' });
+    }
+    req.orderId = orderId;
+    next();
+}
+
 // === DEVICE MANAGEMENT ===
 
-// Connect a new AGV device
+// Get all connected devices with enhanced info
+router.get('/devices', (req, res) => {
+    try {
+        const devices = global.connectedDevices || [];
+        const liveData = global.liveData || {};
+
+        const devicesWithStatus = devices.map(device => {
+            const deviceOrders = global.deviceOrders[device.id] || [];
+            const deviceMap = global.deviceMaps[device.id];
+
+            return {
+                ...device,
+                liveData: liveData[device.id] || {},
+                isOnline: !!liveData[device.id]?.lastUpdate,
+                orderCount: deviceOrders.length,
+                activeOrders: deviceOrders.filter(o => o.status === 'active').length,
+                hasMap: !!deviceMap,
+                mapInfo: deviceMap ? {
+                    width: deviceMap.info?.width,
+                    height: deviceMap.info?.height,
+                    shapes: deviceMap.shapes?.length || 0,
+                    resolution: deviceMap.info?.resolution
+                } : null
+            };
+        });
+
+        res.json({
+            success: true,
+            devices: devicesWithStatus,
+            total: devices.length,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('❌ Error getting devices:', error);
+        res.status(500).json({ error: 'Failed to get devices' });
+    }
+});
+
+// Connect a new device
 router.post('/devices/connect', async (req, res) => {
     try {
         const { deviceId, name, type, ipAddress, capabilities } = req.body;
-        
+
         if (!deviceId) {
             return res.status(400).json({ error: 'Device ID is required' });
         }
-        
+
+        // Check if device already exists
+        const existingDeviceIndex = global.connectedDevices.findIndex(d => d.id === deviceId);
+
         const deviceInfo = {
             id: deviceId,
             name: name || `AGV ${deviceId}`,
             type: type || 'differential_drive',
             ipAddress: ipAddress,
             capabilities: capabilities || ['mapping', 'navigation', 'remote_control'],
-            connectedAt: new Date().toISOString()
+            status: 'connected',
+            connectedAt: new Date().toISOString(),
+            lastSeen: new Date().toISOString()
         };
-        
-        // Add device to ROS connection manager
-        const connectedDeviceId = rosConnection.addConnectedDevice(deviceInfo);
-        
-        // Save device permanently
-        await storageManager.saveDevice(connectedDeviceId);
-        
+
+        if (existingDeviceIndex >= 0) {
+            // Update existing device
+            global.connectedDevices[existingDeviceIndex] = deviceInfo;
+        } else {
+            // Add new device
+            global.connectedDevices.push(deviceInfo);
+            if (!global.deviceOrders[deviceId]) {
+                global.deviceOrders[deviceId] = [];
+            }
+        }
+
         // Broadcast device connection
         broadcastToSubscribers('device_events', {
             type: 'device_connected',
-            deviceId: connectedDeviceId,
+            deviceId: deviceId,
             device: deviceInfo,
             timestamp: new Date().toISOString()
         });
-        
+
         res.json({
             success: true,
             message: 'Device connected successfully',
-            deviceId: connectedDeviceId,
+            deviceId: deviceId,
             device: deviceInfo
         });
-        
-        console.log(`✅ Device ${connectedDeviceId} connected via API`);
-        
+
+        console.log(`✅ Device ${deviceId} connected via API`);
+
     } catch (error) {
         console.error('❌ Error connecting device:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to connect device',
-            details: error.message 
+            details: error.message
         });
     }
 });
+
+// === ORDER MANAGEMENT APIS ===
+
+// Get all orders for a device
+router.get('/devices/:deviceId/orders', validateDevice, (req, res) => {
+    try {
+        const orders = global.deviceOrders[req.deviceId] || [];
+        const sortedOrders = orders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        res.json({
+            success: true,
+            deviceId: req.deviceId,
+            orders: sortedOrders,
+            total: orders.length,
+            active: orders.filter(o => o.status === 'active').length,
+            pending: orders.filter(o => o.status === 'pending').length,
+            completed: orders.filter(o => o.status === 'completed').length,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Error getting orders:', error);
+        res.status(500).json({ error: 'Failed to get orders' });
+    }
+});
+
+// Create new order with waypoint sequence
+router.post('/devices/:deviceId/orders', validateDevice, async (req, res) => {
+    try {
+        const { name, waypoints, priority = 0, description } = req.body;
+        if (!name || !waypoints || !Array.isArray(waypoints)) {
+            return res.status(400).json({ error: 'Order name and waypoints array are required' });
+        }
+        if (waypoints.length === 0) {
+            return res.status(400).json({ error: 'At least one waypoint is required' });
+        }
+        for (let i = 0; i < waypoints.length; i++) {
+            const waypoint = waypoints[i];
+            if (!waypoint.name || !waypoint.type || !waypoint.position) {
+                return res.status(400).json({ error: `Invalid waypoint at index ${i}: missing name, type, or position` });
+            }
+        }
+        const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const newOrder = {
+            id: orderId,
+            name: name.trim(),
+            description: description || '',
+            deviceId: req.deviceId,
+            waypoints: waypoints,
+            priority: Math.max(0, Math.min(10, parseInt(priority) || 0)),
+            status: 'pending',
+            progress: {
+                currentWaypoint: 0,
+                totalWaypoints: waypoints.length,
+                completedWaypoints: 0
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            startedAt: null,
+            completedAt: null
+        };
+        if (!global.deviceOrders[req.deviceId]) {
+            global.deviceOrders[req.deviceId] = [];
+        }
+        global.deviceOrders[req.deviceId].push(newOrder);
+        try { await storageManager.saveOrder(req.deviceId, orderId); } catch (storageError) { console.warn('⚠️ Failed to save order to storage:', storageError); }
+        broadcastToSubscribers('order_events', {
+            type: 'order_created',
+            deviceId: req.deviceId,
+            order: newOrder,
+            timestamp: new Date().toISOString()
+        });
+        res.status(201).json({
+            success: true,
+            message: 'Order created successfully',
+            order: newOrder,
+            sequencePreview: waypoints.map((wp, index) => ({
+                step: index + 1,
+                name: wp.name,
+                type: wp.type,
+                position: wp.position
+            }))
+        });
+        console.log(`📋 Order created: ${newOrder.name} for device ${req.deviceId} (${waypoints.length} waypoints)`);
+    } catch (error) {
+        console.error('❌ Error creating order:', error);
+        res.status(500).json({ error: 'Failed to create order', details: error.message });
+    }
+});
+
+// Get specific order details
+router.get('/devices/:deviceId/orders/:orderId', validateDevice, validateOrder, (req, res) => {
+    try {
+        const orders = global.deviceOrders[req.deviceId] || [];
+        const order = orders.find(o => o.id === req.orderId);
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+        res.json({
+            success: true,
+            order: order,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Error getting order:', error);
+        res.status(500).json({ error: 'Failed to get order' });
+    }
+});
+
+// Update order status
+router.put('/orders/:orderId/status', validateOrder, async (req, res) => {
+    try {
+        const { status, currentWaypoint } = req.body;
+        if (!status) {
+            return res.status(400).json({ error: 'Status is required' });
+        }
+        const validStatuses = ['pending', 'active', 'paused', 'completed', 'failed'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+        }
+        let orderFound = false;
+        let deviceId = null;
+        let updatedOrder = null;
+        for (const [devId, orders] of Object.entries(global.deviceOrders)) {
+            const orderIndex = orders.findIndex(o => o.id === req.orderId);
+            if (orderIndex !== -1) {
+                const order = orders[orderIndex];
+                order.status = status;
+                order.updatedAt = new Date().toISOString();
+                if (currentWaypoint !== undefined) {
+                    order.progress.currentWaypoint = Math.max(0, parseInt(currentWaypoint));
+                    order.progress.completedWaypoints = Math.max(0, parseInt(currentWaypoint));
+                }
+                if (status === 'active' && !order.startedAt) {
+                    order.startedAt = new Date().toISOString();
+                } else if (status === 'completed' && !order.completedAt) {
+                    order.completedAt = new Date().toISOString();
+                    order.progress.completedWaypoints = order.progress.totalWaypoints;
+                }
+                orders[orderIndex] = order;
+                deviceId = devId;
+                updatedOrder = order;
+                orderFound = true;
+                break;
+            }
+        }
+        if (!orderFound) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+        try { await storageManager.saveOrder(deviceId, req.orderId); } catch (storageError) { console.warn('⚠️ Failed to save order status to storage:', storageError); }
+        broadcastToSubscribers('order_events', {
+            type: 'order_status_changed',
+            deviceId: deviceId,
+            orderId: req.orderId,
+            status: status,
+            order: updatedOrder,
+            timestamp: new Date().toISOString()
+        });
+        res.json({
+            success: true,
+            message: 'Order status updated successfully',
+            orderId: req.orderId,
+            status: status,
+            order: updatedOrder
+        });
+        console.log(`📋 Order ${req.orderId} status updated to: ${status}`);
+    } catch (error) {
+        console.error('❌ Error updating order status:', error);
+        res.status(500).json({ error: 'Failed to update order status', details: error.message });
+    }
+});
+
+// Execute order (send waypoints to AGV)
+router.post('/devices/:deviceId/orders/:orderId/execute', validateDevice, validateOrder, async (req, res) => {
+    try {
+        const orders = global.deviceOrders[req.deviceId] || [];
+        const order = orders.find(o => o.id === req.orderId);
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+        if (order.status !== 'pending' && order.status !== 'paused') {
+            return res.status(400).json({ error: `Cannot execute order with status: ${order.status}` });
+        }
+        const firstWaypoint = order.waypoints[0];
+        if (!firstWaypoint) {
+            return res.status(400).json({ error: 'Order has no waypoints' });
+        }
+        try {
+            const goalResult = publishers.publishGoal(
+                firstWaypoint.position.x,
+                firstWaypoint.position.y,
+                0
+            );
+            if (goalResult.success) {
+                order.status = 'active';
+                order.startedAt = new Date().toISOString();
+                order.updatedAt = new Date().toISOString();
+                order.progress.currentWaypoint = 0;
+                broadcastToSubscribers('order_events', {
+                    type: 'order_started',
+                    deviceId: req.deviceId,
+                    orderId: req.orderId,
+                    order: order,
+                    currentWaypoint: firstWaypoint,
+                    timestamp: new Date().toISOString()
+                });
+                res.json({
+                    success: true,
+                    message: 'Order execution started',
+                    order: order,
+                    currentWaypoint: firstWaypoint,
+                    goalResult: goalResult
+                });
+                console.log(`🚀 Order ${req.orderId} execution started - first waypoint: ${firstWaypoint.name}`);
+            } else {
+                res.status(500).json({
+                    error: 'Failed to send waypoint to AGV',
+                    details: goalResult.error
+                });
+            }
+        } catch (rosError) {
+            console.error('❌ ROS error during order execution:', rosError);
+            res.status(500).json({
+                error: 'Failed to communicate with AGV',
+                details: rosError.message
+            });
+        }
+    } catch (error) {
+        console.error('❌ Error executing order:', error);
+        res.status(500).json({ error: 'Failed to execute order', details: error.message });
+    }
+});
+
+// Pause order execution
+router.post('/devices/:deviceId/orders/:orderId/pause', validateDevice, validateOrder, async (req, res) => {
+    try {
+        const orders = global.deviceOrders[req.deviceId] || [];
+        const order = orders.find(o => o.id === req.orderId);
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+        if (order.status !== 'active') {
+            return res.status(400).json({ error: `Cannot pause order with status: ${order.status}` });
+        }
+        const stopResult = publishers.publishVelocity(0, 0);
+        order.status = 'paused';
+        order.updatedAt = new Date().toISOString();
+        broadcastToSubscribers('order_events', {
+            type: 'order_paused',
+            deviceId: req.deviceId,
+            orderId: req.orderId,
+            order: order,
+            timestamp: new Date().toISOString()
+        });
+        res.json({
+            success: true,
+            message: 'Order paused successfully',
+            order: order,
+            stopResult: stopResult
+        });
+        console.log(`⏸️ Order ${req.orderId} paused`);
+    } catch (error) {
+        console.error('❌ Error pausing order:', error);
+        res.status(500).json({ error: 'Failed to pause order', details: error.message });
+    }
+});
+
+// Delete order
+router.delete('/devices/:deviceId/orders/:orderId', validateDevice, validateOrder, async (req, res) => {
+    try {
+        const orders = global.deviceOrders[req.deviceId] || [];
+        const orderIndex = orders.findIndex(o => o.id === req.orderId);
+        if (orderIndex === -1) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+        const order = orders[orderIndex];
+        if (order.status === 'active') {
+            return res.status(400).json({ error: 'Cannot delete active order. Pause it first.' });
+        }
+        orders.splice(orderIndex, 1);
+        broadcastToSubscribers('order_events', {
+            type: 'order_deleted',
+            deviceId: req.deviceId,
+            orderId: req.orderId,
+            timestamp: new Date().toISOString()
+        });
+        res.json({
+            success: true,
+            message: 'Order deleted successfully',
+            orderId: req.orderId
+        });
+        console.log(`🗑️ Order ${req.orderId} deleted`);
+    } catch (error) {
+        console.error('❌ Error deleting order:', error);
+        res.status(500).json({ error: 'Failed to delete order', details: error.message });
+    }
+});
+
+// Get all orders across all devices (for dashboard overview)
+router.get('/orders', (req, res) => {
+    try {
+        const { status, deviceId, limit = 50 } = req.query;
+        const allOrders = [];
+        Object.entries(global.deviceOrders).forEach(([devId, orders]) => {
+            orders.forEach(order => {
+                allOrders.push({
+                    ...order,
+                    deviceId: devId,
+                    deviceName: global.connectedDevices.find(d => d.id === devId)?.name || devId
+                });
+            });
+        });
+        let filteredOrders = allOrders;
+        if (status) filteredOrders = allOrders.filter(o => o.status === status);
+        if (deviceId) filteredOrders = filteredOrders.filter(o => o.deviceId === deviceId);
+        filteredOrders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        const limitedOrders = filteredOrders.slice(0, parseInt(limit));
+        const stats = {
+            total: allOrders.length,
+            pending: allOrders.filter(o => o.status === 'pending').length,
+            active: allOrders.filter(o => o.status === 'active').length,
+            paused: allOrders.filter(o => o.status === 'paused').length,
+            completed: allOrders.filter(o => o.status === 'completed').length,
+            failed: allOrders.filter(o => o.status === 'failed').length
+        };
+        res.json({
+            success: true,
+            orders: limitedOrders,
+            stats: stats,
+            filters: { status, deviceId, limit: parseInt(limit) },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Error getting all orders:', error);
+        res.status(500).json({ error: 'Failed to get orders' });
+    }
+});
+
+// === MAP MANAGEMENT FOR ORDER CREATION ===
+
+// Get map data for order creation
+router.get('/devices/:deviceId/map/stations', validateDevice, (req, res) => {
+    try {
+        const mapData = global.deviceMaps[req.deviceId];
+        if (!mapData) {
+            return res.status(404).json({
+                error: 'No map found for this device',
+                suggestion: 'Create a map first using the map editor'
+            });
+        }
+        const stationsByType = {};
+        const allStations = [];
+        mapData.shapes.forEach(shape => {
+            if (!stationsByType[shape.type]) stationsByType[shape.type] = [];
+            const station = {
+                id: shape.id,
+                name: shape.name,
+                type: shape.type,
+                position: { x: shape.center.x, y: shape.center.y },
+                createdAt: shape.createdAt
+            };
+            stationsByType[shape.type].push(station);
+            allStations.push(station);
+        });
+        res.json({
+            success: true,
+            deviceId: req.deviceId,
+            mapInfo: {
+                width: mapData.info.width,
+                height: mapData.info.height,
+                resolution: mapData.info.resolution,
+                totalStations: allStations.length
+            },
+            stationsByType: stationsByType,
+            allStations: allStations,
+            availableTypes: Object.keys(stationsByType),
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Error getting map stations:', error);
+        res.status(500).json({ error: 'Failed to get map stations' });
+    }
+});
+
+// === (Your existing control, joystick, emergency stop, mapping, navigation, map, and utility endpoints remain unchanged) ===
 
 // Connect/register a new device
 router.post('/devices/:deviceId/connect', async (req, res) => {
@@ -114,30 +560,6 @@ router.post('/devices/:deviceId/connect', async (req, res) => {
     }
 });
 
-// Get all connected devices
-router.get('/devices', (req, res) => {
-    try {
-        const devices = global.connectedDevices || [];
-        const liveData = global.liveData || {};
-        
-        const devicesWithStatus = devices.map(device => ({
-            ...device,
-            liveData: liveData[device.id] || {},
-            isOnline: !!liveData[device.id]?.lastUpdate
-        }));
-        
-        res.json({
-            success: true,
-            devices: devicesWithStatus,
-            total: devices.length
-        });
-        
-    } catch (error) {
-        console.error('❌ Error getting devices:', error);
-        res.status(500).json({ error: 'Failed to get devices' });
-    }
-});
-
 // Get specific device status
 router.get('/devices/:deviceId/status', validateDevice, (req, res) => {
     try {
@@ -145,11 +567,11 @@ router.get('/devices/:deviceId/status', validateDevice, (req, res) => {
         if (!device) {
             return res.status(404).json({ error: 'Device not found' });
         }
-        
+
         const liveData = rosConnection.getLiveData(req.deviceId);
         const mappingStatus = rosConnection.getMappingStatus(req.deviceId);
         const rosStatus = rosConnection.getROS2Status();
-        
+
         res.json({
             success: true,
             device: device,
@@ -158,7 +580,7 @@ router.get('/devices/:deviceId/status', validateDevice, (req, res) => {
             rosStatus: rosStatus,
             timestamp: new Date().toISOString()
         });
-        
+
     } catch (error) {
         console.error('❌ Error getting device status:', error);
         res.status(500).json({ error: 'Failed to get device status' });
@@ -171,19 +593,19 @@ router.get('/devices/:deviceId/status', validateDevice, (req, res) => {
 router.post('/devices/:deviceId/joystick', validateDevice, (req, res) => {
     try {
         const { x, y, deadman } = req.body;
-        
+
         // Validate input
         if (typeof x !== 'number' || typeof y !== 'number') {
             return res.status(400).json({ error: 'Invalid joystick input: x and y must be numbers' });
         }
-        
+
         // Clamp values to [-1, 1] range
         const clampedX = Math.max(-1, Math.min(1, x));
         const clampedY = Math.max(-1, Math.min(1, y));
-        
+
         // Publish joystick command
         const result = rosConnection.publishJoystick(clampedX, clampedY, deadman);
-        
+
         // Broadcast control event
         broadcastToSubscribers('control_events', {
             type: 'joystick_command',
@@ -192,14 +614,14 @@ router.post('/devices/:deviceId/joystick', validateDevice, (req, res) => {
             result: result,
             timestamp: new Date().toISOString()
         });
-        
+
         res.json(result);
-        
+
     } catch (error) {
         console.error('❌ Error processing joystick command:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to process joystick command',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -208,13 +630,13 @@ router.post('/devices/:deviceId/joystick', validateDevice, (req, res) => {
 router.post('/devices/:deviceId/velocity', validateDevice, (req, res) => {
     try {
         const { linear, angular } = req.body;
-        
+
         if (typeof linear !== 'number' || typeof angular !== 'number') {
             return res.status(400).json({ error: 'Invalid velocity input: linear and angular must be numbers' });
         }
-        
+
         const result = publishers.publishVelocity(linear, angular);
-        
+
         // Broadcast control event
         broadcastToSubscribers('control_events', {
             type: 'velocity_command',
@@ -223,14 +645,14 @@ router.post('/devices/:deviceId/velocity', validateDevice, (req, res) => {
             result: result,
             timestamp: new Date().toISOString()
         });
-        
+
         res.json(result);
-        
+
     } catch (error) {
         console.error('❌ Error processing velocity command:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to process velocity command',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -239,7 +661,7 @@ router.post('/devices/:deviceId/velocity', validateDevice, (req, res) => {
 router.post('/devices/:deviceId/emergency-stop', validateDevice, (req, res) => {
     try {
         const result = rosConnection.emergencyStop();
-        
+
         // Broadcast emergency stop
         broadcastToSubscribers('control_events', {
             type: 'emergency_stop',
@@ -247,16 +669,16 @@ router.post('/devices/:deviceId/emergency-stop', validateDevice, (req, res) => {
             result: result,
             timestamp: new Date().toISOString()
         });
-        
+
         console.log(`🛑 Emergency stop activated for device ${req.deviceId}`);
-        
+
         res.json(result);
-        
+
     } catch (error) {
         console.error('❌ Error processing emergency stop:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to process emergency stop',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -267,7 +689,7 @@ router.post('/devices/:deviceId/emergency-stop', validateDevice, (req, res) => {
 router.post('/devices/:deviceId/mapping/start', validateDevice, (req, res) => {
     try {
         const result = rosConnection.startMapping();
-        
+
         // Broadcast mapping event
         broadcastToSubscribers('mapping_events', {
             type: 'mapping_started',
@@ -275,16 +697,16 @@ router.post('/devices/:deviceId/mapping/start', validateDevice, (req, res) => {
             result: result,
             timestamp: new Date().toISOString()
         });
-        
+
         console.log(`🗺️ Mapping started for device ${req.deviceId}`);
-        
+
         res.json(result);
-        
+
     } catch (error) {
         console.error('❌ Error starting mapping:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to start mapping',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -293,7 +715,7 @@ router.post('/devices/:deviceId/mapping/start', validateDevice, (req, res) => {
 router.post('/devices/:deviceId/mapping/stop', validateDevice, (req, res) => {
     try {
         const result = rosConnection.stopMapping();
-        
+
         // Broadcast mapping event
         broadcastToSubscribers('mapping_events', {
             type: 'mapping_stopped',
@@ -301,16 +723,16 @@ router.post('/devices/:deviceId/mapping/stop', validateDevice, (req, res) => {
             result: result,
             timestamp: new Date().toISOString()
         });
-        
+
         console.log(`🛑 Mapping stopped for device ${req.deviceId}`);
-        
+
         res.json(result);
-        
+
     } catch (error) {
         console.error('❌ Error stopping mapping:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to stop mapping',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -320,7 +742,7 @@ router.get('/devices/:deviceId/mapping/status', validateDevice, (req, res) => {
     try {
         const mappingStatus = rosConnection.getMappingStatus(req.deviceId);
         const liveData = rosConnection.getLiveData(req.deviceId);
-        
+
         res.json({
             success: true,
             deviceId: req.deviceId,
@@ -329,7 +751,7 @@ router.get('/devices/:deviceId/mapping/status', validateDevice, (req, res) => {
             trailLength: global.robotTrails?.[req.deviceId]?.length || 0,
             timestamp: new Date().toISOString()
         });
-        
+
     } catch (error) {
         console.error('❌ Error getting mapping status:', error);
         res.status(500).json({ error: 'Failed to get mapping status' });
@@ -342,14 +764,14 @@ router.get('/devices/:deviceId/mapping/status', validateDevice, (req, res) => {
 router.post('/devices/:deviceId/goal', validateDevice, (req, res) => {
     try {
         const { x, y, orientation } = req.body;
-        
+
         if (typeof x !== 'number' || typeof y !== 'number') {
             return res.status(400).json({ error: 'Invalid goal: x and y coordinates must be numbers' });
         }
-        
+
         const goalOrientation = orientation || 0;
         const result = rosConnection.publishGoal(x, y, goalOrientation);
-        
+
         // Broadcast navigation event
         broadcastToSubscribers('control_events', {
             type: 'goal_set',
@@ -358,16 +780,16 @@ router.post('/devices/:deviceId/goal', validateDevice, (req, res) => {
             result: result,
             timestamp: new Date().toISOString()
         });
-        
+
         console.log(`🎯 Goal set for device ${req.deviceId}: (${x}, ${y})`);
-        
+
         res.json(result);
-        
+
     } catch (error) {
         console.error('❌ Error setting goal:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to set goal',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -377,9 +799,9 @@ router.post('/devices/:deviceId/goal', validateDevice, (req, res) => {
 // Get current map
 router.get('/devices/:deviceId/map', validateDevice, (req, res) => {
     try {
-        const mapData = global.deviceMaps?.[req.deviceId];
-        const liveData = rosConnection.getLiveData(req.deviceId);
-        
+        const liveData = global.liveData[deviceId];
+        const mapData = liveData ? liveData.map : undefined;
+
         res.json({
             success: true,
             deviceId: req.deviceId,
@@ -388,7 +810,7 @@ router.get('/devices/:deviceId/map', validateDevice, (req, res) => {
             lastUpdate: liveData.map?.timestamp,
             timestamp: new Date().toISOString()
         });
-        
+
     } catch (error) {
         console.error('❌ Error getting map:', error);
         res.status(500).json({ error: 'Failed to get map' });
@@ -400,11 +822,11 @@ router.post('/devices/:deviceId/map/save', validateDevice, async (req, res) => {
     try {
         const { mapName } = req.body;
         const liveData = rosConnection.getLiveData(req.deviceId);
-        
+
         if (!liveData.map) {
             return res.status(400).json({ error: 'No live map data available' });
         }
-        
+
         // Save map data
         const mapData = {
             ...liveData.map,
@@ -412,10 +834,10 @@ router.post('/devices/:deviceId/map/save', validateDevice, async (req, res) => {
             savedAt: new Date().toISOString(),
             shapes: global.deviceMaps?.[req.deviceId]?.shapes || []
         };
-        
+
         global.deviceMaps[req.deviceId] = mapData;
         await storageManager.saveMap(req.deviceId);
-        
+
         // Broadcast map event
         broadcastToSubscribers('map_events', {
             type: 'map_saved',
@@ -423,156 +845,21 @@ router.post('/devices/:deviceId/map/save', validateDevice, async (req, res) => {
             mapName: mapData.name,
             timestamp: new Date().toISOString()
         });
-        
+
         res.json({
             success: true,
             message: 'Map saved successfully',
             mapName: mapData.name,
             mapData: mapData
         });
-        
+
         console.log(`💾 Map saved for device ${req.deviceId}: ${mapData.name}`);
-        
+
     } catch (error) {
         console.error('❌ Error saving map:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to save map',
-            details: error.message 
-        });
-    }
-});
-
-// === ORDER MANAGEMENT ENDPOINTS ===
-
-// Get orders for a device
-router.get('/devices/:deviceId/orders', validateDevice, (req, res) => {
-    try {
-        const orders = global.deviceOrders[req.deviceId] || [];
-        
-        res.json({
-            success: true,
-            deviceId: req.deviceId,
-            orders: orders,
-            total: orders.length,
-            timestamp: new Date().toISOString()
-        });
-        
-    } catch (error) {
-        console.error('❌ Error getting orders:', error);
-        res.status(500).json({ error: 'Failed to get orders' });
-    }
-});
-
-// Create new order
-router.post('/devices/:deviceId/orders', validateDevice, async (req, res) => {
-    try {
-        const { name, waypoints, priority = 0 } = req.body;
-        
-        if (!name || !waypoints || !Array.isArray(waypoints)) {
-            return res.status(400).json({ error: 'Order name and waypoints are required' });
-        }
-        
-        const newOrder = {
-            id: `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            name: name,
-            deviceId: req.deviceId,
-            waypoints: waypoints,
-            priority: priority,
-            status: 'pending',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
-        
-        // Initialize orders array if needed
-        if (!global.deviceOrders[req.deviceId]) {
-            global.deviceOrders[req.deviceId] = [];
-        }
-        
-        global.deviceOrders[req.deviceId].push(newOrder);
-        
-        // Save to storage
-        await storageManager.saveOrder(req.deviceId, newOrder.id);
-        
-        // Broadcast order creation
-        broadcastToSubscribers('order_events', {
-            type: 'order_created',
-            deviceId: req.deviceId,
-            order: newOrder,
-            timestamp: new Date().toISOString()
-        });
-        
-        res.json({
-            success: true,
-            message: 'Order created successfully',
-            order: newOrder
-        });
-        
-        console.log(`📋 Order created: ${newOrder.name} for device ${req.deviceId}`);
-        
-    } catch (error) {
-        console.error('❌ Error creating order:', error);
-        res.status(500).json({ 
-            error: 'Failed to create order',
-            details: error.message 
-        });
-    }
-});
-
-// Update order status
-router.put('/orders/:orderId/status', async (req, res) => {
-    try {
-        const { orderId } = req.params;
-        const { status } = req.body;
-        
-        if (!status) {
-            return res.status(400).json({ error: 'Status is required' });
-        }
-        
-        let orderFound = false;
-        let deviceId = null;
-        
-        // Find the order across all devices
-        for (const [devId, orders] of Object.entries(global.deviceOrders)) {
-            const orderIndex = orders.findIndex(o => o.id === orderId);
-            if (orderIndex !== -1) {
-                orders[orderIndex].status = status;
-                orders[orderIndex].updatedAt = new Date().toISOString();
-                deviceId = devId;
-                orderFound = true;
-                break;
-            }
-        }
-        
-        if (!orderFound) {
-            return res.status(404).json({ error: 'Order not found' });
-        }
-        
-        // Save to storage
-        await storageManager.saveOrder(deviceId, orderId);
-        
-        // Broadcast status change
-        broadcastToSubscribers('order_events', {
-            type: 'order_status_changed',
-            deviceId: deviceId,
-            orderId: orderId,
-            status: status,
-            timestamp: new Date().toISOString()
-        });
-        
-        res.json({
-            success: true,
-            message: 'Order status updated successfully',
-            orderId: orderId,
-            status: status
-        });
-        
-        console.log(`📋 Order ${orderId} status updated to: ${status}`);
-        
-    } catch (error) {
-        console.error('❌ Error updating order status:', error);
-        res.status(500).json({ 
-            error: 'Failed to update order status',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -638,13 +925,13 @@ router.post('/devices/:deviceId/map/data', validateDevice, async (req, res) => {
 router.post('/devices/:deviceId/move', validateDevice, (req, res) => {
     try {
         const { linear, angular } = req.body;
-        
+
         if (typeof linear !== 'number' || typeof angular !== 'number') {
             return res.status(400).json({ error: 'Linear and angular velocities must be numbers' });
         }
-        
+
         const result = publishers.publishVelocity(linear, angular);
-        
+
         // Broadcast movement command
         broadcastToSubscribers('control_events', {
             type: 'move_command',
@@ -653,14 +940,14 @@ router.post('/devices/:deviceId/move', validateDevice, (req, res) => {
             result: result,
             timestamp: new Date().toISOString()
         });
-        
+
         res.json(result);
-        
+
     } catch (error) {
         console.error('❌ Error processing move command:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to process move command',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -703,7 +990,7 @@ router.post('/devices/:deviceId/disconnect', (req, res) => {
 router.get('/test-connection', (req, res) => {
     try {
         const rosStatus = rosConnection.getROS2Status();
-        
+
         res.json({
             success: true,
             message: 'API connection successful',
@@ -714,12 +1001,12 @@ router.get('/test-connection', (req, res) => {
                 connectedDevices: global.connectedDevices?.length || 0
             }
         });
-        
+
     } catch (error) {
         console.error('❌ Error in connection test:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Connection test failed',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -730,24 +1017,107 @@ router.get('/test-connection', (req, res) => {
 router.post('/user/theme', (req, res) => {
     try {
         const { isDarkMode } = req.body;
-        
+
         // In a real app, you'd save this to user preferences
         // For now, just acknowledge the request
-        
+
         res.json({
             success: true,
             message: 'Theme preference updated',
             isDarkMode: isDarkMode,
             timestamp: new Date().toISOString()
         });
-        
+
         console.log(`🎨 Theme updated: ${isDarkMode ? 'dark' : 'light'} mode`);
-        
+
     } catch (error) {
         console.error('❌ Error updating theme:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to update theme',
-            details: error.message 
+            details: error.message
+        });
+    }
+});
+
+// === EXPORT MAP AS PGM/YAML ===
+const mapsDir = path.resolve(__dirname, '../../maps');
+
+router.post('/devices/:deviceId/map/export-pgm', validateDevice, async (req, res) => {
+    try {
+        const liveData = rosConnection.getLiveData(req.deviceId);
+        const mapData = global.deviceMaps?.[req.deviceId] || liveData.map;
+
+        if (!mapData) {
+            return res.status(400).json({ error: 'No map data available for export' });
+        }
+
+        // Generate unique filename
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const basePath = path.join(mapsDir, `${req.deviceId}_${timestamp}`);
+
+        // Export PGM and YAML files
+        const exportedFiles = await pgmConverter.saveMapPackage(mapData, basePath);
+
+        res.json({
+            success: true,
+            message: 'Map exported successfully',
+            files: {
+                pgm: exportedFiles.pgm,
+                yaml: exportedFiles.yaml
+            },
+            mapInfo: {
+                width: mapData.info.width,
+                height: mapData.info.height,
+                resolution: mapData.info.resolution
+            },
+            timestamp: new Date().toISOString()
+        });
+
+        console.log(`📁 Map exported for ${req.deviceId}: ${basePath}.{pgm,yaml}`);
+
+    } catch (error) {
+        console.error('❌ Error exporting map:', error);
+        res.status(500).json({
+            error: 'Failed to export map',
+            details: error.message
+        });
+    }
+});
+
+// === UPLOAD MAP TO AGV ===
+router.post('/devices/:deviceId/map/upload-to-agv', validateDevice, async (req, res) => {
+    try {
+        const { mapName } = req.body;
+        const mapData = global.deviceMaps?.[req.deviceId];
+
+        if (!mapData) {
+            return res.status(400).json({ error: 'No map data found for upload' });
+        }
+
+        // Publish map to AGV (ROS topic)
+        const result = publishers.publishMap(req.deviceId, mapData);
+
+        // Broadcast map upload event
+        broadcastToSubscribers('map_events', {
+            type: 'map_uploaded',
+            deviceId: req.deviceId,
+            mapName: mapName || mapData.name,
+            timestamp: new Date().toISOString()
+        });
+
+        res.json({
+            success: true,
+            message: 'Map uploaded to AGV successfully',
+            result: result
+        });
+
+        console.log(`⬆️ Map uploaded to AGV for device ${req.deviceId}: ${mapData.name}`);
+
+    } catch (error) {
+        console.error('❌ Error uploading map to AGV:', error);
+        res.status(500).json({
+            error: 'Failed to upload map to AGV',
+            details: error.message
         });
     }
 });

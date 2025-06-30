@@ -1,16 +1,20 @@
 [
   {
     "id": "piros",
-    "name": "PIROS",
-    "ipAddress": "192.168.0.156",
+    "name": "Piros",
     "type": "differential_drive",
+    "ipAddress": "192.168.0.156",
     "capabilities": [
       "mapping",
       "navigation",
       "remote_control"
     ],
-    "status": "connected",
-    "connectedAt": "2025-06-27T06:35:38.097Z",
-    "lastSeen": "2025-06-27T06:35:38.097Z"
+    "autoConnected": true,
+    "connectedAt": "2025-06-30T05:59:00.364Z",
+    "lastConnected": "2025-06-30T05:59:00.364Z",
+    "status": "disconnected",
+    "lastSaved": "2025-06-30T05:59:00.365Z",
+    "lastStartup": "2025-06-30T10:20:13.258Z",
+    "lastSeen": "2025-06-30T09:25:11.756Z"
   }
 ]

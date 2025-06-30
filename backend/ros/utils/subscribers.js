@@ -63,7 +63,7 @@ async function listAvailableTopics() {
 }
 
 // ✅ FIXED: Create subscriber with proper error handling
-function getOrCreateSubscriber(topicName, messageType, callback) {
+function getOrCreateSubscriber(topicName, messageType, callback, qosOptions = {}) {
     if (!subscribers[topicName]) {
         if (!rosNode) {
             throw new Error('ROS node not initialized. Call initializeSubscribers first.');
@@ -76,8 +76,9 @@ function getOrCreateSubscriber(topicName, messageType, callback) {
                 {
                     depth: 10,
                     reliability: 'reliable',
-                    durability: 'volatile',
-                    history: 'keep_last'
+                    durability: 'transient_local',
+                    history: 'keep_last',
+                    ...qosOptions // <-- Merge/override with caller's options
                 },
                 callback
             );
@@ -181,79 +182,79 @@ function subscribeToPosition() {
 /**
  * Subscribe to odometry (fallback for position)
  */
-function subscribeToOdometry() {
-    const callback = (odomMsg) => {
-        try {
-            const processedOdom = {
-                position: {
-                    x: odomMsg.pose.pose.position.x,
-                    y: odomMsg.pose.pose.position.y,
-                    z: odomMsg.pose.pose.position.z
-                },
-                orientation: {
-                    x: odomMsg.pose.pose.orientation.x,
-                    y: odomMsg.pose.pose.orientation.y,
-                    z: odomMsg.pose.pose.orientation.z,
-                    w: odomMsg.pose.pose.orientation.w,
-                    yaw: quaternionToYaw(odomMsg.pose.pose.orientation)
-                },
-                velocity: {
-                    linear: {
-                        x: odomMsg.twist.twist.linear.x,
-                        y: odomMsg.twist.twist.linear.y,
-                        z: odomMsg.twist.twist.linear.z
-                    },
-                    angular: {
-                        x: odomMsg.twist.twist.angular.x,
-                        y: odomMsg.twist.twist.angular.y,
-                        z: odomMsg.twist.twist.angular.z
-                    }
-                },
-                timestamp: new Date().toISOString(),
-                frame_id: odomMsg.header?.frame_id || 'odom'
-            };
+// function subscribeToOdometry() {
+//     const callback = (odomMsg) => {
+//         try {
+//             const processedOdom = {
+//                 position: {
+//                     x: odomMsg.pose.pose.position.x,
+//                     y: odomMsg.pose.pose.position.y,
+//                     z: odomMsg.pose.pose.position.z
+//                 },
+//                 orientation: {
+//                     x: odomMsg.pose.pose.orientation.x,
+//                     y: odomMsg.pose.pose.orientation.y,
+//                     z: odomMsg.pose.pose.orientation.z,
+//                     w: odomMsg.pose.pose.orientation.w,
+//                     yaw: quaternionToYaw(odomMsg.pose.pose.orientation)
+//                 },
+//                 velocity: {
+//                     linear: {
+//                         x: odomMsg.twist.twist.linear.x,
+//                         y: odomMsg.twist.twist.linear.y,
+//                         z: odomMsg.twist.twist.linear.z
+//                     },
+//                     angular: {
+//                         x: odomMsg.twist.twist.angular.x,
+//                         y: odomMsg.twist.twist.angular.y,
+//                         z: odomMsg.twist.twist.angular.z
+//                     }
+//                 },
+//                 timestamp: new Date().toISOString(),
+//                 frame_id: odomMsg.header?.frame_id || 'odom'
+//             };
 
-            // Update global live data
-            updateGlobalLiveData('odometry', processedOdom);
+//             // Update global live data
+//             updateGlobalLiveData('odometry', processedOdom);
 
-            // Broadcast odometry update with device ID
-            broadcastToSubscribers('real_time_data', {
-                type: 'odometry_update',
-                data: processedOdom,
-                deviceId: currentDeviceId,
-                timestamp: new Date().toISOString()
-            });
+//             // Broadcast odometry update with device ID
+//             broadcastToSubscribers('real_time_data', {
+//                 type: 'odometry_update',
+//                 data: processedOdom,
+//                 deviceId: currentDeviceId,
+//                 timestamp: new Date().toISOString()
+//             });
 
-            // Console log every 5 seconds for odometry
-            if (Date.now() % 5000 < 100) {
-                console.log(`🔄 [${currentDeviceId}] Odom Position: (${processedOdom.position.x.toFixed(2)}, ${processedOdom.position.y.toFixed(2)})`);
-            }
+//             // Console log every 5 seconds for odometry
+//             if (Date.now() % 5000 < 100) {
+//                 console.log(`🔄 [${currentDeviceId}] Odom Position: (${processedOdom.position.x.toFixed(2)}, ${processedOdom.position.y.toFixed(2)})`);
+//             }
 
-        } catch (error) {
-            console.error('❌ Error processing odometry:', error);
-        }
-    };
+//         } catch (error) {
+//             console.error('❌ Error processing odometry:', error);
+//         }
+//     };
 
-    // Try different possible odometry topic names
-    const odomTopics = [
-        '/odom',
-        '/odometry/local',
-        '/diff_drive_controller/odom',
-        '/robot/odom'
-    ];
+//     // Try different possible odometry topic names
+//     const odomTopics = [
+//         '/odom',
+//         '/odometry/local',
+//         '/diff_drive_controller/odom',
+//         '/robot/odom'
+//     ];
 
-    for (const topicName of odomTopics) {
-        try {
-            getOrCreateSubscriber(topicName, 'nav_msgs/msg/Odometry', callback);
-            console.log(`✅ Successfully subscribed to odometry topic: ${topicName}`);
-            return;
-        } catch (error) {
-            console.warn(`⚠️ Failed to subscribe to ${topicName}, trying next...`);
-        }
-    }
+//     for (const topicName of odomTopics) {
+//         try {
+//             getOrCreateSubscriber(topicName, 'nav_msgs/msg/Odometry', callback);
+//             console.log(`✅ Successfully subscribed to odometry topic: ${topicName}`);
+//             return;
+//         } catch (error) {
+//             console.warn(`⚠️ Failed to subscribe to ${topicName}, trying next...`);
+//         }
+//     }
 
-    console.error('❌ Failed to subscribe to any odometry topic');
-}
+//     console.error('❌ Failed to subscribe to any odometry topic');
+// }
 
 /**
  * Subscribe to global costmap - ENHANCED with multiple topic attempts
@@ -315,7 +316,12 @@ function subscribeToGlobalCostmap() {
 
     for (const topicName of globalCostmapTopics) {
         try {
-            getOrCreateSubscriber(topicName, 'nav_msgs/msg/OccupancyGrid', callback);
+            getOrCreateSubscriber(topicName, 'nav_msgs/msg/OccupancyGrid', callback, {
+                depth: 10,
+                reliability: 'reliable',
+                durability: 'transient_local', // <-- This is the key!
+                history: 'keep_last'
+            });
             console.log(`✅ Successfully subscribed to global costmap: ${topicName}`);
             return;
         } catch (error) {
@@ -328,12 +334,13 @@ function subscribeToGlobalCostmap() {
 /**
  * Subscribe to /map topic (for occupancy grid)
  */
+// Enhance the subscribeToMap function:
 function subscribeToMap() {
     const mapTopics = [
         '/map',
-        '/navigation/map',
-        '/slam_toolbox/map'
+        '/map_server/map'
     ];
+    
     const callback = (mapMsg) => {
         try {
             const mapData = {
@@ -362,7 +369,7 @@ function subscribeToMap() {
 
             updateGlobalLiveData('map', mapData);
 
-            // Broadcast with device ID for Flutter app consumption
+            // ✅ FIXED: Broadcast with proper type name
             broadcastToSubscribers('real_time_data', {
                 type: 'map_update',
                 data: mapData,
@@ -370,8 +377,7 @@ function subscribeToMap() {
                 timestamp: new Date().toISOString()
             });
 
-            // Log occasionally
-            if (!global.lastMapBroadcast || Date.now() - global.lastMapBroadcast > 3000) {
+            if (!global.lastMapBroadcast || Date.now() - global.lastMapBroadcast > 5000) {
                 console.log(`🗺️ [${currentDeviceId}] Map: ${mapData.info.width}x${mapData.info.height} @ ${mapData.info.resolution.toFixed(3)}m/px`);
                 global.lastMapBroadcast = Date.now();
             }
@@ -379,17 +385,25 @@ function subscribeToMap() {
             console.error('❌ Error processing map:', error);
         }
     };
+
+    // Try each topic with better error handling
     for (const topicName of mapTopics) {
         try {
-            getOrCreateSubscriber('/map', 'nav_msgs/msg/OccupancyGrid', callback);
+            getOrCreateSubscriber(topicName, 'nav_msgs/msg/OccupancyGrid', callback, {
+                depth: 10,
+                reliability: 'reliable',
+                durability: 'transient_local', // <-- This is the fix!
+                history: 'keep_last'
+            });
             console.log(`✅ Successfully subscribed to map: ${topicName}`);
-            return;
+            return topicName;
         } catch (error) {
-            console.warn(`⚠️ Failed to subscribe to ${topicName}, trying next...`);
+            console.warn(`⚠️ Failed to subscribe to ${topicName}: ${error.message}`);
         }
     }
 
-    console.warn('⚠️ No map topics found');
+    console.error('❌ Failed to subscribe to any /map topic');
+    return null;
 }
 /**
  * Subscribe to local costmap - ENHANCED with multiple topic attempts
@@ -772,7 +786,7 @@ module.exports = {
     initializeSubscribers,
     subscribeToAllTopics,
     subscribeToPosition,
-    subscribeToOdometry,
+    // subscribeToOdometry,
     subscribeToGlobalCostmap,
     subscribeToLocalCostmap,
     subscribeToVelocityFeedback,

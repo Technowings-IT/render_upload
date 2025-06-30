@@ -45,7 +45,7 @@ function createEssentialPublishers() {
         getOrCreatePublisher('/cmd_vel', 'geometry_msgs/msg/Twist');
         
         // Create map publisher for map editing
-        getOrCreatePublisher('/map', 'nav_msgs/msg/OccupancyGrid');
+        // getOrCreatePublisher('/map', 'nav_msgs/msg/OccupancyGrid');
         
         // Create goal publisher for navigation
         getOrCreatePublisher('/goal_pose', 'geometry_msgs/msg/PoseStamped');
@@ -280,44 +280,44 @@ function publishGoal(x, y, orientation = 0) {
 /**
  * ✅ ENHANCED: Map publishing with proper OccupancyGrid format
  */
-function publishMap(deviceId, mapData) {
-    try {
-        if (!isInitialized) {
-            throw new Error('Publishers not initialized');
-        }
+// function publishMap(deviceId, mapData) {
+//     try {
+//         if (!isInitialized) {
+//             throw new Error('Publishers not initialized');
+//         }
         
-        const publisher = getOrCreatePublisher('/map', 'nav_msgs/msg/OccupancyGrid');
+//         const publisher = getOrCreatePublisher('/map', 'nav_msgs/msg/OccupancyGrid');
         
-        // Convert your mapData to proper ROS OccupancyGrid format
-        const rosMapMsg = convertToOccupancyGrid(mapData);
+//         // Convert your mapData to proper ROS OccupancyGrid format
+//         const rosMapMsg = convertToOccupancyGrid(mapData);
         
-        publisher.publish(rosMapMsg);
+//         publisher.publish(rosMapMsg);
         
-        if (publishers['/map']) {
-            publishers['/map'].messageCount++;
-        }
+//         if (publishers['/map']) {
+//             publishers['/map'].messageCount++;
+//         }
         
-        console.log(`🗺️ Published map [${publishers['/map'].messageCount}] for device ${deviceId} to /map`);
+//         console.log(`🗺️ Published map [${publishers['/map'].messageCount}] for device ${deviceId} to /map`);
         
-        return { 
-            success: true, 
-            deviceId: deviceId,
-            mapSize: `${rosMapMsg.info.width}x${rosMapMsg.info.height}`,
-            resolution: rosMapMsg.info.resolution,
-            messageCount: publishers['/map'].messageCount,
-            timestamp: new Date().toISOString()
-        };
+//         return { 
+//             success: true, 
+//             deviceId: deviceId,
+//             mapSize: `${rosMapMsg.info.width}x${rosMapMsg.info.height}`,
+//             resolution: rosMapMsg.info.resolution,
+//             messageCount: publishers['/map'].messageCount,
+//             timestamp: new Date().toISOString()
+//         };
         
-    } catch (error) {
-        console.error(`❌ Error publishing map for device ${deviceId}:`, error);
-        return { 
-            success: false, 
-            error: error.message,
-            deviceId: deviceId,
-            timestamp: new Date().toISOString()
-        };
-    }
-}
+//     } catch (error) {
+//         console.error(`❌ Error publishing map for device ${deviceId}:`, error);
+//         return { 
+//             success: false, 
+//             error: error.message,
+//             deviceId: deviceId,
+//             timestamp: new Date().toISOString()
+//         };
+//     }
+// }
 
 /**
  * ✅ FIXED: Helper to convert your mapData to ROS OccupancyGrid message
@@ -565,7 +565,7 @@ module.exports = {
     publishVelocity,
     publishJoystick,
     publishGoal, 
-    publishMap,
+    // publishMap,
     startMapping,
     stopMapping,
     emergencyStop,

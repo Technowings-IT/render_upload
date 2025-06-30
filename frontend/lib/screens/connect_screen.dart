@@ -1068,17 +1068,19 @@ class _ConnectScreenState extends State<ConnectScreen> {
         break;
     }
   }
-
-  void _navigateToControl(Map<String, dynamic> device) {
-    Navigator.pushNamed(
-      context,
-      '/control',
-      arguments: {
-        'deviceId': device['id'],
-        'deviceName': device['name'],
-      },
-    );
-  }
+void _navigateToControl(Map<String, dynamic> device) async {
+  // Push the Control page and wait for it to pop
+  await Navigator.pushNamed(
+    context,
+    '/control',
+    arguments: {
+      'deviceId': device['id'],
+      'deviceName': device['name'],
+    },
+  );
+  // When returning from Control, go to Dashboard (replace Connect)
+  Navigator.pushReplacementNamed(context, '/dashboard');
+}
 
   void _navigateToMap(Map<String, dynamic> device) {
     Navigator.pushNamed(

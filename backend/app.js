@@ -1,4 +1,4 @@
-// app.js - UPDATED with ROS health monitoring and debug endpoints
+// app.js - UPDATED with Order Management Routes
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
@@ -13,6 +13,7 @@ const { initializeWebSocketServer } = require('./websocket/clientConnection');
 // Import routes
 const controlRoutes = require('./routes/controlRoutes');
 const mapRoutes = require('./routes/mapRoutes');
+const orderRoutes = require('./routes/orderRoutes'); // ✅ NEW: Order routes
 const { router: discoveryRoutes, initializeUDPDiscovery } = require('./routes/discoveryRoutes');
 
 const app = express();
@@ -58,7 +59,7 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use('/api', mapRoutes);
+
 // Request logging middleware
 app.use((req, res, next) => {
     console.log(`📝 ${req.method} ${req.path} - ${req.ip || 'unknown'} - ${new Date().toISOString()}`);
@@ -70,6 +71,10 @@ app.use('/api/discovery', discoveryRoutes);
 
 // Existing routes
 app.use('/api/control', controlRoutes);
+app.use('/api', mapRoutes);
+
+// ✅ NEW: Order management routes
+app.use('/api/orders', orderRoutes);
 
 // ✅ ENHANCED: Health check endpoint
 app.get('/health', (req, res) => {
@@ -102,7 +107,8 @@ app.get('/health', (req, res) => {
                 storage: {
                     initialized: storageManager.initialized || false,
                     devicesCount: global.connectedDevices?.length || 0,
-                    mapsCount: Object.keys(global.deviceMaps || {}).length
+                    mapsCount: Object.keys(global.deviceMaps || {}).length,
+                    ordersCount: Object.values(global.deviceOrders || {}).flat().length // ✅ NEW: Order count
                 },
                 discovery: {
                     http: true,
@@ -123,7 +129,7 @@ app.get('/health', (req, res) => {
     }
 });
 
-// ✅ ENHANCED: Get all connected devices
+// ✅ ENHANCED: Get all connected devices with order info
 app.get('/api/devices', (req, res) => {
     try {
         const devices = global.connectedDevices.map(device => ({
@@ -131,6 +137,8 @@ app.get('/api/devices', (req, res) => {
             liveData: global.liveData[device.id] || {},
             mappingStatus: global.deviceMappingStates[device.id] || { active: false },
             orderCount: global.deviceOrders[device.id]?.length || 0,
+            activeOrders: global.deviceOrders[device.id]?.filter(o => o.status === 'active').length || 0,
+            pendingOrders: global.deviceOrders[device.id]?.filter(o => o.status === 'pending').length || 0,
             isOnline: !!global.liveData[device.id]?.lastUpdate
         }));
         
@@ -140,6 +148,7 @@ app.get('/api/devices', (req, res) => {
             total: devices.length,
             connected: devices.filter(d => d.status === 'connected').length,
             mapping: devices.filter(d => d.mappingStatus?.active).length,
+            withActiveOrders: devices.filter(d => d.activeOrders > 0).length, // ✅ NEW
             timestamp: new Date().toISOString()
         });
     } catch (error) {
@@ -148,6 +157,68 @@ app.get('/api/devices', (req, res) => {
             success: false,
             error: 'Failed to get devices',
             details: error.message 
+        });
+    }
+});
+
+// ✅ NEW: Get order statistics across all devices
+app.get('/api/orders/stats', async (req, res) => {
+    try {
+        const { timeRange = '7d' } = req.query;
+        
+        // Calculate time range
+        const now = new Date();
+        let startDate;
+        switch (timeRange) {
+            case '1d': startDate = new Date(now - 24 * 60 * 60 * 1000); break;
+            case '7d': startDate = new Date(now - 7 * 24 * 60 * 60 * 1000); break;
+            case '30d': startDate = new Date(now - 30 * 24 * 60 * 60 * 1000); break;
+            default: startDate = new Date(now - 7 * 24 * 60 * 60 * 1000);
+        }
+        
+        // Get all orders from global state
+        const allOrders = Object.values(global.deviceOrders || {}).flat();
+        const recentOrders = allOrders.filter(o => new Date(o.createdAt) >= startDate);
+        
+        const stats = {
+            total: allOrders.length,
+            recent: recentOrders.length,
+            byStatus: {
+                pending: allOrders.filter(o => o.status === 'pending').length,
+                active: allOrders.filter(o => o.status === 'active').length,
+                paused: allOrders.filter(o => o.status === 'paused').length,
+                completed: allOrders.filter(o => o.status === 'completed').length,
+                failed: allOrders.filter(o => o.status === 'failed').length,
+                cancelled: allOrders.filter(o => o.status === 'cancelled').length
+            },
+            byDevice: {},
+            timeRange,
+            generatedAt: new Date().toISOString()
+        };
+        
+        // Calculate per-device stats
+        Object.keys(global.deviceOrders || {}).forEach(deviceId => {
+            const deviceOrders = global.deviceOrders[deviceId];
+            stats.byDevice[deviceId] = {
+                total: deviceOrders.length,
+                active: deviceOrders.filter(o => o.status === 'active').length,
+                pending: deviceOrders.filter(o => o.status === 'pending').length,
+                completed: deviceOrders.filter(o => o.status === 'completed').length
+            };
+        });
+        
+        res.json({
+            success: true,
+            stats,
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error getting order stats:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get order statistics',
+            details: error.message
         });
     }
 });
@@ -181,6 +252,13 @@ app.get('/api/system/status', async (req, res) => {
                 mapping: {
                     activeDevices: Object.values(global.deviceMappingStates || {}).filter(s => s.active).length,
                     totalMaps: Object.keys(global.deviceMaps || {}).length
+                },
+                orders: { // ✅ NEW: Order statistics
+                    totalOrders: Object.values(global.deviceOrders || {}).flat().length,
+                    activeOrders: Object.values(global.deviceOrders || {}).flat().filter(o => o.status === 'active').length,
+                    pendingOrders: Object.values(global.deviceOrders || {}).flat().filter(o => o.status === 'pending').length,
+                    devicesWithOrders: Object.keys(global.deviceOrders || {}).filter(deviceId => 
+                        global.deviceOrders[deviceId].length > 0).length
                 },
                 websocket: {
                     url: `ws://${req.get('host')}`,
@@ -598,12 +676,14 @@ async function startServer() {
             console.log(`🎮 Control API: http://${serverInfo.ip}:${serverInfo.port}/api/control`);
             console.log(`🔍 Discovery API: http://${serverInfo.ip}:${serverInfo.port}/api/discovery`);
             console.log(`🔧 ROS Debug API: http://${serverInfo.ip}:${serverInfo.port}/api/ros/*`);
+            console.log(`📋 Order Management API: http://${serverInfo.ip}:${serverInfo.port}/api/orders/*`); // ✅ NEW
             console.log(`📡 UDP Discovery: Port ${config.NETWORK.DISCOVERY.PORT}`);
             console.log(`\n📊 System Status:`);
             console.log(`   - Storage: ✅ Ready`);
             console.log(`   - WebSocket: ✅ Ready`);
             console.log(`   - Device Discovery: ✅ Ready`);
             console.log(`   - ROS Health Monitor: ✅ Active`);
+            console.log(`   - Order Management: ✅ Ready`); // ✅ NEW
             console.log('✅ Map and PGM conversion routes added');
             console.log(`   - Connected Devices: ${global.connectedDevices.length}`);
             console.log(`\n🤖 Ready for AGV connections!\n`);

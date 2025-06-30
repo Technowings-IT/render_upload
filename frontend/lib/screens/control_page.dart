@@ -392,7 +392,8 @@ class _ControlPageState extends State<ControlPage>
             _buildEnhancedStatusItem(
                 Icons.location_on, _getPositionText(), Colors.blue),
             const SizedBox(width: 20),
-            _buildEnhancedStatusItem(Icons.speed, _getVelocityText(), Colors.green),
+            _buildEnhancedStatusItem(
+                Icons.speed, _getVelocityText(), Colors.green),
             const SizedBox(width: 20),
             _buildEnhancedStatusItem(
                 Icons.timeline, 'Trail: ${_robotTrail.length}', Colors.orange),
@@ -404,6 +405,16 @@ class _ControlPageState extends State<ControlPage>
             const SizedBox(width: 20),
             _buildEnhancedStatusItem(
                 Icons.message, 'Msgs: $_messagesReceived', Colors.indigo),
+            // --- ADD THIS FOR MAP INFO ---
+            if (_currentMapData != null) ...[
+              const SizedBox(width: 20),
+              _buildEnhancedStatusItem(
+                Icons.map,
+                'Map: ${_currentMapData!.info.width}x${_currentMapData!.info.height} @ ${_currentMapData!.info.resolution.toStringAsFixed(3)}m/px',
+                Colors.blueGrey,
+              ),
+            ],
+            // --- END ADD ---
             if (_globalCostmap != null) ...[
               const SizedBox(width: 20),
               _buildEnhancedStatusItem(Icons.public, 'Global', Colors.blue),
@@ -694,7 +705,9 @@ class _ControlPageState extends State<ControlPage>
                       _showAdvancedSettings = !_showAdvancedSettings;
                     });
                   },
-                  icon: Icon(_showAdvancedSettings ? Icons.expand_less : Icons.expand_more),
+                  icon: Icon(_showAdvancedSettings
+                      ? Icons.expand_less
+                      : Icons.expand_more),
                   label: Text(_showAdvancedSettings ? 'Hide' : 'Adjust'),
                 ),
               ],
@@ -703,8 +716,10 @@ class _ControlPageState extends State<ControlPage>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildEnhancedSpeedChip('Linear', _maxLinearSpeed, 'm/s', Colors.blue),
-                _buildEnhancedSpeedChip('Angular', _maxAngularSpeed, 'rad/s', Colors.orange),
+                _buildEnhancedSpeedChip(
+                    'Linear', _maxLinearSpeed, 'm/s', Colors.blue),
+                _buildEnhancedSpeedChip(
+                    'Angular', _maxAngularSpeed, 'rad/s', Colors.orange),
               ],
             ),
             if (_showAdvancedSettings) ...[
@@ -733,7 +748,8 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  Widget _buildEnhancedSpeedChip(String label, double value, String unit, Color color) {
+  Widget _buildEnhancedSpeedChip(
+      String label, double value, String unit, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -793,7 +809,9 @@ class _ControlPageState extends State<ControlPage>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            Text(label,
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -968,14 +986,15 @@ class _ControlPageState extends State<ControlPage>
             height: 50,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: _controlEnabled 
+                colors: _controlEnabled
                     ? [Colors.orange.shade400, Colors.orange.shade600]
                     : [Colors.green.shade400, Colors.green.shade600],
               ),
               borderRadius: BorderRadius.circular(25),
               boxShadow: [
                 BoxShadow(
-                  color: (_controlEnabled ? Colors.orange : Colors.green).withOpacity(0.3),
+                  color: (_controlEnabled ? Colors.orange : Colors.green)
+                      .withOpacity(0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -1075,14 +1094,15 @@ class _ControlPageState extends State<ControlPage>
                     height: 45,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: _mappingActive 
+                        colors: _mappingActive
                             ? [Colors.red.shade400, Colors.red.shade600]
                             : [Colors.green.shade400, Colors.green.shade600],
                       ),
                       borderRadius: BorderRadius.circular(22.5),
                       boxShadow: [
                         BoxShadow(
-                          color: (_mappingActive ? Colors.red : Colors.green).withOpacity(0.3),
+                          color: (_mappingActive ? Colors.red : Colors.green)
+                              .withOpacity(0.3),
                           blurRadius: 6,
                           offset: const Offset(0, 3),
                         ),
@@ -1090,7 +1110,8 @@ class _ControlPageState extends State<ControlPage>
                     ),
                     child: ElevatedButton.icon(
                       onPressed: () => _toggleMapping(),
-                      icon: Icon(_mappingActive ? Icons.stop : Icons.play_arrow),
+                      icon:
+                          Icon(_mappingActive ? Icons.stop : Icons.play_arrow),
                       label: Text(_mappingActive ? 'Stop' : 'Start'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
@@ -1145,7 +1166,10 @@ class _ControlPageState extends State<ControlPage>
                     height: 45,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.purple.shade400, Colors.purple.shade600],
+                        colors: [
+                          Colors.purple.shade400,
+                          Colors.purple.shade600
+                        ],
                       ),
                       borderRadius: BorderRadius.circular(22.5),
                       boxShadow: [
@@ -1177,7 +1201,10 @@ class _ControlPageState extends State<ControlPage>
                     height: 45,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.orange.shade400, Colors.orange.shade600],
+                        colors: [
+                          Colors.orange.shade400,
+                          Colors.orange.shade600
+                        ],
                       ),
                       borderRadius: BorderRadius.circular(22.5),
                       boxShadow: [
@@ -1245,7 +1272,8 @@ class _ControlPageState extends State<ControlPage>
                     color: Colors.blue,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.layers, color: Colors.white, size: 20),
+                  child:
+                      const Icon(Icons.layers, color: Colors.white, size: 20),
                 ),
                 const SizedBox(width: 12),
                 const Text(
@@ -1255,7 +1283,6 @@ class _ControlPageState extends State<ControlPage>
               ],
             ),
             const SizedBox(height: 12),
-
             _buildEnhancedSwitchTile(
               'Occupancy Grid',
               'Show main SLAM map',
@@ -1263,7 +1290,6 @@ class _ControlPageState extends State<ControlPage>
               Colors.blue,
               (value) => setState(() => _showOccupancyGrid = value),
             ),
-
             _buildEnhancedSwitchTile(
               'Global Costmap',
               'Show global path planning layer',
@@ -1271,7 +1297,6 @@ class _ControlPageState extends State<ControlPage>
               Colors.green,
               (value) => setState(() => _showGlobalCostmap = value),
             ),
-
             _buildEnhancedSwitchTile(
               'Local Costmap',
               'Show local obstacle detection',
@@ -1279,7 +1304,6 @@ class _ControlPageState extends State<ControlPage>
               Colors.red,
               (value) => setState(() => _showLocalCostmap = value),
             ),
-
             _buildEnhancedSwitchTile(
               'Robot Trail',
               'Show path history (${_robotTrail.length} points)',
@@ -1287,9 +1311,7 @@ class _ControlPageState extends State<ControlPage>
               Colors.orange,
               (value) => setState(() => _showTrail = value),
             ),
-
             const SizedBox(height: 16),
-            
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -1305,7 +1327,8 @@ class _ControlPageState extends State<ControlPage>
                       const Text('Layer Opacity: '),
                       const Spacer(),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.blue,
                           borderRadius: BorderRadius.circular(12),
@@ -1324,8 +1347,10 @@ class _ControlPageState extends State<ControlPage>
                   SliderTheme(
                     data: SliderTheme.of(context).copyWith(
                       trackHeight: 6,
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                      thumbShape:
+                          const RoundSliderThumbShape(enabledThumbRadius: 8),
+                      overlayShape:
+                          const RoundSliderOverlayShape(overlayRadius: 16),
                     ),
                     child: Slider(
                       value: _costmapOpacity,
@@ -1342,7 +1367,6 @@ class _ControlPageState extends State<ControlPage>
                 ],
               ),
             ),
-
             if (_robotTrail.isNotEmpty) ...[
               const SizedBox(height: 12),
               Row(
@@ -1468,9 +1492,7 @@ class _ControlPageState extends State<ControlPage>
               ),
             ],
           ),
-
           const SizedBox(height: 16),
-
           _buildSettingsSection(
             'Speed Settings',
             Icons.speed,
@@ -1495,9 +1517,7 @@ class _ControlPageState extends State<ControlPage>
               ),
             ],
           ),
-
           const SizedBox(height: 16),
-
           if (_currentMapData != null) ...[
             _buildSettingsSection(
               'Map Analysis',
@@ -1507,7 +1527,6 @@ class _ControlPageState extends State<ControlPage>
             ),
             const SizedBox(height: 16),
           ],
-
           _buildSettingsSection(
             'Status Information',
             Icons.info,
@@ -1620,9 +1639,11 @@ class _ControlPageState extends State<ControlPage>
       shapesByType[shape.type] = (shapesByType[shape.type] ?? 0) + 1;
     }
 
-    final occupiedCells = mapData.occupancyData.where((cell) => cell == 100).length;
+    final occupiedCells =
+        mapData.occupancyData.where((cell) => cell == 100).length;
     final freeCells = mapData.occupancyData.where((cell) => cell == 0).length;
-    final unknownCells = mapData.occupancyData.where((cell) => cell == -1).length;
+    final unknownCells =
+        mapData.occupancyData.where((cell) => cell == -1).length;
     final totalCells = mapData.occupancyData.length;
 
     final mapAreaM2 = (mapData.info.width * mapData.info.resolution) *
@@ -1646,12 +1667,12 @@ class _ControlPageState extends State<ControlPage>
           '${(occupiedCells / totalCells * 100).toStringAsFixed(1)}%',
           Colors.red,
         ),
-
         if (shapesByType.isNotEmpty) ...[
           const SizedBox(height: 12),
           const Divider(),
           const SizedBox(height: 8),
-          const Text('Shape Summary:', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Text('Shape Summary:',
+              style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           ...shapesByType.entries.map(
             (entry) => _buildAnalysisRow(
@@ -1661,17 +1682,14 @@ class _ControlPageState extends State<ControlPage>
             ),
           ),
         ],
-
         const SizedBox(height: 12),
         const Divider(),
         const SizedBox(height: 8),
-
         _buildAnalysisRow(
           'Total Area',
           '${mapAreaM2.toStringAsFixed(1)} m²',
           Colors.purple,
         ),
-
         _buildAnalysisRow(
           'Last Updated',
           _formatTimestamp(mapData.timestamp),
@@ -1750,13 +1768,18 @@ class _ControlPageState extends State<ControlPage>
         _buildStatusRow('Control Enabled', _controlEnabled ? 'Yes' : 'No'),
         _buildStatusRow('Messages Received', _messagesReceived.toString()),
         _buildStatusRow('Trail Points', _robotTrail.length.toString()),
-        _buildStatusRow('Map Shapes', _currentMapData?.shapes.length.toString() ?? '0'),
-        _buildStatusRow('Global Costmap', _globalCostmap != null ? 'Available' : 'N/A'),
-        _buildStatusRow('Local Costmap', _localCostmap != null ? 'Available' : 'N/A'),
+        _buildStatusRow(
+            'Map Shapes', _currentMapData?.shapes.length.toString() ?? '0'),
+        _buildStatusRow(
+            'Global Costmap', _globalCostmap != null ? 'Available' : 'N/A'),
+        _buildStatusRow(
+            'Local Costmap', _localCostmap != null ? 'Available' : 'N/A'),
         if (_currentMapData != null) ...[
           _buildStatusRow('Map Version', _currentMapData!.version.toString()),
-          _buildStatusRow('Map Size', '${_currentMapData!.info.width}x${_currentMapData!.info.height}'),
-          _buildStatusRow('Resolution', '${_currentMapData!.info.resolution.toStringAsFixed(3)}m/px'),
+          _buildStatusRow('Map Size',
+              '${_currentMapData!.info.width}x${_currentMapData!.info.height}'),
+          _buildStatusRow('Resolution',
+              '${_currentMapData!.info.resolution.toStringAsFixed(3)}m/px'),
         ],
         if (_currentOdometry?.position != null)
           _buildStatusRow(
@@ -1794,7 +1817,7 @@ class _ControlPageState extends State<ControlPage>
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: _isConnected 
+          colors: _isConnected
               ? [Colors.green.shade400, Colors.green.shade600]
               : [Colors.red.shade400, Colors.red.shade600],
         ),
@@ -1924,7 +1947,7 @@ class _ControlPageState extends State<ControlPage>
 
     try {
       _webSocketService.sendMappingCommand(widget.deviceId, 'save');
-      
+
       MapData? mapToSave = _currentMapData;
       if (mapToSave == null && _mappingActive) {
         mapToSave = MapData(
@@ -1969,7 +1992,8 @@ class _ControlPageState extends State<ControlPage>
     try {
       final trailShape = MapShape(
         id: 'trail_${DateTime.now().millisecondsSinceEpoch}',
-        name: 'Robot Trail ${DateTime.now().toLocal().toString().split('.')[0]}',
+        name:
+            'Robot Trail ${DateTime.now().toLocal().toString().split('.')[0]}',
         type: 'waypoint',
         points: List<odom.Position>.from(_robotTrail),
         color: 'FF9800',
@@ -2104,9 +2128,11 @@ class _ControlPageState extends State<ControlPage>
         setState(() {
           _currentMapData = mapToSave;
         });
-        _showSnackBar('Trail converted to ${waypoints.length} waypoints!', Colors.green);
+        _showSnackBar(
+            'Trail converted to ${waypoints.length} waypoints!', Colors.green);
       } else {
-        _showSnackBar('Failed to save waypoints: ${response['error']}', Colors.red);
+        _showSnackBar(
+            'Failed to save waypoints: ${response['error']}', Colors.red);
       }
     } catch (e) {
       _showSnackBar('Error converting trail: $e', Colors.red);

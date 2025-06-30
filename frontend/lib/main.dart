@@ -5,7 +5,7 @@ import 'services/theme_service.dart';
 import '../services/smart_connection_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/dashboard_screen.dart'; // Make sure this file exports DashboardScreen
 import 'screens/connect_screen.dart';
 import 'screens/control_page.dart';
 import 'screens/map_page.dart';
