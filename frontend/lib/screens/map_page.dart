@@ -1,12 +1,15 @@
-// screens/enhanced_map_page.dart - Enhanced Map Editor with Responsive Design
+// screens/enhanced_map_page.dart - Enhanced Map Page with Full Workflow
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
-import '../services/web_socket_service.dart';
 import '../models/map_data.dart';
-import '../models/odom.dart' as odom;
-import '../widgets/map_canvas.dart'; // Ensure this file exports MapCanvasWidget
+import '../services/api_service.dart';
+import '../widgets/map_canvas.dart';
+import '../services/web_socket_service.dart';
+import 'package:flutter/widgets.dart';
 import 'dart:async';
+import '../models/odom.dart' as odom;
 
+// import '../services/api_service.dart';
+// import '../services/web_socket_service.dart';
 class EnhancedMapPage extends StatefulWidget {
   final String? deviceId;
 
@@ -36,7 +39,13 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   bool _hasUnsavedChanges = false;
   bool _isWebSocketConnected = false;
 
-  // Real-time data
+  // Enhanced debugging and error handling
+  String? _error;
+  String? _loadSource; // Track where data was loaded from
+  Map<String, dynamic>? _rawApiResponse;
+  bool _showDebugInfo = false;
+
+  // Real-time data (for compatibility)
   Map<String, dynamic>? _realTimeMapData;
   odom.OdometryData? _currentOdometry;
 
@@ -205,26 +214,87 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     }
   }
 
+  void _loadMapWithConfirmation(String deviceId) async {
+    if (_hasUnsavedChanges) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Unsaved Changes'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('You have unsaved changes that will be lost.'),
+              const SizedBox(height: 8),
+              Text(
+                'Current map: ${_currentMap?.shapes.length ?? 0} locations',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              child: const Text('Load Anyway'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        _loadMapForDevice(deviceId);
+      }
+    } else {
+      _loadMapForDevice(deviceId);
+    }
+  }
+
   void _loadMapForDevice(String deviceId) async {
+    print('🔄 Loading map for device: $deviceId');
+
     setState(() {
       _isLoading = true;
+      _error = null;
+      _rawApiResponse = null;
     });
     _loadingAnimationController.repeat();
 
     try {
       final response = await _apiService.getMapData(deviceId);
+
+      print('📦 API Response: ${response.keys.toList()}');
+      // Store raw response for debugging
+      _rawApiResponse = Map<String, dynamic>.from(response);
+
       if (response['success'] == true && response['mapData'] != null) {
         try {
+          final mapData = MapData.fromJson(response['mapData']);
           setState(() {
-            _currentMap = MapData.fromJson(response['mapData']);
+            _currentMap = mapData;
             _hasUnsavedChanges = false;
+            _loadSource = response['source'] ?? 'api';
+            _error = null;
           });
-          print('✅ Map loaded successfully for device: $deviceId');
+
+          _showInfoSnackBar(
+              'Map loaded successfully with ${mapData.shapes.length} locations from ${_loadSource}');
+          print(
+              '✅ Map loaded successfully for device: $deviceId from source: ${_loadSource}');
         } catch (parseError) {
           print('❌ Error parsing map data: $parseError');
+          print(
+              '📋 Raw map data structure: ${response['mapData']?.keys?.toList() ?? 'null'}');
+
           setState(() {
             _currentMap = _createEmptyMap(deviceId);
             _hasUnsavedChanges = false;
+            _error = 'Failed to parse map data: $parseError';
+            _loadSource = 'empty_fallback';
           });
           _showWarningSnackBar('Map data corrupted. Created new empty map.');
         }
@@ -232,28 +302,37 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         setState(() {
           _currentMap = _createEmptyMap(deviceId);
           _hasUnsavedChanges = false;
+          _error = response['error'] ?? 'No map data available';
+          _loadSource = 'empty_created';
         });
         _showInfoSnackBar('No existing map found. Created new empty map.');
       }
     } catch (e) {
       print('❌ Error loading map: $e');
+      setState(() {
+        _error = 'Failed to load map data: $e';
+      });
+
       if (e is ApiException) {
         if (e.isNotFound) {
           setState(() {
             _currentMap = _createEmptyMap(deviceId);
             _hasUnsavedChanges = false;
+            _loadSource = 'empty_not_found';
           });
           _showInfoSnackBar('No map found for device. Created new empty map.');
         } else {
           _showErrorSnackBar('Failed to load map: ${e.message}');
           setState(() {
             _currentMap = _createEmptyMap(deviceId);
+            _loadSource = 'empty_error';
           });
         }
       } else {
         _showErrorSnackBar('Failed to load map: $e');
         setState(() {
           _currentMap = _createEmptyMap(deviceId);
+          _loadSource = 'empty_error';
         });
       }
     } finally {
@@ -301,6 +380,13 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
 
   PreferredSizeWidget _buildEnhancedAppBar(ThemeData theme) {
     return AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: () {
+          Navigator.pushReplacementNamed(context, '/dashboard');
+        },
+        tooltip: 'Back to Dashboard',
+      ),
       title: Row(
         children: [
           Container(
@@ -317,7 +403,28 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             child: const Icon(Icons.map, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 12),
-          const Text('Map Editor'),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Map Editor', style: TextStyle(fontSize: 18)),
+              if (_currentMap != null)
+                Text(
+                  _hasUnsavedChanges
+                      ? '● ${_currentMap!.shapes.length} locations (unsaved)'
+                      : '${_currentMap!.shapes.length} locations (saved)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _hasUnsavedChanges
+                        ? Colors.orange.shade200
+                        : Colors.white70,
+                    fontWeight: _hasUnsavedChanges
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
       backgroundColor: theme.primaryColor,
@@ -335,6 +442,33 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         ),
       ),
       actions: [
+        // Data source indicator
+        if (_loadSource != null)
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _getSourceColor(_loadSource!),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              _loadSource!.toUpperCase(),
+              style: const TextStyle(fontSize: 10, color: Colors.white),
+            ),
+          ),
+
+        // Debug toggle
+        IconButton(
+          onPressed: () {
+            setState(() {
+              _showDebugInfo = !_showDebugInfo;
+            });
+          },
+          icon: Icon(Icons.bug_report,
+              color: _showDebugInfo ? Colors.orange : Colors.white70),
+          tooltip: 'Toggle Debug Info',
+        ),
+
         // Enhanced status indicators
         _buildStatusIndicator('API', true, Colors.green),
         const SizedBox(width: 8),
@@ -374,7 +508,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           child: IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _selectedDeviceId != null
-                ? () => _loadMapForDevice(_selectedDeviceId!)
+                ? () => _loadMapWithConfirmation(_selectedDeviceId!)
                 : null,
             tooltip: 'Refresh Map',
           ),
@@ -505,6 +639,14 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       itemBuilder: (context) => [
         PopupMenuItem(
           child: ListTile(
+            leading: const Icon(Icons.folder),
+            title: const Text('Saved Maps'),
+            dense: true,
+          ),
+          onTap: () => _showSavedMaps(),
+        ),
+        PopupMenuItem(
+          child: ListTile(
             leading: const Icon(Icons.clear_all),
             title: const Text('Clear All'),
             dense: true,
@@ -532,13 +674,29 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   }
 
   Widget _buildResponsiveBody() {
+    return Column(
+      children: [
+        // Debug info panel
+        if (_showDebugInfo) _buildDebugPanel(),
+
+        // Error display
+        if (_error != null) _buildErrorBanner(),
+
+        // Main responsive content
+        Expanded(
+          child: _buildMainResponsiveContent(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMainResponsiveContent() {
     switch (_deviceType) {
       case DeviceType.desktop:
         return _buildDesktopLayout();
       case DeviceType.tablet:
         return _buildTabletLayout();
       case DeviceType.phone:
-      default:
         return _buildPhoneLayout();
     }
   }
@@ -1451,6 +1609,25 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     }
   }
 
+  Color _getSourceColor(String source) {
+    switch (source.toLowerCase()) {
+      case 'normalized':
+        return Colors.blue;
+      case 'empty_fallback':
+      case 'empty_created':
+      case 'empty_not_found':
+      case 'empty_error':
+        return Colors.orange;
+      case 'saved':
+        return Colors.purple;
+      case 'live':
+      case 'api':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
   IconData _getLocationTypeIcon(String type) {
     switch (type) {
       case 'pickup':
@@ -1965,28 +2142,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  Widget _buildBottomNavigation() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Colors.grey.shade300),
-        ),
-      ),
-      child: TabBar(
-        controller: _tabController,
-        labelColor: Theme.of(context).primaryColor,
-        unselectedLabelColor: Colors.grey,
-        indicatorColor: Theme.of(context).primaryColor,
-        tabs: const [
-          Tab(icon: Icon(Icons.edit), text: 'Edit'),
-          Tab(icon: Icon(Icons.list), text: 'Locations'),
-          Tab(icon: Icon(Icons.analytics), text: 'Analysis'),
-        ],
-      ),
-    );
-  }
-
   Widget _buildMobileDrawer() {
     return Drawer(
       child: Column(
@@ -2030,11 +2185,36 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
 
   Widget _buildFloatingActionButtons() {
     if (_deviceType == DeviceType.phone) {
-      return FloatingActionButton(
-        onPressed: _hasUnsavedChanges ? _saveMap : null,
-        backgroundColor: _hasUnsavedChanges ? Colors.orange : Colors.grey,
-        child: const Icon(Icons.save),
-        tooltip: 'Save Map',
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Load Map FAB
+          if (_selectedDeviceId != null)
+            FloatingActionButton(
+              onPressed: () => _loadMapWithConfirmation(_selectedDeviceId!),
+              backgroundColor: Colors.blue,
+              heroTag: "load",
+              child: const Icon(Icons.refresh, color: Colors.white),
+              tooltip: 'Load/Refresh Map',
+            ),
+
+          if (_selectedDeviceId != null) const SizedBox(height: 16),
+
+          // Save Map FAB
+          FloatingActionButton(
+            onPressed: _hasUnsavedChanges ? _saveMap : null,
+            backgroundColor:
+                _hasUnsavedChanges ? Colors.orange : Colors.grey.shade400,
+            heroTag: "save",
+            child: Icon(
+              Icons.save,
+              color: _hasUnsavedChanges ? Colors.white : Colors.grey.shade600,
+            ),
+            tooltip: _hasUnsavedChanges
+                ? 'Save Map (${_currentMap?.shapes.length ?? 0} locations)'
+                : 'No changes to save',
+          ),
+        ],
       );
     }
     return const SizedBox.shrink();
@@ -2051,7 +2231,18 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   void _saveMap() async {
     if (_currentMap == null || _selectedDeviceId == null) return;
 
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
     try {
+      print('💾 Saving map for device: $_selectedDeviceId');
+
       await _apiService.saveMapData(
         deviceId: _selectedDeviceId!,
         mapData: _currentMap!,
@@ -2061,8 +2252,19 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         _hasUnsavedChanges = false;
       });
 
-      _showInfoSnackBar('Map saved successfully');
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      _showInfoSnackBar(
+          'Map saved successfully with ${_currentMap!.shapes.length} locations');
+
+      print('✅ Map saved successfully for device: $_selectedDeviceId');
     } catch (e) {
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      print('❌ Error saving map: $e');
+
       if (e is ApiException) {
         _showErrorSnackBar('Failed to save map: ${e.message}');
       } else {
@@ -2248,6 +2450,30 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     }
   }
 
+  void _showSavedMaps() {
+    if (_selectedDeviceId == null) {
+      _showErrorSnackBar('Please select a device first');
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => SavedMapsScreen(
+          deviceId: _selectedDeviceId!,
+          onMapSelected: (mapData) {
+            setState(() {
+              _currentMap = mapData;
+              _loadSource = 'saved_selected';
+              _error = null;
+              _hasUnsavedChanges = false;
+            });
+            _showInfoSnackBar('Map loaded from saved maps');
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildConnectionInfoRow(String label, String value, {Color? color}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -2317,6 +2543,14 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           IconButton(
+            icon: const Icon(Icons.dashboard),
+            color: Theme.of(context).primaryColor,
+            tooltip: 'Back to Dashboard',
+            onPressed: () {
+              Navigator.pushReplacementNamed(context, '/dashboard');
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.save),
             color: _hasUnsavedChanges ? Colors.orange : Colors.grey,
             tooltip: 'Save Map',
@@ -2327,7 +2561,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             color: Colors.blue,
             tooltip: 'Refresh Map',
             onPressed: _selectedDeviceId != null
-                ? () => _loadMapForDevice(_selectedDeviceId!)
+                ? () => _loadMapWithConfirmation(_selectedDeviceId!)
                 : null,
           ),
           IconButton(
@@ -2346,9 +2580,382 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       ),
     );
   }
+
+  /// Build debug information panel
+  Widget _buildDebugPanel() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        border: Border.all(color: Colors.orange.shade200),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.bug_report, size: 16, color: Colors.orange),
+              const SizedBox(width: 8),
+              Text(
+                'Debug Information',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.orange.shade800),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: () => setState(() => _showDebugInfo = false),
+                icon: const Icon(Icons.close, size: 16),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildDebugRow('Device ID', _selectedDeviceId ?? 'None'),
+          _buildDebugRow('Load Source', _loadSource ?? 'None'),
+          _buildDebugRow('Map Data', _currentMap != null ? 'Loaded' : 'None'),
+          if (_currentMap != null) ...[
+            _buildDebugRow('Dimensions',
+                '${_currentMap!.info.width}x${_currentMap!.info.height}'),
+            _buildDebugRow('Shapes', '${_currentMap!.shapes.length}'),
+            _buildDebugRow(
+                'Occupancy Data', '${_currentMap!.occupancyData.length} cells'),
+          ],
+          _buildDebugRow(
+              'API Initialized', _apiService.isInitialized.toString()),
+          _buildDebugRow('API Base URL', _apiService.baseUrl ?? 'None'),
+          _buildDebugRow(
+              'WebSocket Connected', _isWebSocketConnected.toString()),
+          _buildDebugRow('Has Unsaved Changes', _hasUnsavedChanges.toString()),
+          if (_rawApiResponse != null) ...[
+            const SizedBox(height: 8),
+            const Text('Raw API Response:',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                _rawApiResponse.toString(),
+                style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
+                maxLines: 5,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDebugRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build error banner
+  Widget _buildErrorBanner() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        border: Border.all(color: Colors.red.shade200),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error, color: Colors.red.shade700),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Map Loading Error',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red.shade700,
+                  ),
+                ),
+                Text(
+                  _error!,
+                  style: TextStyle(fontSize: 12, color: Colors.red.shade600),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => setState(() => _error = null),
+            icon: const Icon(Icons.close, size: 16),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// AGV operation modes for compact mode selector
 enum AGVMode { defaultMode, autonomous, mapping }
 
 enum DeviceType { phone, tablet, desktop }
+
+// Enhanced SavedMapsScreen with map loading capability
+class SavedMapsScreen extends StatefulWidget {
+  final String deviceId;
+  final Function(MapData)? onMapSelected;
+
+  const SavedMapsScreen({
+    Key? key,
+    required this.deviceId,
+    this.onMapSelected,
+  }) : super(key: key);
+
+  @override
+  _SavedMapsScreenState createState() => _SavedMapsScreenState();
+}
+
+class _SavedMapsScreenState extends State<SavedMapsScreen> {
+  final ApiService _apiService = ApiService();
+
+  List<Map<String, dynamic>> _savedMaps = [];
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedMaps();
+  }
+
+  Future<void> _loadSavedMaps() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final maps = await _apiService.getSavedMaps(widget.deviceId);
+      setState(() {
+        _savedMaps = maps;
+        _isLoading = false;
+      });
+
+      print('✅ Loaded ${maps.length} saved maps');
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load saved maps: $e';
+        _isLoading = false;
+      });
+      print('❌ Error loading saved maps: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Saved Maps (${_savedMaps.length})'),
+        actions: [
+          IconButton(
+            onPressed: _loadSavedMaps,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(_error!),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadSavedMaps,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_savedMaps.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.save, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('No saved maps found'),
+            SizedBox(height: 8),
+            Text(
+              'Create and save maps using the map editor',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _savedMaps.length,
+      itemBuilder: (context, index) {
+        final map = _savedMaps[index];
+        return _buildMapCard(map);
+      },
+    );
+  }
+
+  Widget _buildMapCard(Map<String, dynamic> map) {
+    final mapName = map['name'] ?? 'Unknown Map';
+    final savedAt = map['savedAt'] != null
+        ? DateTime.tryParse(map['savedAt'].toString())
+        : null;
+    final shapes = map['shapes'] ?? 0;
+    final fileSize = map['fileSize'] ?? 'Unknown';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(16),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.blue.shade100,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.map, color: Colors.blue),
+        ),
+        title: Text(
+          mapName,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text('Locations: $shapes • Size: $fileSize'),
+            if (savedAt != null)
+              Text(
+                'Saved: ${_formatDate(savedAt)}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+          ],
+        ),
+        trailing: ElevatedButton.icon(
+          onPressed: () => _loadMap(mapName),
+          icon: const Icon(Icons.open_in_new, size: 16),
+          label: const Text('Load'),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadMap(String mapName) async {
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Loading map...'),
+            ],
+          ),
+        ),
+      );
+
+      final response = await _apiService.loadCompleteMapDataEnhanced(
+        deviceId: widget.deviceId,
+        mapName: mapName,
+      );
+
+      Navigator.of(context).pop(); // Close loading dialog
+
+      if (response['success'] == true && response['mapData'] != null) {
+        final mapData = MapData.fromJson(response['mapData']);
+
+        if (widget.onMapSelected != null) {
+          widget.onMapSelected!(mapData);
+          Navigator.of(context).pop(); // Close saved maps screen
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Map loaded: $mapName'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        throw Exception(response['error'] ?? 'Load failed');
+      }
+    } catch (e) {
+      Navigator.of(context).pop(); // Close loading dialog
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Load failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
+  }
+}

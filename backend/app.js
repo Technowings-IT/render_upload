@@ -1,4 +1,3 @@
-// app.js - UPDATED with Order Management Routes
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
@@ -11,6 +10,12 @@ const rosHealthMonitor = require('./ros/utils/rosHealthMonitor');
 const { initializeWebSocketServer } = require('./websocket/clientConnection');
 
 // Import routes
+const EnhancedMessageHandler = require('./websocket/messageHandler');
+const messageHandler = new EnhancedMessageHandler();
+
+// ADD THIS AFTER YOUR EXISTING IMPORTS
+const ROS2ScriptManager = require('./ros/utils/ros2ScriptManager');
+
 const controlRoutes = require('./routes/controlRoutes');
 const mapRoutes = require('./routes/mapRoutes');
 const orderRoutes = require('./routes/orderRoutes'); // ✅ NEW: Order routes
@@ -18,7 +23,7 @@ const { router: discoveryRoutes, initializeUDPDiscovery } = require('./routes/di
 
 const app = express();
 const server = http.createServer(app);
-
+// app.js - Add the enhanced map routes
 // Global variables initialization
 global.connectedDevices = [];
 global.liveData = {};
@@ -28,28 +33,94 @@ global.deviceMaps = {};
 global.deviceMappingStates = {};
 global.robotTrails = {};
 
-// ✅ FIXED: Enhanced CORS middleware
+
+global.ros2ScriptManager = new ROS2ScriptManager();
+
+// ADD THIS AFTER YOUR EXISTING SETUP
+// Setup ROS2 Script Manager event handlers
+global.ros2ScriptManager.on('slam_started', (data) => {
+    console.log('🗺️ SLAM started:', data);
+    // Broadcast to WebSocket clients
+    if (global.webSocketInstance) {
+        global.webSocketInstance.broadcastToSubscribers('script_status', {
+            type: 'script_status_update',
+            script: 'slam',
+            status: 'running',
+            message: 'SLAM mapping is now running',
+            data: data,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+global.ros2ScriptManager.on('navigation_started', (data) => {
+    console.log('🚀 Navigation started:', data);
+    if (global.webSocketInstance) {
+        global.webSocketInstance.broadcastToSubscribers('script_status', {
+            type: 'script_status_update',
+            script: 'navigation',
+            status: 'running',
+            message: 'Navigation is now running',
+            data: data,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+global.ros2ScriptManager.on('robot_control_started', () => {
+    console.log('🤖 Robot control started');
+    if (global.webSocketInstance) {
+        global.webSocketInstance.broadcastToSubscribers('script_status', {
+            type: 'script_status_update',
+            script: 'robot_control',
+            status: 'running',
+            message: 'Robot control is now active',
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Handle process stops
+['slam_stopped', 'navigation_stopped', 'robot_control_stopped'].forEach(event => {
+    global.ros2ScriptManager.on(event, (code) => {
+        const processName = event.replace('_stopped', '');
+        console.log(`🛑 ${processName} stopped with code:`, code);
+        if (global.webSocketInstance) {
+            global.webSocketInstance.broadcastToSubscribers('script_status', {
+                type: 'script_status_update',
+                script: processName,
+                status: 'stopped',
+                message: `${processName} has stopped`,
+                exitCode: code,
+                timestamp: new Date().toISOString()
+            });
+        }
+    });
+});
+
+
+// FIXED: Enhanced CORS middleware
 app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (mobile apps, Postman, etc.)
         if (!origin) return callback(null, true);
-        
+
         // Allow all origins in development
         if (config.SERVER.ENV === 'development') {
             return callback(null, true);
         }
-        
+
         // Check allowed origins
-        if (config.CORS.ALLOWED_ORIGINS.includes(origin) || 
+        if (config.CORS.ALLOWED_ORIGINS.includes(origin) ||
             config.CORS.ALLOWED_ORIGINS.includes('*')) {
             return callback(null, true);
         }
-        
+
         // Allow 192.168.0.x subnet
         if (origin.includes('192.168.0.')) {
             return callback(null, true);
         }
-        
+
         return callback(new Error('Not allowed by CORS'));
     },
     credentials: config.CORS.CREDENTIALS,
@@ -81,7 +152,7 @@ app.get('/health', (req, res) => {
     try {
         const rosStatus = rosConnection.getROS2Status();
         const publisherStats = require('./ros/utils/publishers').getPublisherStats();
-        
+
         res.json({
             success: true,
             status: 'healthy',
@@ -121,10 +192,10 @@ app.get('/health', (req, res) => {
         });
     } catch (error) {
         console.error('❌ Health check error:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
             error: 'Health check failed',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -141,7 +212,7 @@ app.get('/api/devices', (req, res) => {
             pendingOrders: global.deviceOrders[device.id]?.filter(o => o.status === 'pending').length || 0,
             isOnline: !!global.liveData[device.id]?.lastUpdate
         }));
-        
+
         res.json({
             success: true,
             devices: devices,
@@ -153,10 +224,10 @@ app.get('/api/devices', (req, res) => {
         });
     } catch (error) {
         console.error('❌ Error getting devices:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
             error: 'Failed to get devices',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -165,7 +236,7 @@ app.get('/api/devices', (req, res) => {
 app.get('/api/orders/stats', async (req, res) => {
     try {
         const { timeRange = '7d' } = req.query;
-        
+
         // Calculate time range
         const now = new Date();
         let startDate;
@@ -175,11 +246,11 @@ app.get('/api/orders/stats', async (req, res) => {
             case '30d': startDate = new Date(now - 30 * 24 * 60 * 60 * 1000); break;
             default: startDate = new Date(now - 7 * 24 * 60 * 60 * 1000);
         }
-        
+
         // Get all orders from global state
         const allOrders = Object.values(global.deviceOrders || {}).flat();
         const recentOrders = allOrders.filter(o => new Date(o.createdAt) >= startDate);
-        
+
         const stats = {
             total: allOrders.length,
             recent: recentOrders.length,
@@ -195,7 +266,7 @@ app.get('/api/orders/stats', async (req, res) => {
             timeRange,
             generatedAt: new Date().toISOString()
         };
-        
+
         // Calculate per-device stats
         Object.keys(global.deviceOrders || {}).forEach(deviceId => {
             const deviceOrders = global.deviceOrders[deviceId];
@@ -206,13 +277,13 @@ app.get('/api/orders/stats', async (req, res) => {
                 completed: deviceOrders.filter(o => o.status === 'completed').length
             };
         });
-        
+
         res.json({
             success: true,
             stats,
             timestamp: new Date().toISOString()
         });
-        
+
     } catch (error) {
         console.error('❌ Error getting order stats:', error);
         res.status(500).json({
@@ -229,7 +300,7 @@ app.get('/api/system/status', async (req, res) => {
         const rosStatus = rosConnection.getROS2Status();
         const connectivityTest = await rosConnection.testConnection();
         const publisherStats = require('./ros/utils/publishers').getPublisherStats();
-        
+
         res.json({
             success: true,
             system: {
@@ -257,7 +328,7 @@ app.get('/api/system/status', async (req, res) => {
                     totalOrders: Object.values(global.deviceOrders || {}).flat().length,
                     activeOrders: Object.values(global.deviceOrders || {}).flat().filter(o => o.status === 'active').length,
                     pendingOrders: Object.values(global.deviceOrders || {}).flat().filter(o => o.status === 'pending').length,
-                    devicesWithOrders: Object.keys(global.deviceOrders || {}).filter(deviceId => 
+                    devicesWithOrders: Object.keys(global.deviceOrders || {}).filter(deviceId =>
                         global.deviceOrders[deviceId].length > 0).length
                 },
                 websocket: {
@@ -269,10 +340,10 @@ app.get('/api/system/status', async (req, res) => {
         });
     } catch (error) {
         console.error('❌ Error getting system status:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
             error: 'Failed to get system status',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -282,7 +353,7 @@ app.get('/api/ros/status', (req, res) => {
     try {
         const rosStatus = rosConnection.getROS2Status();
         const connectionStatus = rosConnection.getConnectionStatus();
-        
+
         res.json({
             success: true,
             ros2Status: rosStatus,
@@ -308,9 +379,9 @@ app.get('/api/ros/status', (req, res) => {
 app.post('/api/ros/recover', async (req, res) => {
     try {
         console.log('🔄 Manual ROS recovery requested via API');
-        
+
         const result = await rosConnection.recoverConnection();
-        
+
         if (result) {
             res.json({
                 success: true,
@@ -340,7 +411,7 @@ app.post('/api/ros/recover', async (req, res) => {
 app.post('/api/ros/test', async (req, res) => {
     try {
         const testResult = rosConnection.testConnection();
-        
+
         res.json({
             success: testResult.success,
             testResults: testResult,
@@ -360,9 +431,9 @@ app.post('/api/ros/test', async (req, res) => {
 app.post('/api/ros/emergency-stop', (req, res) => {
     try {
         console.log('🛑 Emergency stop requested via API');
-        
+
         const result = rosConnection.emergencyStop();
-        
+
         res.json({
             success: result.success,
             message: 'Emergency stop command sent',
@@ -383,7 +454,7 @@ app.post('/api/ros/emergency-stop', (req, res) => {
 app.post('/api/ros/max-speeds', (req, res) => {
     try {
         const { maxLinearSpeed, maxAngularSpeed } = req.body;
-        
+
         if (typeof maxLinearSpeed !== 'number' || typeof maxAngularSpeed !== 'number') {
             return res.status(400).json({
                 success: false,
@@ -391,9 +462,9 @@ app.post('/api/ros/max-speeds', (req, res) => {
                 timestamp: new Date().toISOString()
             });
         }
-        
+
         const result = rosConnection.updateMaxSpeeds(maxLinearSpeed, maxAngularSpeed);
-        
+
         res.json({
             success: result.success,
             maxSpeeds: result.maxSpeeds,
@@ -414,11 +485,11 @@ app.post('/api/ros/max-speeds', (req, res) => {
 app.post('/api/ros/test-joystick', (req, res) => {
     try {
         const { x = 0, y = 0, deadman = false, maxLinearSpeed = 0.3, maxAngularSpeed = 0.8 } = req.body;
-        
+
         console.log(`🎮 Manual joystick test: x=${x}, y=${y}, deadman=${deadman}`);
-        
+
         const result = rosConnection.publishJoystick(x, y, deadman, maxLinearSpeed, maxAngularSpeed);
-        
+
         res.json({
             success: result.success,
             result: result,
@@ -442,7 +513,7 @@ app.get('/api/ros/monitor/status', (req, res) => {
     try {
         const monitorStatus = rosHealthMonitor.getMonitorStatus();
         const rosStatus = rosConnection.getROS2Status();
-        
+
         res.json({
             success: true,
             monitor: monitorStatus,
@@ -461,7 +532,7 @@ app.get('/api/ros/monitor/status', (req, res) => {
 app.post('/api/ros/monitor/reset', (req, res) => {
     try {
         rosHealthMonitor.resetFailureCount();
-        
+
         res.json({
             success: true,
             message: 'Monitor failure count reset',
@@ -481,7 +552,7 @@ app.post('/api/ros/monitor/force-recovery', async (req, res) => {
     try {
         console.log('🚑 Forced ROS recovery requested via API');
         await rosHealthMonitor.attemptRecovery();
-        
+
         res.json({
             success: true,
             message: 'Forced recovery attempted',
@@ -502,10 +573,10 @@ app.post('/api/connect', async (req, res) => {
     try {
         const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
         const { deviceId, name } = req.body;
-        
+
         const autoDeviceId = deviceId || 'agv_01';
         const deviceName = name || 'Primary AGV';
-        
+
         const deviceInfo = {
             id: autoDeviceId,
             name: deviceName,
@@ -515,15 +586,15 @@ app.post('/api/connect', async (req, res) => {
             quickConnected: true,
             connectedAt: new Date().toISOString()
         };
-        
+
         const connectedDeviceId = rosConnection.addConnectedDevice(deviceInfo);
-        
+
         try {
             await storageManager.saveDevice(connectedDeviceId);
         } catch (storageError) {
             console.warn('⚠️ Could not save device to storage:', storageError.message);
         }
-        
+
         res.json({
             success: true,
             message: 'Device connected successfully',
@@ -539,15 +610,15 @@ app.post('/api/connect', async (req, res) => {
             },
             timestamp: new Date().toISOString()
         });
-        
+
         console.log(`✅ Quick-connected device: ${connectedDeviceId} from ${clientIP}`);
-        
+
     } catch (error) {
         console.error('❌ Error quick-connecting device:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             success: false,
             error: 'Failed to connect device',
-            details: error.message 
+            details: error.message
         });
     }
 });
@@ -565,7 +636,7 @@ app.use((err, req, res, next) => {
 
 // 404 handler
 app.use((req, res) => {
-    res.status(404).json({ 
+    res.status(404).json({
         success: false,
         error: 'Endpoint not found',
         path: req.path,
@@ -576,7 +647,7 @@ app.use((req, res) => {
 
 async function initializeApplication() {
     console.log('🚀 Initializing AGV Fleet Management System...');
-    
+
     try {
         // 1. Initialize storage manager
         console.log('📂 Initializing storage manager...');
@@ -586,27 +657,27 @@ async function initializeApplication() {
         } catch (storageError) {
             console.warn('⚠️ Storage manager initialization failed:', storageError.message);
         }
-        
+
         // 2. Initialize ROS2 connection
         console.log('🤖 Initializing ROS2 connection...');
         await rosConnection.initializeROS();
         console.log('✅ ROS2 connection established');
-        
+
         // ✅ NEW: Initialize ROS health monitor
         console.log('🔍 Starting ROS health monitor...');
         rosHealthMonitor.initializeMonitor(rosConnection);
         console.log('✅ ROS health monitor started');
-        
+
         // 3. Test ROS2 connectivity
         console.log('🔍 Testing ROS2 connectivity...');
         const connectivityTest = await rosConnection.testConnection();
         console.log(`📊 ROS2 connectivity: ${connectivityTest.requiredTopicsFound?.length || 0} required topics found`);
-        
+
         // 4. Initialize WebSocket server
         console.log('🔌 Initializing WebSocket server...');
         initializeWebSocketServer(server);
         console.log('✅ WebSocket server initialized');
-        
+
         // 5. Initialize UDP discovery server
         console.log('📡 Initializing UDP discovery...');
         const udpServer = initializeUDPDiscovery();
@@ -615,13 +686,13 @@ async function initializeApplication() {
         } else {
             console.warn('⚠️ UDP discovery server failed to start');
         }
-        
+
         // Store WebSocket instance globally for message handler
         global.webSocketInstance = {
             sendToClient: require('./websocket/clientConnection').sendToClient,
             broadcastToSubscribers: require('./websocket/clientConnection').broadcastToSubscribers
         };
-        
+
         // 6. Auto-connect default AGV if not already connected
         setTimeout(async () => {
             if (global.connectedDevices.length === 0) {
@@ -631,29 +702,29 @@ async function initializeApplication() {
                         id: 'piros', // Changed to match your device name
                         name: 'Primary AGV',
                         type: 'differential_drive',
-                        ipAddress: '192.168.0.156', // Your AGV's IP
+                        ipAddress: '192.168.0.84', // Your AGV's IP
                         capabilities: config.DEVICE.CAPABILITIES,
                         autoConnected: true
                     };
-                    
+
                     rosConnection.addConnectedDevice(deviceInfo);
-                    
+
                     try {
                         await storageManager.saveDevice('piros');
                     } catch (saveError) {
                         console.warn('⚠️ Could not save auto-connected device:', saveError.message);
                     }
-                    
+
                     console.log('✅ Default AGV auto-connected');
                 } catch (error) {
                     console.warn('⚠️ Could not auto-connect default AGV:', error.message);
                 }
             }
         }, 3000);
-        
+
         console.log('✅ AGV Fleet Management System initialized successfully');
         return true;
-        
+
     } catch (error) {
         console.error('❌ Failed to initialize application:', error);
         throw error;
@@ -663,12 +734,12 @@ async function initializeApplication() {
 async function startServer() {
     try {
         await initializeApplication();
-        
+
         server.listen(config.SERVER.PORT, config.SERVER.HOST, () => {
-            const serverInfo = require('./routes/discoveryRoutes').getServerInfo ? 
-                require('./routes/discoveryRoutes').getServerInfo() : 
+            const serverInfo = require('./routes/discoveryRoutes').getServerInfo ?
+                require('./routes/discoveryRoutes').getServerInfo() :
                 { ip: config.SERVER.HOST, port: config.SERVER.PORT };
-                
+
             console.log(`\n🎉 AGV Fleet Backend Server Started`);
             console.log(`📍 Server: http://${serverInfo.ip}:${serverInfo.port}`);
             console.log(`🔌 WebSocket: ws://${serverInfo.ip}:${serverInfo.port}`);
@@ -687,7 +758,7 @@ async function startServer() {
             console.log('✅ Map and PGM conversion routes added');
             console.log(`   - Connected Devices: ${global.connectedDevices.length}`);
             console.log(`\n🤖 Ready for AGV connections!\n`);
-            
+
             // Test ROS2 publishing capability
             setTimeout(async () => {
                 try {
@@ -701,7 +772,7 @@ async function startServer() {
                     console.warn('⚠️ Could not test ROS2 publishing:', testError.message);
                 }
             }, 2000);
-            
+
             // Test ROS2 subscribing capability
             setTimeout(async () => {
                 try {
@@ -716,7 +787,7 @@ async function startServer() {
                 }
             }, 2500);
         });
-        
+
     } catch (error) {
         console.error('💥 Failed to start server:', error);
         process.exit(1);
@@ -729,21 +800,21 @@ process.on('SIGTERM', gracefulShutdown);
 
 async function gracefulShutdown(signal) {
     console.log(`\n📴 Received ${signal}, starting graceful shutdown...`);
-    
+
     try {
         // ✅ NEW: Stop health monitoring first
         console.log('🔍 Stopping ROS health monitor...');
         rosHealthMonitor.cleanup();
-        
+
         // Stop accepting new connections
         server.close(() => {
             console.log('🔌 HTTP server closed');
         });
-        
+
         // Cleanup ROS2 connection
         await rosConnection.shutdown();
         console.log('🤖 ROS2 connection closed');
-        
+
         // Cleanup storage
         try {
             await storageManager.cleanup();
@@ -751,10 +822,10 @@ async function gracefulShutdown(signal) {
         } catch (e) {
             console.warn('⚠️ Storage cleanup warning:', e.message);
         }
-        
+
         console.log('✅ Graceful shutdown completed');
         process.exit(0);
-        
+
     } catch (error) {
         console.error('❌ Error during shutdown:', error);
         process.exit(1);

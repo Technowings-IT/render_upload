@@ -798,23 +798,18 @@ router.post('/devices/:deviceId/goal', validateDevice, (req, res) => {
 
 // Get current map
 router.get('/devices/:deviceId/map', validateDevice, (req, res) => {
-    try {
-        const liveData = global.liveData[deviceId];
-        const mapData = liveData ? liveData.map : undefined;
+    // Just call the /maps handler logic here
+    const liveData = global.liveData[req.deviceId];
+    const mapData = liveData ? liveData.map : undefined;
 
-        res.json({
-            success: true,
-            deviceId: req.deviceId,
-            mapData: mapData,
-            liveMapData: liveData.map,
-            lastUpdate: liveData.map?.timestamp,
-            timestamp: new Date().toISOString()
-        });
-
-    } catch (error) {
-        console.error('❌ Error getting map:', error);
-        res.status(500).json({ error: 'Failed to get map' });
-    }
+    res.json({
+        success: true,
+        deviceId: req.deviceId,
+        mapData: mapData,
+        liveMapData: liveData?.map,
+        lastUpdate: liveData?.map?.timestamp,
+        timestamp: new Date().toISOString()
+    });
 });
 
 // Save current map
@@ -1121,5 +1116,176 @@ router.post('/devices/:deviceId/map/upload-to-agv', validateDevice, async (req, 
         });
     }
 });
+// ADD THESE NEW ROUTES after your existing routes
 
+// ==========================================
+// SCRIPT EXECUTION ROUTES
+// ==========================================
+
+// Start robot control script
+router.post('/devices/:deviceId/scripts/start-robot', validateDevice, async (req, res) => {
+    try {
+        console.log(`🤖 Starting robot control for device: ${req.deviceId}`);
+        
+        // Get ROS2 script manager instance
+        const scriptManager = global.ros2ScriptManager || require('../ros/utils/ros2ScriptManager');
+        
+        const result = await scriptManager.startRobotControl();
+        
+        // Broadcast script status
+        broadcastToSubscribers('script_status', {
+            type: 'script_status_update',
+            deviceId: req.deviceId,
+            script: 'robot_control',
+            status: 'starting',
+            message: 'Robot control script starting...',
+            timestamp: new Date().toISOString()
+        });
+        
+        res.json({
+            success: true,
+            message: 'Robot control script started',
+            deviceId: req.deviceId,
+            result: result
+        });
+        
+    } catch (error) {
+        console.error('❌ Error starting robot control:', error);
+        
+        // Broadcast error status
+        broadcastToSubscribers('script_status', {
+            type: 'script_status_update',
+            deviceId: req.deviceId,
+            script: 'robot_control',
+            status: 'error',
+            message: `Error starting robot control: ${error.message}`,
+            timestamp: new Date().toISOString()
+        });
+        
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            deviceId: req.deviceId
+        });
+    }
+});
+
+// Start SLAM mapping script
+router.post('/devices/:deviceId/scripts/start-slam', validateDevice, async (req, res) => {
+    try {
+        const { mapName, useSimTime } = req.body;
+        console.log(`🗺️ Starting SLAM for device: ${req.deviceId}`);
+        
+        const scriptManager = global.ros2ScriptManager || require('../ros/utils/ros2ScriptManager');
+        
+        const options = {
+            mapName: mapName || `map_${req.deviceId}_${Date.now()}`,
+            useSimTime: useSimTime || false
+        };
+        
+        const result = await scriptManager.startSLAM(options);
+        
+        // Broadcast script status
+        broadcastToSubscribers('script_status', {
+            type: 'script_status_update',
+            deviceId: req.deviceId,
+            script: 'slam',
+            status: 'starting',
+            message: 'SLAM mapping script starting...',
+            options: options,
+            timestamp: new Date().toISOString()
+        });
+        
+        res.json({
+            success: true,
+            message: 'SLAM mapping script started',
+            deviceId: req.deviceId,
+            options: options,
+            result: result
+        });
+        
+    } catch (error) {
+        console.error('❌ Error starting SLAM:', error);
+        
+        broadcastToSubscribers('script_status', {
+            type: 'script_status_update',
+            deviceId: req.deviceId,
+            script: 'slam',
+            status: 'error',
+            message: `Error starting SLAM: ${error.message}`,
+            timestamp: new Date().toISOString()
+        });
+        
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            deviceId: req.deviceId
+        });
+    }
+});
+
+// Stop specific script
+router.post('/devices/:deviceId/scripts/stop/:scriptType', validateDevice, async (req, res) => {
+    try {
+        const { scriptType } = req.params;
+        console.log(`🛑 Stopping ${scriptType} for device: ${req.deviceId}`);
+        
+        const scriptManager = global.ros2ScriptManager || require('../ros/utils/ros2ScriptManager');
+        
+        let result;
+        if (scriptType === 'all') {
+            result = await scriptManager.stopAll();
+        } else {
+            result = await scriptManager.stopProcess(scriptType);
+        }
+        
+        // Broadcast script status
+        broadcastToSubscribers('script_status', {
+            type: 'script_status_update',
+            deviceId: req.deviceId,
+            script: scriptType,
+            status: 'stopping',
+            message: `Stopping ${scriptType}...`,
+            timestamp: new Date().toISOString()
+        });
+        
+        res.json({
+            success: true,
+            message: `${scriptType} script stop command sent`,
+            deviceId: req.deviceId,
+            result: result
+        });
+        
+    } catch (error) {
+        console.error(`❌ Error stopping ${req.params.scriptType}:`, error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            deviceId: req.deviceId
+        });
+    }
+});
+
+// Get script status
+router.get('/devices/:deviceId/scripts/status', validateDevice, async (req, res) => {
+    try {
+        const scriptManager = global.ros2ScriptManager || require('../ros/utils/ros2ScriptManager');
+        const status = scriptManager.getDetailedStatus();
+        
+        res.json({
+            success: true,
+            deviceId: req.deviceId,
+            status: status,
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error getting script status:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            deviceId: req.deviceId
+        });
+    }
+});
 module.exports = router;

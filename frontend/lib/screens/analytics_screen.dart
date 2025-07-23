@@ -1,29 +1,112 @@
-// screens/enhanced_analytics_screen.dart - FIXED Analytics with Real Data Fetching
+// screens/enhanced_analytics_screen.dart - Restructured Enhanced Analytics with Improved UI
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'dart:math' as math;
 import 'dart:async';
 import '../services/api_service.dart';
 import '../services/web_socket_service.dart';
 
-class EnhancedAnalyticsScreen extends StatefulWidget {
-  @override
-  _EnhancedAnalyticsScreenState createState() => _EnhancedAnalyticsScreenState();
+// ============================================================================
+// CONSTANTS & DESIGN SYSTEM
+// ============================================================================
+class AppConstants {
+  static const double borderRadius = 16.0;
+  static const double smallBorderRadius = 8.0;
+  static const double cardElevation = 4.0;
+  static const double iconSize = 20.0;
+  static const double largeIconSize = 24.0;
+  static const Duration animationDuration = Duration(milliseconds: 1500);
+  static const Duration refreshInterval = Duration(seconds: 30);
 }
 
-class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen> 
+class AppColors {
+  static const Color primary = Color(0xFF2196F3);
+  static const Color secondary = Color(0xFF03DAC6);
+  static const Color success = Color(0xFF4CAF50);
+  static const Color warning = Color(0xFFFF9800);
+  static const Color error = Color(0xFFF44336);
+  static const Color info = Color(0xFF2196F3);
+  static const Color surface = Color(0xFFFAFAFA);
+  static const Color cardBackground = Colors.white;
+
+  static const List<Color> chartColors = [
+    Color(0xFF2196F3), // Blue
+    Color(0xFF4CAF50), // Green
+    Color(0xFFFF9800), // Orange
+    Color(0xFF9C27B0), // Purple
+    Color(0xFFF44336), // Red
+    Color(0xFF009688), // Teal
+    Color(0xFF795548), // Brown
+  ];
+}
+
+class AppTextStyles {
+  static const TextStyle heading1 = TextStyle(
+    fontSize: 28,
+    fontWeight: FontWeight.bold,
+  );
+
+  static const TextStyle heading2 = TextStyle(
+    fontSize: 22,
+    fontWeight: FontWeight.bold,
+  );
+
+  static const TextStyle heading3 = TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.bold,
+  );
+
+  static const TextStyle subtitle = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w500,
+  );
+
+  static const TextStyle body = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.normal,
+  );
+
+  static const TextStyle caption = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.normal,
+  );
+
+  static const TextStyle overline = TextStyle(
+    fontSize: 10,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 1.2,
+  );
+}
+
+// ============================================================================
+// MAIN ENHANCED ANALYTICS SCREEN
+// ============================================================================
+class EnhancedAnalyticsScreen extends StatefulWidget {
+  @override
+  _EnhancedAnalyticsScreenState createState() =>
+      _EnhancedAnalyticsScreenState();
+}
+
+class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     with TickerProviderStateMixin {
+  // ============================================================================
+  // DEPENDENCIES & CONTROLLERS
+  // ============================================================================
   final ApiService _apiService = ApiService();
   final WebSocketService _webSocketService = WebSocketService();
-  
+
   late TabController _tabController;
   late AnimationController _chartAnimationController;
   late StreamSubscription _realTimeSubscription;
-  
+
+  // ============================================================================
+  // STATE VARIABLES
+  // ============================================================================
   String _selectedTimeRange = '24h';
   String _selectedDeviceId = 'all';
   List<Map<String, dynamic>> _connectedDevices = [];
   DeviceType _deviceType = DeviceType.phone;
-  
+
   // Real-time analytics data
   Map<String, List<Map<String, dynamic>>> _batteryHistory = {};
   Map<String, List<Map<String, dynamic>>> _orderHistory = {};
@@ -32,17 +115,23 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   Map<String, List<Map<String, dynamic>>> _velocityHistory = {};
   Map<String, List<Map<String, dynamic>>> _errorHistory = {};
   Map<String, double> _realTimeMetrics = {};
-  
+  Map<String, List<Map<String, dynamic>>> _navigationHistory = {};
+  Map<String, Map<String, dynamic>> _currentNavigationStatus = {};
+  Map<String, double> _navigationMetrics = {};
+
   bool _isLoading = true;
   bool _autoRefresh = true;
   Timer? _refreshTimer;
 
+  // ============================================================================
+  // LIFECYCLE METHODS
+  // ============================================================================
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _chartAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: AppConstants.animationDuration,
       vsync: this,
     );
 
@@ -55,6 +144,18 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     _startAutoRefresh();
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _chartAnimationController.dispose();
+    _realTimeSubscription.cancel();
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  // ============================================================================
+  // DEVICE TYPE & RESPONSIVE HANDLING
+  // ============================================================================
   void _updateDeviceType() {
     final screenWidth = MediaQuery.of(context).size.width;
     setState(() {
@@ -68,15 +169,9 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     });
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _chartAnimationController.dispose();
-    _realTimeSubscription.cancel();
-    _refreshTimer?.cancel();
-    super.dispose();
-  }
-
+  // ============================================================================
+  // DATA INITIALIZATION & REAL-TIME UPDATES
+  // ============================================================================
   void _initializeData() async {
     _loadDevices();
     _loadAnalyticsData();
@@ -92,7 +187,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
 
   void _startAutoRefresh() {
     if (_autoRefresh) {
-      _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _refreshTimer = Timer.periodic(AppConstants.refreshInterval, (_) {
         if (mounted) {
           _loadAnalyticsData();
         }
@@ -122,15 +217,25 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         case 'order_completed':
           _updateOrderHistory(deviceId, data['data'], timestamp);
           break;
+        case 'navigation_feedback_update':
+          _updateNavigationFeedback(deviceId, data['data'], timestamp);
+          break;
+        case 'navigation_status_update':
+          _updateNavigationStatus(deviceId, data['data'], timestamp);
+          break;
       }
     });
   }
 
-  void _updateBatteryHistory(String deviceId, Map<String, dynamic> batteryData, DateTime timestamp) {
+  // ============================================================================
+  // DATA UPDATE METHODS
+  // ============================================================================
+  void _updateBatteryHistory(
+      String deviceId, Map<String, dynamic> batteryData, DateTime timestamp) {
     if (!_batteryHistory.containsKey(deviceId)) {
       _batteryHistory[deviceId] = [];
     }
-    
+
     _batteryHistory[deviceId]!.add({
       'timestamp': timestamp,
       'voltage': batteryData['voltage']?.toDouble() ?? 0.0,
@@ -140,15 +245,16 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     });
 
     final cutoff = timestamp.subtract(const Duration(hours: 24));
-    _batteryHistory[deviceId]!.removeWhere((item) => 
-        item['timestamp'].isBefore(cutoff));
+    _batteryHistory[deviceId]!
+        .removeWhere((item) => item['timestamp'].isBefore(cutoff));
   }
 
-  void _updateVelocityHistory(String deviceId, Map<String, dynamic> velocityData, DateTime timestamp) {
+  void _updateVelocityHistory(
+      String deviceId, Map<String, dynamic> velocityData, DateTime timestamp) {
     if (!_velocityHistory.containsKey(deviceId)) {
       _velocityHistory[deviceId] = [];
     }
-    
+
     _velocityHistory[deviceId]!.add({
       'timestamp': timestamp,
       'linear': velocityData['linear']?.toDouble() ?? 0.0,
@@ -156,15 +262,16 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     });
 
     final cutoff = timestamp.subtract(const Duration(hours: 1));
-    _velocityHistory[deviceId]!.removeWhere((item) => 
-        item['timestamp'].isBefore(cutoff));
+    _velocityHistory[deviceId]!
+        .removeWhere((item) => item['timestamp'].isBefore(cutoff));
   }
 
-  void _updateErrorHistory(String deviceId, Map<String, dynamic> errorData, DateTime timestamp) {
+  void _updateErrorHistory(
+      String deviceId, Map<String, dynamic> errorData, DateTime timestamp) {
     if (!_errorHistory.containsKey(deviceId)) {
       _errorHistory[deviceId] = [];
     }
-    
+
     _errorHistory[deviceId]!.add({
       'timestamp': timestamp,
       'type': errorData['type'] ?? 'unknown',
@@ -173,15 +280,16 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     });
 
     final cutoff = timestamp.subtract(const Duration(days: 7));
-    _errorHistory[deviceId]!.removeWhere((item) => 
-        item['timestamp'].isBefore(cutoff));
+    _errorHistory[deviceId]!
+        .removeWhere((item) => item['timestamp'].isBefore(cutoff));
   }
 
-  void _updateOrderHistory(String deviceId, Map<String, dynamic> orderData, DateTime timestamp) {
+  void _updateOrderHistory(
+      String deviceId, Map<String, dynamic> orderData, DateTime timestamp) {
     if (!_orderHistory.containsKey(deviceId)) {
       _orderHistory[deviceId] = [];
     }
-    
+
     _orderHistory[deviceId]!.add({
       'id': orderData['id'] ?? 'unknown',
       'name': orderData['name'] ?? 'Unnamed Order',
@@ -202,6 +310,74 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     });
   }
 
+  void _updateNavigationFeedback(
+      String deviceId, Map<String, dynamic> navData, DateTime timestamp) {
+    if (!_navigationHistory.containsKey(deviceId)) {
+      _navigationHistory[deviceId] = [];
+    }
+
+    final feedbackData = {
+      'timestamp': timestamp,
+      'current_position': {
+        'x': navData['current_pose']?['position']?['x']?.toDouble() ?? 0.0,
+        'y': navData['current_pose']?['position']?['y']?.toDouble() ?? 0.0,
+        'yaw':
+            navData['current_pose']?['orientation']?['yaw']?.toDouble() ?? 0.0,
+      },
+      'navigation_time': navData['navigation_time']?.toDouble() ?? 0.0,
+      'estimated_time_remaining':
+          navData['estimated_time_remaining']?.toDouble() ?? 0.0,
+      'distance_remaining': navData['distance_remaining']?.toDouble() ?? 0.0,
+      'number_of_recoveries': navData['number_of_recoveries']?.toInt() ?? 0,
+      'speed': navData['speed']?.toDouble() ?? 0.0,
+      'goal_pose': navData['goal_pose'] != null
+          ? {
+              'x': navData['goal_pose']['position']?['x']?.toDouble() ?? 0.0,
+              'y': navData['goal_pose']['position']?['y']?.toDouble() ?? 0.0,
+            }
+          : null,
+    };
+
+    _navigationHistory[deviceId]!.add(feedbackData);
+    _currentNavigationStatus[deviceId] = feedbackData;
+
+    if (_navigationHistory[deviceId]!.length > 100) {
+      _navigationHistory[deviceId]!.removeAt(0);
+    }
+
+    _navigationMetrics['current_speed_$deviceId'] = feedbackData['speed'];
+    _navigationMetrics['time_remaining_$deviceId'] =
+        feedbackData['estimated_time_remaining'];
+    _navigationMetrics['distance_remaining_$deviceId'] =
+        feedbackData['distance_remaining'];
+    _navigationMetrics['recoveries_$deviceId'] =
+        feedbackData['number_of_recoveries'].toDouble();
+  }
+
+  void _updateNavigationStatus(
+      String deviceId, Map<String, dynamic> statusData, DateTime timestamp) {
+    if (!_systemEvents.any((event) =>
+        event['deviceId'] == deviceId &&
+        event['message'].contains('Navigation') &&
+        event['timestamp'].isAfter(timestamp.subtract(Duration(seconds: 5))))) {
+      _systemEvents.insert(0, {
+        'timestamp': timestamp,
+        'type': statusData['status_text'] == 'SUCCEEDED' ? 'success' : 'info',
+        'message':
+            'Navigation ${statusData['status_text']}: ${statusData['result']?['error_msg'] ?? 'Status update'}',
+        'deviceId': deviceId,
+        'severity': statusData['status_text'] == 'ABORTED' ? 'high' : 'low',
+      });
+
+      if (_systemEvents.length > 50) {
+        _systemEvents = _systemEvents.take(50).toList();
+      }
+    }
+  }
+
+  // ============================================================================
+  // DATA LOADING METHODS
+  // ============================================================================
   void _loadDevices() async {
     try {
       final devices = await _apiService.getDevices();
@@ -235,7 +411,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       print('❌ Error loading analytics data: $e');
       _generateMockData();
     }
-    
+
     setState(() {
       _isLoading = false;
     });
@@ -246,21 +422,17 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       for (final device in _connectedDevices) {
         final deviceId = device['id'];
         final response = await _apiService.getAnalyticsData(
-          deviceId, 
-          'battery', 
-          _selectedTimeRange,
-        );
-        
+            deviceId, 'battery', _selectedTimeRange);
+
         if (response['success'] == true && response['data'] != null) {
-          _batteryHistory[deviceId] = List<Map<String, dynamic>>.from(
-            response['data'].map((item) => {
-              'timestamp': DateTime.parse(item['timestamp']),
-              'voltage': item['voltage']?.toDouble() ?? 0.0,
-              'percentage': item['percentage']?.toDouble() ?? 0.0,
-              'current': item['current']?.toDouble() ?? 0.0,
-              'temperature': item['temperature']?.toDouble() ?? 25.0,
-            })
-          );
+          _batteryHistory[deviceId] =
+              List<Map<String, dynamic>>.from(response['data'].map((item) => {
+                    'timestamp': DateTime.parse(item['timestamp']),
+                    'voltage': item['voltage']?.toDouble() ?? 0.0,
+                    'percentage': item['percentage']?.toDouble() ?? 0.0,
+                    'current': item['current']?.toDouble() ?? 0.0,
+                    'temperature': item['temperature']?.toDouble() ?? 25.0,
+                  }));
         }
       }
     } catch (e) {
@@ -273,24 +445,20 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       for (final device in _connectedDevices) {
         final deviceId = device['id'];
         final response = await _apiService.getAnalyticsData(
-          deviceId, 
-          'orders', 
-          _selectedTimeRange,
-        );
-        
+            deviceId, 'orders', _selectedTimeRange);
+
         if (response['success'] == true && response['data'] != null) {
-          _orderHistory[deviceId] = List<Map<String, dynamic>>.from(
-            response['data'].map((item) => {
-              'id': item['id'] ?? 'unknown',
-              'name': item['name'] ?? 'Unnamed Order',
-              'createdAt': DateTime.parse(item['createdAt']),
-              'completedAt': DateTime.parse(item['completedAt']),
-              'duration': item['duration']?.toDouble() ?? 0.0,
-              'distance': item['distance']?.toDouble() ?? 0.0,
-              'waypoints': item['waypoints'] ?? 0,
-              'status': item['status'] ?? 'completed',
-            })
-          );
+          _orderHistory[deviceId] =
+              List<Map<String, dynamic>>.from(response['data'].map((item) => {
+                    'id': item['id'] ?? 'unknown',
+                    'name': item['name'] ?? 'Unnamed Order',
+                    'createdAt': DateTime.parse(item['createdAt']),
+                    'completedAt': DateTime.parse(item['completedAt']),
+                    'duration': item['duration']?.toDouble() ?? 0.0,
+                    'distance': item['distance']?.toDouble() ?? 0.0,
+                    'waypoints': item['waypoints'] ?? 0,
+                    'status': item['status'] ?? 'completed',
+                  }));
         }
       }
     } catch (e) {
@@ -303,11 +471,8 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       for (final device in _connectedDevices) {
         final deviceId = device['id'];
         final response = await _apiService.getAnalyticsData(
-          deviceId, 
-          'stats', 
-          _selectedTimeRange,
-        );
-        
+            deviceId, 'stats', _selectedTimeRange);
+
         if (response['success'] == true && response['data'] != null) {
           _deviceStats[deviceId] = Map<String, dynamic>.from(response['data']);
         }
@@ -320,21 +485,20 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   Future<void> _loadSystemEvents() async {
     try {
       final response = await _apiService.getAnalyticsData(
-        _selectedDeviceId == 'all' ? null : _selectedDeviceId, 
-        'events', 
+        _selectedDeviceId == 'all' ? null : _selectedDeviceId,
+        'events',
         _selectedTimeRange,
       );
-      
+
       if (response['success'] == true && response['data'] != null) {
-        _systemEvents = List<Map<String, dynamic>>.from(
-          response['data'].map((item) => {
-            'timestamp': DateTime.parse(item['timestamp']),
-            'type': item['type'] ?? 'info',
-            'message': item['message'] ?? 'Unknown event',
-            'deviceId': item['deviceId'] ?? 'unknown',
-            'severity': item['severity'] ?? 'info',
-          })
-        );
+        _systemEvents =
+            List<Map<String, dynamic>>.from(response['data'].map((item) => {
+                  'timestamp': DateTime.parse(item['timestamp']),
+                  'type': item['type'] ?? 'info',
+                  'message': item['message'] ?? 'Unknown event',
+                  'deviceId': item['deviceId'] ?? 'unknown',
+                  'severity': item['severity'] ?? 'info',
+                }));
       }
     } catch (e) {
       print('❌ Error loading system events: $e');
@@ -346,19 +510,15 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       for (final device in _connectedDevices) {
         final deviceId = device['id'];
         final response = await _apiService.getAnalyticsData(
-          deviceId, 
-          'performance', 
-          _selectedTimeRange,
-        );
-        
+            deviceId, 'performance', _selectedTimeRange);
+
         if (response['success'] == true && response['data'] != null) {
-          _velocityHistory[deviceId] = List<Map<String, dynamic>>.from(
-            response['data'].map((item) => {
-              'timestamp': DateTime.parse(item['timestamp']),
-              'linear': item['linear']?.toDouble() ?? 0.0,
-              'angular': item['angular']?.toDouble() ?? 0.0,
-            })
-          );
+          _velocityHistory[deviceId] =
+              List<Map<String, dynamic>>.from(response['data'].map((item) => {
+                    'timestamp': DateTime.parse(item['timestamp']),
+                    'linear': item['linear']?.toDouble() ?? 0.0,
+                    'angular': item['angular']?.toDouble() ?? 0.0,
+                  }));
         }
       }
     } catch (e) {
@@ -369,28 +529,30 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   void _generateMockData() {
     final random = math.Random();
     final now = DateTime.now();
-    
+
     for (final device in _connectedDevices) {
       final deviceId = device['id'];
-      
+
       _batteryHistory[deviceId] = List.generate(24, (index) {
         final timestamp = now.subtract(Duration(hours: 23 - index));
         return {
           'timestamp': timestamp,
           'voltage': 11.5 + random.nextDouble() * 1.0,
-          'percentage': math.max(10.0, 100.0 - (index * 2) + random.nextDouble() * 10),
+          'percentage':
+              math.max(10.0, 100.0 - (index * 2) + random.nextDouble() * 10),
           'current': 0.5 + random.nextDouble() * 2.0,
           'temperature': 20.0 + random.nextDouble() * 15.0,
         };
       });
-      
+
       _orderHistory[deviceId] = List.generate(15, (index) {
         final completedAt = now.subtract(Duration(hours: random.nextInt(168)));
         final duration = 15.0 + random.nextDouble() * 45.0;
         return {
           'id': 'order_${deviceId}_$index',
           'name': 'Order ${index + 1}',
-          'createdAt': completedAt.subtract(Duration(minutes: duration.toInt())),
+          'createdAt':
+              completedAt.subtract(Duration(minutes: duration.toInt())),
           'completedAt': completedAt,
           'duration': duration,
           'distance': 50.0 + random.nextDouble() * 200.0,
@@ -398,10 +560,13 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
           'status': 'completed',
         };
       });
-      
+
       _deviceStats[deviceId] = {
         'totalOrders': _orderHistory[deviceId]?.length ?? 0,
-        'completedOrders': _orderHistory[deviceId]?.where((o) => o['status'] == 'completed').length ?? 0,
+        'completedOrders': _orderHistory[deviceId]
+                ?.where((o) => o['status'] == 'completed')
+                .length ??
+            0,
         'averageOrderTime': 32.5 + random.nextDouble() * 20.0,
         'totalUptime': 180.0 + random.nextDouble() * 24.0,
         'totalDistance': 50.0 + random.nextDouble() * 100.0,
@@ -410,7 +575,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         'errorCount': random.nextInt(5),
         'averageSpeed': 0.3 + random.nextDouble() * 0.5,
       };
-      
+
       _velocityHistory[deviceId] = List.generate(60, (index) {
         final timestamp = now.subtract(Duration(minutes: 59 - index));
         return {
@@ -420,7 +585,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         };
       });
     }
-    
+
     _systemEvents = List.generate(20, (index) {
       final eventTypes = ['info', 'warning', 'error', 'success'];
       final messages = [
@@ -433,24 +598,28 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         'Communication timeout',
         'Charging session completed',
       ];
-      
+
       return {
         'timestamp': now.subtract(Duration(hours: random.nextInt(72))),
         'type': eventTypes[random.nextInt(eventTypes.length)],
         'message': messages[random.nextInt(messages.length)],
-        'deviceId': _connectedDevices.isNotEmpty 
-            ? _connectedDevices[random.nextInt(_connectedDevices.length)]['id'] 
+        'deviceId': _connectedDevices.isNotEmpty
+            ? _connectedDevices[random.nextInt(_connectedDevices.length)]['id']
             : 'unknown',
         'severity': ['low', 'medium', 'high'][random.nextInt(3)],
       };
-    })..sort((a, b) => b['timestamp'].compareTo(a['timestamp']));
+    })
+      ..sort((a, b) => b['timestamp'].compareTo(a['timestamp']));
   }
 
+  // ============================================================================
+  // BUILD METHODS - MAIN UI
+  // ============================================================================
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
     return Scaffold(
+      backgroundColor: AppColors.surface,
       appBar: _buildEnhancedAppBar(theme),
       body: _buildResponsiveBody(),
     );
@@ -460,18 +629,16 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     return AppBar(
       title: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [theme.primaryColor, theme.primaryColor.withOpacity(0.7)],
-              ),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.analytics, color: Colors.white, size: 20),
+          EnhancedIconContainer(
+            icon: Icons.analytics,
+            gradient: LinearGradient(colors: [
+              theme.primaryColor,
+              theme.primaryColor.withOpacity(0.7)
+            ]),
           ),
           const SizedBox(width: 12),
-          const Text('Analytics & Reports'),
+          Text('Analytics & Reports',
+              style: AppTextStyles.heading3.copyWith(color: Colors.white)),
         ],
       ),
       backgroundColor: theme.primaryColor,
@@ -481,10 +648,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              theme.primaryColor,
-              theme.primaryColor.withOpacity(0.8),
-            ],
+            colors: [theme.primaryColor, theme.primaryColor.withOpacity(0.8)],
           ),
         ),
       ),
@@ -493,47 +657,34 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         const SizedBox(width: 8),
         _buildDeviceSelector(),
         const SizedBox(width: 8),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: _autoRefresh 
-                  ? [Colors.green.shade400, Colors.green.shade600]
-                  : [Colors.grey.shade400, Colors.grey.shade600],
-            ),
-            borderRadius: BorderRadius.circular(20),
+        EnhancedActionButton(
+          icon: _autoRefresh ? Icons.sync : Icons.sync_disabled,
+          gradient: LinearGradient(
+            colors: _autoRefresh
+                ? [AppColors.success, AppColors.success.withOpacity(0.8)]
+                : [Colors.grey.shade400, Colors.grey.shade600],
           ),
-          child: IconButton(
-            icon: Icon(_autoRefresh ? Icons.sync : Icons.sync_disabled, color: Colors.white),
-            onPressed: () {
-              setState(() {
-                _autoRefresh = !_autoRefresh;
-              });
-              
-              _refreshTimer?.cancel();
-              if (_autoRefresh) {
-                _startAutoRefresh();
-              }
-            },
-            tooltip: _autoRefresh ? 'Disable Auto Refresh' : 'Enable Auto Refresh',
-          ),
+          onPressed: () {
+            setState(() {
+              _autoRefresh = !_autoRefresh;
+            });
+            _refreshTimer?.cancel();
+            if (_autoRefresh) {
+              _startAutoRefresh();
+            }
+          },
+          tooltip:
+              _autoRefresh ? 'Disable Auto Refresh' : 'Enable Auto Refresh',
         ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.blue.shade400, Colors.blue.shade600],
-            ),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _loadAnalyticsData,
-            tooltip: 'Refresh Data',
-          ),
+        EnhancedActionButton(
+          icon: Icons.refresh,
+          gradient: LinearGradient(
+              colors: [AppColors.info, AppColors.info.withOpacity(0.8)]),
+          onPressed: _loadAnalyticsData,
+          tooltip: 'Refresh Data',
         ),
       ],
-      bottom: _deviceType != DeviceType.phone 
+      bottom: _deviceType != DeviceType.phone
           ? TabBar(
               controller: _tabController,
               indicatorColor: Colors.white,
@@ -544,6 +695,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
                 Tab(icon: Icon(Icons.dashboard), text: 'Overview'),
                 Tab(icon: Icon(Icons.battery_std), text: 'Performance'),
                 Tab(icon: Icon(Icons.list_alt), text: 'Orders'),
+                Tab(icon: Icon(Icons.navigation), text: 'Navigation'),
                 Tab(icon: Icon(Icons.event), text: 'Events'),
                 Tab(icon: Icon(Icons.speed), text: 'Real-time'),
               ],
@@ -553,65 +705,43 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   }
 
   Widget _buildTimeRangeSelector() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: DropdownButton<String>(
-        value: _selectedTimeRange,
-        dropdownColor: Colors.grey[800],
-        style: const TextStyle(color: Colors.white),
-        underline: Container(),
-        items: const [
-          DropdownMenuItem(value: '1h', child: Text('Last Hour')),
-          DropdownMenuItem(value: '24h', child: Text('Last 24h')),
-          DropdownMenuItem(value: '7d', child: Text('Last 7 days')),
-          DropdownMenuItem(value: '30d', child: Text('Last 30 days')),
-        ],
-        onChanged: (value) {
-          if (value != null) {
-            setState(() {
-              _selectedTimeRange = value;
-            });
-            _loadAnalyticsData();
-          }
-        },
-      ),
+    return EnhancedDropdown<String>(
+      value: _selectedTimeRange,
+      items: const [
+        DropdownMenuItem(value: '1h', child: Text('Last Hour')),
+        DropdownMenuItem(value: '24h', child: Text('Last 24h')),
+        DropdownMenuItem(value: '7d', child: Text('Last 7 days')),
+        DropdownMenuItem(value: '30d', child: Text('Last 30 days')),
+      ],
+      onChanged: (value) {
+        if (value != null) {
+          setState(() {
+            _selectedTimeRange = value;
+          });
+          _loadAnalyticsData();
+        }
+      },
     );
   }
 
   Widget _buildDeviceSelector() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: DropdownButton<String>(
-        value: _selectedDeviceId,
-        dropdownColor: Colors.grey[800],
-        style: const TextStyle(color: Colors.white),
-        underline: Container(),
-        items: [
-          const DropdownMenuItem(value: 'all', child: Text('All Devices')),
-          ..._connectedDevices.map((device) => DropdownMenuItem(
-            value: device['id'],
-            child: Text(device['name'] ?? device['id']),
-          )),
-        ],
-        onChanged: (value) {
-          if (value != null) {
-            setState(() {
-              _selectedDeviceId = value;
-            });
-            _loadAnalyticsData();
-          }
-        },
-      ),
+    return EnhancedDropdown<String>(
+      value: _selectedDeviceId,
+      items: [
+        const DropdownMenuItem(value: 'all', child: Text('All Devices')),
+        ..._connectedDevices.map((device) => DropdownMenuItem(
+              value: device['id'],
+              child: Text(device['name'] ?? device['id']),
+            )),
+      ],
+      onChanged: (value) {
+        if (value != null) {
+          setState(() {
+            _selectedDeviceId = value;
+          });
+          _loadAnalyticsData();
+        }
+      },
     );
   }
 
@@ -663,11 +793,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
           const SizedBox(height: 20),
           Text(
             'Loading Analytics Data...',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
+            style: AppTextStyles.subtitle.copyWith(color: Colors.grey.shade600),
           ),
         ],
       ),
@@ -681,6 +807,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         _buildOverviewTab(),
         _buildPerformanceTab(),
         _buildOrdersTab(),
+        _buildNavigationTab(),
         _buildEventsTab(),
         _buildRealTimeTab(),
       ],
@@ -692,10 +819,8 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       children: [
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border(
-              bottom: BorderSide(color: Colors.grey.shade300),
-            ),
+            color: AppColors.cardBackground,
+            border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
           ),
           child: TabBar(
             controller: _tabController,
@@ -707,6 +832,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
               Tab(icon: Icon(Icons.dashboard), text: 'Overview'),
               Tab(icon: Icon(Icons.battery_std), text: 'Performance'),
               Tab(icon: Icon(Icons.list_alt), text: 'Orders'),
+              Tab(icon: Icon(Icons.navigation), text: 'Navigation'),
               Tab(icon: Icon(Icons.event), text: 'Events'),
               Tab(icon: Icon(Icons.speed), text: 'Real-time'),
             ],
@@ -719,6 +845,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
               _buildOverviewTab(),
               _buildPerformanceTab(),
               _buildOrdersTab(),
+              _buildNavigationTab(),
               _buildEventsTab(),
               _buildRealTimeTab(),
             ],
@@ -738,6 +865,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
               _buildOverviewTab(),
               _buildPerformanceTab(),
               _buildOrdersTab(),
+              _buildNavigationTab(),
               _buildEventsTab(),
               _buildRealTimeTab(),
             ],
@@ -745,10 +873,8 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         ),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border(
-              top: BorderSide(color: Colors.grey.shade300),
-            ),
+            color: AppColors.cardBackground,
+            border: Border(top: BorderSide(color: Colors.grey.shade300)),
           ),
           child: TabBar(
             controller: _tabController,
@@ -759,6 +885,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
               Tab(icon: Icon(Icons.dashboard, size: 20), text: 'Overview'),
               Tab(icon: Icon(Icons.battery_std, size: 20), text: 'Performance'),
               Tab(icon: Icon(Icons.list_alt, size: 20), text: 'Orders'),
+              Tab(icon: Icon(Icons.navigation, size: 20), text: 'Nav'),
               Tab(icon: Icon(Icons.event, size: 20), text: 'Events'),
               Tab(icon: Icon(Icons.speed, size: 20), text: 'Live'),
             ],
@@ -768,6 +895,9 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     );
   }
 
+  // ============================================================================
+  // TAB CONTENT BUILDERS
+  // ============================================================================
   Widget _buildOverviewTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -786,10 +916,16 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
 
   Widget _buildOverviewMetrics() {
     final totalDevices = _connectedDevices.length;
-    final activeDevices = _connectedDevices.where((d) => d['status'] == 'connected').length;
-    final totalOrders = _deviceStats.values.fold(0, (sum, stats) => sum + (stats['totalOrders'] as int? ?? 0));
-    final averageUptime = _deviceStats.values.isNotEmpty 
-        ? _deviceStats.values.fold(0.0, (sum, stats) => sum + (stats['totalUptime'] as double? ?? 0.0)) / _deviceStats.length
+    final activeDevices =
+        _connectedDevices.where((d) => d['status'] == 'connected').length;
+    final totalOrders = _deviceStats.values
+        .fold(0, (sum, stats) => sum + (stats['totalOrders'] as int? ?? 0));
+    final averageUptime = _deviceStats.values.isNotEmpty
+        ? _deviceStats.values.fold(
+                0.0,
+                (sum, stats) =>
+                    sum + (stats['totalUptime'] as double? ?? 0.0)) /
+            _deviceStats.length
         : 0.0;
 
     return AnimatedBuilder(
@@ -797,211 +933,75 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       builder: (context, child) {
         return Row(
           children: [
-            Expanded(child: _buildEnhancedMetricCard('Fleet Size', totalDevices.toString(), Icons.devices, Colors.blue)),
+            Expanded(
+                child: EnhancedMetricCard(
+              title: 'Fleet Size',
+              value: totalDevices.toString(),
+              icon: Icons.devices,
+              color: AppColors.info,
+            )),
             const SizedBox(width: 12),
-            Expanded(child: _buildEnhancedMetricCard('Active Devices', activeDevices.toString(), Icons.power, Colors.green)),
+            Expanded(
+                child: EnhancedMetricCard(
+              title: 'Active Devices',
+              value: activeDevices.toString(),
+              icon: Icons.power,
+              color: AppColors.success,
+            )),
             const SizedBox(width: 12),
-            Expanded(child: _buildEnhancedMetricCard('Total Orders', totalOrders.toString(), Icons.assignment, Colors.orange)),
+            Expanded(
+                child: EnhancedMetricCard(
+              title: 'Total Orders',
+              value: totalOrders.toString(),
+              icon: Icons.assignment,
+              color: AppColors.warning,
+            )),
             const SizedBox(width: 12),
-            Expanded(child: _buildEnhancedMetricCard('Avg Uptime', '${averageUptime.toStringAsFixed(0)}h', Icons.schedule, Colors.purple)),
+            Expanded(
+                child: EnhancedMetricCard(
+              title: 'Avg Uptime',
+              value: '${averageUptime.toStringAsFixed(0)}h',
+              icon: Icons.schedule,
+              color: Colors.purple,
+            )),
           ],
         );
       },
     );
   }
 
-  Widget _buildEnhancedMetricCard(String title, String value, IconData icon, Color color) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color.withOpacity(0.1),
-            color.withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [color, color.withOpacity(0.8)],
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Icon(icon, size: 24, color: Colors.white),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildFleetHealthCard() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.blue.shade50,
-            Colors.white,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+    return EnhancedCard(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [AppColors.info.withOpacity(0.1), AppColors.cardBackground],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.blue, Colors.blue.shade700],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.health_and_safety, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Fleet Health Overview',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (_connectedDevices.isEmpty)
-              const Center(child: Text('No devices available'))
-            else
-              ..._connectedDevices.map((device) {
-                final deviceId = device['id'];
-                final stats = _deviceStats[deviceId];
-                final batteryLevel = stats?['currentBattery']?.toDouble() ?? 0.0;
-                final isOnline = device['status'] == 'connected';
-                
-                return Container(
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isOnline ? Colors.green : Colors.red,
-                          boxShadow: [
-                            BoxShadow(
-                              color: (isOnline ? Colors.green : Colors.red).withOpacity(0.3),
-                              blurRadius: 4,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: Text(
-                          device['name'] ?? device['id'],
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 3,
-                        child: Container(
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: FractionallySizedBox(
-                            alignment: Alignment.centerLeft,
-                            widthFactor: batteryLevel / 100.0,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: batteryLevel > 30 
-                                      ? [Colors.green.shade400, Colors.green.shade600]
-                                      : batteryLevel > 15 
-                                          ? [Colors.orange.shade400, Colors.orange.shade600]
-                                          : [Colors.red.shade400, Colors.red.shade600],
-                                ),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        '${batteryLevel.toStringAsFixed(0)}%',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-          ],
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CardHeader(
+            title: 'Fleet Health Overview',
+            icon: Icons.health_and_safety,
+            color: AppColors.info,
+          ),
+          const SizedBox(height: 16),
+          if (_connectedDevices.isEmpty)
+            const Center(child: Text('No devices available'))
+          else
+            ..._connectedDevices.map((device) {
+              final deviceId = device['id'];
+              final stats = _deviceStats[deviceId];
+              final batteryLevel = stats?['currentBattery']?.toDouble() ?? 0.0;
+              final isOnline = device['status'] == 'connected';
+
+              return DeviceHealthItem(
+                device: device,
+                batteryLevel: batteryLevel,
+                isOnline: isOnline,
+              );
+            }),
+        ],
       ),
     );
   }
@@ -1015,68 +1015,27 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       mainAxisSpacing: 12,
       childAspectRatio: 1.2,
       children: [
-        _buildEnhancedStatCard('Total Distance', _getTotalDistance(), Icons.route, Colors.blue),
-        _buildEnhancedStatCard('Avg Order Time', _getAverageOrderTime(), Icons.timer, Colors.green),
-        _buildEnhancedStatCard('Success Rate', _getSuccessRate(), Icons.check_circle, Colors.orange),
-        _buildEnhancedStatCard('Active Orders', _getActiveOrders(), Icons.play_circle, Colors.purple),
+        EnhancedStatCard(
+            title: 'Total Distance',
+            value: _getTotalDistance(),
+            icon: Icons.route,
+            color: AppColors.info),
+        EnhancedStatCard(
+            title: 'Avg Order Time',
+            value: _getAverageOrderTime(),
+            icon: Icons.timer,
+            color: AppColors.success),
+        EnhancedStatCard(
+            title: 'Success Rate',
+            value: _getSuccessRate(),
+            icon: Icons.check_circle,
+            color: AppColors.warning),
+        EnhancedStatCard(
+            title: 'Active Orders',
+            value: _getActiveOrders(),
+            icon: Icons.play_circle,
+            color: Colors.purple),
       ],
-    );
-  }
-
-  Widget _buildEnhancedStatCard(String title, String value, IconData icon, Color color) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color.withOpacity(0.1),
-            color.withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [color, color.withOpacity(0.8)],
-                ),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 24, color: Colors.white),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1096,146 +1055,78 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   }
 
   Widget _buildBatteryChart() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.green.shade50,
-            Colors.white,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.green.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return EnhancedCard(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [AppColors.success.withOpacity(0.1), AppColors.cardBackground],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CardHeader(
+            title: 'Battery Levels (${_getTimeRangeLabel()})',
+            icon: Icons.battery_std,
+            color: AppColors.success,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            height: 200,
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: EnhancedBatteryChartPainter(
+                  _batteryHistory, _selectedDeviceId),
+            ),
           ),
         ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.green, Colors.green.shade700],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.battery_std, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Battery Levels (${_getTimeRangeLabel()})',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              height: 200,
-              child: CustomPaint(
-                size: Size.infinite,
-                painter: EnhancedBatteryChartPainter(_batteryHistory, _selectedDeviceId),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
 
   Widget _buildVelocityChart() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.blue.shade50,
-            Colors.white,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return EnhancedCard(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [AppColors.info.withOpacity(0.1), AppColors.cardBackground],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CardHeader(
+            title: 'Velocity History (${_getTimeRangeLabel()})',
+            icon: Icons.speed,
+            color: AppColors.info,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            height: 200,
+            child: CustomPaint(
+              size: Size.infinite,
+              painter:
+                  VelocityChartPainter(_velocityHistory, _selectedDeviceId),
+            ),
           ),
         ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.blue, Colors.blue.shade700],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.speed, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Velocity History (${_getTimeRangeLabel()})',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              height: 200,
-              child: CustomPaint(
-                size: Size.infinite,
-                painter: VelocityChartPainter(_velocityHistory, _selectedDeviceId),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
 
   Widget _buildPerformanceMetrics() {
     if (_selectedDeviceId == 'all') {
-      return Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.purple.shade50,
-              Colors.white,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.purple.withOpacity(0.2)),
+      return EnhancedCard(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.purple.withOpacity(0.1), AppColors.cardBackground],
         ),
-        padding: const EdgeInsets.all(24),
-        child: const Column(
+        child: Column(
           children: [
             Icon(Icons.analytics, size: 48, color: Colors.purple),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               'Select a specific device to view detailed performance metrics',
-              style: TextStyle(fontSize: 16),
+              style: AppTextStyles.subtitle,
               textAlign: TextAlign.center,
             ),
           ],
@@ -1245,23 +1136,10 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
 
     final stats = _deviceStats[_selectedDeviceId];
     if (stats == null) {
-      return Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.grey.shade50,
-              Colors.white,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.withOpacity(0.2)),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: const Text(
+      return EnhancedCard(
+        child: Text(
           'No performance data available for this device',
-          style: TextStyle(fontSize: 16),
+          style: AppTextStyles.subtitle,
           textAlign: TextAlign.center,
         ),
       );
@@ -1271,109 +1149,64 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   }
 
   Widget _buildDevicePerformanceDetails(Map<String, dynamic> stats) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.indigo.shade50,
-            Colors.white,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.indigo.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.indigo.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+    return EnhancedCard(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Colors.indigo.withOpacity(0.1), AppColors.cardBackground],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.indigo, Colors.indigo.shade700],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.assessment, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Performance Metrics',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: _deviceType == DeviceType.phone ? 2 : 3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.5,
-              children: [
-                _buildMetricItem('Total Orders', stats['totalOrders'].toString(), Icons.assignment, Colors.blue),
-                _buildMetricItem('Completed', stats['completedOrders'].toString(), Icons.check_circle, Colors.green),
-                _buildMetricItem('Avg Time', '${(stats['averageOrderTime'] as double).toStringAsFixed(1)} min', Icons.timer, Colors.orange),
-                _buildMetricItem('Uptime', '${(stats['totalUptime'] as double).toStringAsFixed(0)} h', Icons.schedule, Colors.purple),
-                _buildMetricItem('Distance', '${(stats['totalDistance'] as double).toStringAsFixed(1)} km', Icons.route, Colors.teal),
-                _buildMetricItem('Avg Speed', '${(stats['averageSpeed'] as double).toStringAsFixed(2)} m/s', Icons.speed, Colors.red),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMetricItem(String label, String value, IconData icon, Color color) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(12),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: color,
-              fontSize: 14,
-            ),
+          CardHeader(
+            title: 'Performance Metrics',
+            icon: Icons.assessment,
+            color: Colors.indigo,
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey.shade600,
-            ),
-            textAlign: TextAlign.center,
+          const SizedBox(height: 16),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: _deviceType == DeviceType.phone ? 2 : 3,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.5,
+            children: [
+              MetricItem(
+                  label: 'Total Orders',
+                  value: stats['totalOrders'].toString(),
+                  icon: Icons.assignment,
+                  color: AppColors.info),
+              MetricItem(
+                  label: 'Completed',
+                  value: stats['completedOrders'].toString(),
+                  icon: Icons.check_circle,
+                  color: AppColors.success),
+              MetricItem(
+                  label: 'Avg Time',
+                  value:
+                      '${(stats['averageOrderTime'] as double).toStringAsFixed(1)} min',
+                  icon: Icons.timer,
+                  color: AppColors.warning),
+              MetricItem(
+                  label: 'Uptime',
+                  value:
+                      '${(stats['totalUptime'] as double).toStringAsFixed(0)} h',
+                  icon: Icons.schedule,
+                  color: Colors.purple),
+              MetricItem(
+                  label: 'Distance',
+                  value:
+                      '${(stats['totalDistance'] as double).toStringAsFixed(1)} km',
+                  icon: Icons.route,
+                  color: Colors.teal),
+              MetricItem(
+                  label: 'Avg Speed',
+                  value:
+                      '${(stats['averageSpeed'] as double).toStringAsFixed(2)} m/s',
+                  icon: Icons.speed,
+                  color: AppColors.error),
+            ],
           ),
         ],
       ),
@@ -1381,28 +1214,33 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   }
 
   Widget _buildOrdersTab() {
-    final relevantOrders = _selectedDeviceId == 'all' 
+    final relevantOrders = _selectedDeviceId == 'all'
         ? _orderHistory.values.expand((orders) => orders).toList()
         : _orderHistory[_selectedDeviceId] ?? [];
 
-    relevantOrders.sort((a, b) => (b['completedAt'] as DateTime).compareTo(a['completedAt'] as DateTime));
+    relevantOrders.sort((a, b) =>
+        (b['completedAt'] as DateTime).compareTo(a['completedAt'] as DateTime));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildOrdersHeader(relevantOrders.length),
+          OrdersHeader(totalOrders: relevantOrders.length),
           const SizedBox(height: 16),
           if (relevantOrders.isEmpty)
-            _buildEmptyOrdersCard()
+            EmptyStateCard(
+              icon: Icons.inbox,
+              title: 'No order history available',
+              subtitle: 'Orders will appear here once completed',
+            )
           else
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: relevantOrders.length,
               itemBuilder: (context, index) {
-                return _buildOrderHistoryCard(relevantOrders[index]);
+                return OrderHistoryCard(order: relevantOrders[index]);
               },
             ),
         ],
@@ -1410,193 +1248,133 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     );
   }
 
-  Widget _buildOrdersHeader(int totalOrders) {
-    return Container(
+  Widget _buildNavigationTab() {
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.orange.shade50,
-            Colors.orange.shade100,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade300),
-      ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.orange,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.list_alt, color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Order History',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'Total: $totalOrders orders completed',
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          ),
-          if (totalOrders > 0)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.orange,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '$totalOrders',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+          NavigationHeader(activeNavigations: _currentNavigationStatus.length),
+          const SizedBox(height: 16),
+          _buildCurrentNavigationStatus(),
+          const SizedBox(height: 20),
+          _buildNavigationMetrics(),
+          const SizedBox(height: 20),
+          _buildNavigationHistory(),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyOrdersCard() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.grey.shade50,
-            Colors.white,
-          ],
+  Widget _buildCurrentNavigationStatus() {
+    if (_selectedDeviceId == 'all') {
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: _deviceType == DeviceType.phone ? 1 : 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.5,
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+        itemCount: _currentNavigationStatus.length,
+        itemBuilder: (context, index) {
+          final deviceId = _currentNavigationStatus.keys.elementAt(index);
+          final status = _currentNavigationStatus[deviceId]!;
+          return NavigationStatusCard(deviceId: deviceId, status: status);
+        },
+      );
+    } else if (_currentNavigationStatus.containsKey(_selectedDeviceId)) {
+      return NavigationStatusCard(
+        deviceId: _selectedDeviceId,
+        status: _currentNavigationStatus[_selectedDeviceId]!,
+      );
+    } else {
+      return EmptyStateCard(
+        icon: Icons.navigation_outlined,
+        title: 'No active navigation',
+        subtitle:
+            'Navigation data will appear here when robots are actively navigating',
+      );
+    }
+  }
+
+  Widget _buildNavigationMetrics() {
+    return EnhancedCard(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Colors.indigo.withOpacity(0.1), AppColors.cardBackground],
       ),
-      padding: const EdgeInsets.all(32),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.inbox,
-            size: 64,
-            color: Colors.grey.shade400,
+          CardHeader(
+            title: 'Navigation Statistics',
+            icon: Icons.analytics,
+            color: Colors.indigo,
           ),
           const SizedBox(height: 16),
-          Text(
-            'No order history available',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Orders will appear here once completed',
-            style: TextStyle(color: Colors.grey.shade500),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: _deviceType == DeviceType.phone ? 2 : 4,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.2,
+            children: [
+              EnhancedStatCard(
+                  title: 'Avg Speed',
+                  value: _getAverageNavigationSpeed(),
+                  icon: Icons.speed,
+                  color: AppColors.info),
+              EnhancedStatCard(
+                  title: 'Total Recoveries',
+                  value: _getTotalRecoveries(),
+                  icon: Icons.refresh,
+                  color: AppColors.error),
+              EnhancedStatCard(
+                  title: 'Success Rate',
+                  value: _getNavigationSuccessRate(),
+                  icon: Icons.check_circle,
+                  color: AppColors.success),
+              EnhancedStatCard(
+                  title: 'Avg Time',
+                  value: _getAverageNavigationTime(),
+                  icon: Icons.timer,
+                  color: AppColors.warning),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildOrderHistoryCard(Map<String, dynamic> order) {
-    final completedAt = order['completedAt'] as DateTime;
-    final duration = order['duration'] as double;
-    final distance = order['distance'] as double;
-    
-    Color statusColor = Colors.green;
-    if (duration > 60) {
-      statusColor = Colors.red;
-    } else if (duration > 30) {
-      statusColor = Colors.orange;
-    }
-    
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white,
-            Colors.grey.shade50,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+  Widget _buildNavigationHistory() {
+    return EnhancedCard(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Colors.purple.withOpacity(0.1), AppColors.cardBackground],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CardHeader(
+            title: 'Navigation Timeline',
+            icon: Icons.history,
+            color: Colors.purple,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            height: 200,
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: NavigationTimelinePainter(
+                  _navigationHistory, _selectedDeviceId),
+            ),
           ),
         ],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [statusColor, statusColor.withOpacity(0.8)],
-            ),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.check, color: Colors.white),
-        ),
-        title: Text(
-          order['name'],
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Completed: ${_formatDateTime(completedAt)}'),
-            Text('Distance: ${distance.toStringAsFixed(1)} m'),
-            Text('Waypoints: ${order['waypoints']}'),
-          ],
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              '${duration.toStringAsFixed(0)}m',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: statusColor,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                duration < 30 ? 'FAST' : duration < 60 ? 'NORMAL' : 'SLOW',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: statusColor,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1607,217 +1385,24 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildEventsHeader(),
+          EventsHeader(totalEvents: _systemEvents.length),
           const SizedBox(height: 16),
           if (_systemEvents.isEmpty)
-            _buildEmptyEventsCard()
+            EmptyStateCard(
+              icon: Icons.event_note,
+              title: 'No system events recorded',
+              subtitle: 'System events will appear here as they occur',
+            )
           else
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _systemEvents.length,
               itemBuilder: (context, index) {
-                return _buildEventCard(_systemEvents[index]);
+                return EventCard(event: _systemEvents[index]);
               },
             ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildEventsHeader() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.red.shade50,
-            Colors.red.shade100,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade300),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.red,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.event, color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'System Events',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'Total: ${_systemEvents.length} events recorded',
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyEventsCard() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.grey.shade50,
-            Colors.white,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withOpacity(0.2)),
-      ),
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        children: [
-          Icon(
-            Icons.event_note,
-            size: 64,
-            color: Colors.grey.shade400,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No system events recorded',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'System events will appear here as they occur',
-            style: TextStyle(color: Colors.grey.shade500),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEventCard(Map<String, dynamic> event) {
-    final type = event['type'];
-    final severity = event['severity'];
-    
-    Color color;
-    IconData icon;
-
-    switch (type) {
-      case 'error':
-        color = Colors.red;
-        icon = Icons.error;
-        break;
-      case 'warning':
-        color = Colors.orange;
-        icon = Icons.warning;
-        break;
-      case 'success':
-        color = Colors.green;
-        icon = Icons.check_circle;
-        break;
-      default:
-        color = Colors.blue;
-        icon = Icons.info;
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white,
-            color.withOpacity(0.02),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [color, color.withOpacity(0.8)],
-            ),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: Colors.white),
-        ),
-        title: Text(
-          event['message'],
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Device: ${event['deviceId']}'),
-            Text(_formatDateTime(event['timestamp'] as DateTime)),
-          ],
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [color, color.withOpacity(0.8)],
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                type.toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                severity.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 8,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1844,188 +1429,95 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       mainAxisSpacing: 12,
       childAspectRatio: 1.1,
       children: [
-        _buildRealTimeMetricCard(
-          'Fleet Status', 
-          '${_connectedDevices.where((d) => d['status'] == 'connected').length}/${_connectedDevices.length}',
-          Icons.devices,
-          Colors.blue,
-          'ONLINE',
+        RealTimeMetricCard(
+          title: 'Fleet Status',
+          value:
+              '${_connectedDevices.where((d) => d['status'] == 'connected').length}/${_connectedDevices.length}',
+          icon: Icons.devices,
+          color: AppColors.info,
+          suffix: 'ONLINE',
         ),
-        _buildRealTimeMetricCard(
-          'Avg Battery', 
-          _getAverageBattery(),
-          Icons.battery_std,
-          Colors.green,
-          '%',
+        RealTimeMetricCard(
+          title: 'Avg Battery',
+          value: _getAverageBattery(),
+          icon: Icons.battery_std,
+          color: AppColors.success,
+          suffix: '%',
         ),
-        _buildRealTimeMetricCard(
-          'Active Orders', 
-          _getActiveOrdersCount(),
-          Icons.assignment,
-          Colors.orange,
-          'ORDERS',
+        RealTimeMetricCard(
+          title: 'Active Orders',
+          value: _getActiveOrdersCount(),
+          icon: Icons.assignment,
+          color: AppColors.warning,
+          suffix: 'ORDERS',
         ),
-        _buildRealTimeMetricCard(
-          'System Load', 
-          '${(_realTimeMetrics['systemLoad'] ?? 45.0).toStringAsFixed(0)}%',
-          Icons.memory,
-          Colors.purple,
-          'CPU',
+        RealTimeMetricCard(
+          title: 'System Load',
+          value:
+              '${(_realTimeMetrics['systemLoad'] ?? 45.0).toStringAsFixed(0)}%',
+          icon: Icons.memory,
+          color: Colors.purple,
+          suffix: 'CPU',
         ),
       ],
     );
   }
 
-  Widget _buildRealTimeMetricCard(String title, String value, IconData icon, Color color, String suffix) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color.withOpacity(0.1),
-            color.withOpacity(0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [color, color.withOpacity(0.8)],
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(0.3),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Icon(icon, size: 20, color: Colors.white),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              suffix,
-              style: TextStyle(
-                fontSize: 8,
-                color: color,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildLiveDataStream() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.teal.shade50,
-            Colors.white,
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.teal.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.teal.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return EnhancedCard(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Colors.teal.withOpacity(0.1), AppColors.cardBackground],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              EnhancedIconContainer(
+                icon: Icons.stream,
+                gradient:
+                    LinearGradient(colors: [Colors.teal, Colors.teal.shade700]),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text('Live Data Stream', style: AppTextStyles.heading3),
+              ),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: AppColors.success,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text('LIVE', style: AppTextStyles.overline),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Real-time updates: ${_autoRefresh ? 'Enabled' : 'Disabled'}',
+            style: AppTextStyles.body.copyWith(color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Last update: ${_formatDateTime(DateTime.now())}',
+            style: AppTextStyles.caption.copyWith(color: Colors.grey.shade500),
           ),
         ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.teal, Colors.teal.shade700],
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.stream, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Live Data Stream',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Colors.green,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                const Text('LIVE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Real-time updates: ${_autoRefresh ? 'Enabled' : 'Disabled'}',
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Last update: ${_formatDateTime(DateTime.now())}',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-            ),
-          ],
-        ),
       ),
     );
   }
 
-  // Helper methods
+  // ============================================================================
+  // HELPER METHODS
+  // ============================================================================
   String _getTotalDistance() {
     if (_selectedDeviceId == 'all') {
-      final total = _deviceStats.values.fold(0.0, (sum, stats) => sum + (stats['totalDistance'] as double? ?? 0.0));
+      final total = _deviceStats.values.fold(0.0,
+          (sum, stats) => sum + (stats['totalDistance'] as double? ?? 0.0));
       return '${total.toStringAsFixed(1)} km';
     } else {
       return '${_deviceStats[_selectedDeviceId]?['totalDistance']?.toStringAsFixed(1) ?? '0'} km';
@@ -2034,7 +1526,10 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
 
   String _getAverageOrderTime() {
     if (_selectedDeviceId == 'all') {
-      final times = _deviceStats.values.map((stats) => stats['averageOrderTime'] as double? ?? 0.0).where((t) => t > 0).toList();
+      final times = _deviceStats.values
+          .map((stats) => stats['averageOrderTime'] as double? ?? 0.0)
+          .where((t) => t > 0)
+          .toList();
       if (times.isEmpty) return '0 min';
       final average = times.fold(0.0, (sum, time) => sum + time) / times.length;
       return '${average.toStringAsFixed(1)} min';
@@ -2045,8 +1540,10 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
 
   String _getSuccessRate() {
     if (_selectedDeviceId == 'all') {
-      final totalOrders = _deviceStats.values.fold(0, (sum, stats) => sum + (stats['totalOrders'] as int? ?? 0));
-      final completedOrders = _deviceStats.values.fold(0, (sum, stats) => sum + (stats['completedOrders'] as int? ?? 0));
+      final totalOrders = _deviceStats.values
+          .fold(0, (sum, stats) => sum + (stats['totalOrders'] as int? ?? 0));
+      final completedOrders = _deviceStats.values.fold(
+          0, (sum, stats) => sum + (stats['completedOrders'] as int? ?? 0));
       if (totalOrders == 0) return '0%';
       return '${((completedOrders / totalOrders) * 100).toStringAsFixed(1)}%';
     } else {
@@ -2065,15 +1562,65 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   }
 
   String _getAverageBattery() {
-    final batteries = _deviceStats.values.map((stats) => stats['currentBattery'] as double? ?? 0.0).where((b) => b > 0).toList();
+    final batteries = _deviceStats.values
+        .map((stats) => stats['currentBattery'] as double? ?? 0.0)
+        .where((b) => b > 0)
+        .toList();
     if (batteries.isEmpty) return '0%';
-    final average = batteries.fold(0.0, (sum, battery) => sum + battery) / batteries.length;
+    final average =
+        batteries.fold(0.0, (sum, battery) => sum + battery) / batteries.length;
     return '${average.toStringAsFixed(0)}%';
   }
 
   String _getActiveOrdersCount() {
     final random = math.Random();
     return random.nextInt(8).toString();
+  }
+
+  String _getAverageNavigationSpeed() {
+    final speeds = _navigationMetrics.entries
+        .where((entry) => entry.key.startsWith('current_speed_'))
+        .map((entry) => entry.value)
+        .where((speed) => speed > 0);
+
+    if (speeds.isEmpty) return '0.0 m/s';
+    final avgSpeed =
+        speeds.fold(0.0, (sum, speed) => sum + speed) / speeds.length;
+    return '${avgSpeed.toStringAsFixed(2)} m/s';
+  }
+
+  String _getTotalRecoveries() {
+    final totalRecoveries = _navigationMetrics.entries
+        .where((entry) => entry.key.startsWith('recoveries_'))
+        .fold(0.0, (sum, entry) => sum + entry.value);
+
+    return totalRecoveries.toInt().toString();
+  }
+
+  String _getNavigationSuccessRate() {
+    final navEvents = _systemEvents
+        .where((event) => event['message'].toString().contains('Navigation'))
+        .toList();
+
+    if (navEvents.isEmpty) return '100%';
+
+    final successful = navEvents
+        .where((event) => event['message'].toString().contains('SUCCEEDED'))
+        .length;
+    final rate = (successful / navEvents.length * 100);
+    return '${rate.toStringAsFixed(0)}%';
+  }
+
+  String _getAverageNavigationTime() {
+    final allHistory =
+        _navigationHistory.values.expand((list) => list).toList();
+
+    if (allHistory.isEmpty) return '0s';
+
+    final avgTime =
+        allHistory.fold(0.0, (sum, nav) => sum + nav['navigation_time']) /
+            allHistory.length;
+    return '${avgTime.toStringAsFixed(0)}s';
   }
 
   String _getTimeRangeLabel() {
@@ -2096,7 +1643,196 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   }
 }
 
-// Enhanced Chart Painters
+// ============================================================================
+// REUSABLE UI COMPONENTS
+// ============================================================================
+class EnhancedCard extends StatelessWidget {
+  final Widget child;
+  final Gradient? gradient;
+  final Color? borderColor;
+  final double elevation;
+
+  const EnhancedCard({
+    Key? key,
+    required this.child,
+    this.gradient,
+    this.borderColor,
+    this.elevation = AppConstants.cardElevation,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: gradient,
+        color: gradient == null ? AppColors.cardBackground : null,
+        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+        border: Border.all(color: borderColor ?? Colors.grey.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: elevation * 2,
+            offset: Offset(0, elevation),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: child,
+    );
+  }
+}
+
+class EnhancedIconContainer extends StatelessWidget {
+  final IconData icon;
+  final Gradient gradient;
+  final double size;
+
+  const EnhancedIconContainer({
+    Key? key,
+    required this.icon,
+    required this.gradient,
+    this.size = 32,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius),
+      ),
+      child: Icon(icon, color: Colors.white, size: AppConstants.iconSize),
+    );
+  }
+}
+
+class EnhancedActionButton extends StatelessWidget {
+  final IconData icon;
+  final Gradient gradient;
+  final VoidCallback onPressed;
+  final String tooltip;
+
+  const EnhancedActionButton({
+    Key? key,
+    required this.icon,
+    required this.gradient,
+    required this.onPressed,
+    required this.tooltip,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: Colors.white),
+        onPressed: onPressed,
+        tooltip: tooltip,
+      ),
+    );
+  }
+}
+
+class EnhancedDropdown<T> extends StatelessWidget {
+  final T value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+
+  const EnhancedDropdown({
+    Key? key,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: DropdownButton<T>(
+        value: value,
+        dropdownColor: Colors.grey[800],
+        style: const TextStyle(color: Colors.white),
+        underline: Container(),
+        items: items,
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
+class EnhancedMetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const EnhancedMetricCard({
+    Key? key,
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+        ),
+        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style:
+                  AppTextStyles.heading3.copyWith(color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: AppTextStyles.body.copyWith(color: Colors.grey.shade500),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// CUSTOM PAINTERS FOR CHARTS
+// ============================================================================
 class EnhancedBatteryChartPainter extends CustomPainter {
   final Map<String, List<Map<String, dynamic>>> batteryHistory;
   final String selectedDeviceId;
@@ -2110,20 +1846,22 @@ class EnhancedBatteryChartPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     _drawGrid(canvas, size);
+    _drawAxes(canvas, size);
 
     if (selectedDeviceId == 'all') {
-      final colors = [Colors.blue, Colors.green, Colors.orange, Colors.purple, Colors.red];
       int colorIndex = 0;
-      
       batteryHistory.forEach((deviceId, data) {
-        paint.color = colors[colorIndex % colors.length];
+        paint.color =
+            AppColors.chartColors[colorIndex % AppColors.chartColors.length];
         _drawBatteryLine(canvas, size, data, paint);
         colorIndex++;
       });
     } else if (batteryHistory.containsKey(selectedDeviceId)) {
-      paint.color = Colors.green;
+      paint.color = AppColors.success;
       _drawBatteryLine(canvas, size, batteryHistory[selectedDeviceId]!, paint);
     }
+
+    _drawLabels(canvas, size);
   }
 
   void _drawGrid(Canvas canvas, Size size) {
@@ -2131,40 +1869,109 @@ class EnhancedBatteryChartPainter extends CustomPainter {
       ..color = Colors.grey.withOpacity(0.2)
       ..strokeWidth = 1;
 
+    // Horizontal grid lines
     for (int i = 0; i <= 5; i++) {
-      final y = size.height * (i / 5);
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+      final y = size.height * 0.9 * (i / 5) + size.height * 0.05;
+      canvas.drawLine(
+          Offset(size.width * 0.1, y), Offset(size.width * 0.95, y), gridPaint);
     }
 
+    // Vertical grid lines
     for (int i = 0; i <= 6; i++) {
-      final x = size.width * (i / 6);
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+      final x = size.width * 0.1 + (size.width * 0.85) * (i / 6);
+      canvas.drawLine(Offset(x, size.height * 0.05),
+          Offset(x, size.height * 0.95), gridPaint);
     }
   }
 
-  void _drawBatteryLine(Canvas canvas, Size size, List<Map<String, dynamic>> data, Paint paint) {
+  void _drawAxes(Canvas canvas, Size size) {
+    final axisPaint = Paint()
+      ..color = Colors.grey.shade600
+      ..strokeWidth = 2;
+
+    // Y-axis
+    canvas.drawLine(
+      Offset(size.width * 0.1, size.height * 0.05),
+      Offset(size.width * 0.1, size.height * 0.95),
+      axisPaint,
+    );
+
+    // X-axis
+    canvas.drawLine(
+      Offset(size.width * 0.1, size.height * 0.95),
+      Offset(size.width * 0.95, size.height * 0.95),
+      axisPaint,
+    );
+  }
+
+  void _drawBatteryLine(
+      Canvas canvas, Size size, List<Map<String, dynamic>> data, Paint paint) {
     if (data.length < 2) return;
 
     final path = Path();
+    final chartWidth = size.width * 0.85;
+    final chartHeight = size.height * 0.9;
+    final startX = size.width * 0.1;
+    final startY = size.height * 0.05;
+
     for (int i = 0; i < data.length; i++) {
-      final x = size.width * (i / (data.length - 1));
+      final x = startX + chartWidth * (i / (data.length - 1));
       final percentage = data[i]['percentage'] as double;
-      final y = size.height * (1 - percentage / 100);
-      
+      final y = startY + chartHeight * (1 - percentage / 100);
+
       if (i == 0) {
         path.moveTo(x, y);
       } else {
         path.lineTo(x, y);
       }
+
+      // Draw data points
+      final pointPaint = Paint()
+        ..color = paint.color
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(x, y), 3, pointPaint);
     }
-    
+
     canvas.drawPath(path, paint);
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
+  void _drawLabels(Canvas canvas, Size size) {
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    );
+
+    // Y-axis labels (battery percentage)
+    for (int i = 0; i <= 5; i++) {
+      final percentage = 100 - (i * 20);
+      final y = size.height * 0.05 + (size.height * 0.9) * (i / 5);
+
+      textPainter.text = TextSpan(
+        text: '$percentage%',
+        style: AppTextStyles.caption.copyWith(color: Colors.grey.shade600),
+      );
+      textPainter.layout();
+      textPainter.paint(
+          canvas, Offset(size.width * 0.02, y - textPainter.height / 2));
+    }
+
+    // X-axis labels (time)
+    for (int i = 0; i <= 6; i++) {
+      final hours = 24 - (i * 4);
+      final x = size.width * 0.1 + (size.width * 0.85) * (i / 6);
+
+      textPainter.text = TextSpan(
+        text: '${hours}h',
+        style: AppTextStyles.caption.copyWith(color: Colors.grey.shade600),
+      );
+      textPainter.layout();
+      textPainter.paint(
+          canvas, Offset(x - textPainter.width / 2, size.height * 0.97));
+    }
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 class VelocityChartPainter extends CustomPainter {
@@ -2176,18 +1983,19 @@ class VelocityChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final linearPaint = Paint()
-      ..color = Colors.blue
-      ..strokeWidth = 2
+      ..color = AppColors.info
+      ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
 
     final angularPaint = Paint()
-      ..color = Colors.red
-      ..strokeWidth = 2
+      ..color = AppColors.error
+      ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
 
     _drawGrid(canvas, size);
+    _drawAxes(canvas, size);
 
-    final data = selectedDeviceId == 'all' 
+    final data = selectedDeviceId == 'all'
         ? velocityHistory.values.expand((list) => list).toList()
         : velocityHistory[selectedDeviceId] ?? [];
 
@@ -2195,6 +2003,9 @@ class VelocityChartPainter extends CustomPainter {
       _drawVelocityLine(canvas, size, data, linearPaint, true);
       _drawVelocityLine(canvas, size, data, angularPaint, false);
     }
+
+    _drawLabels(canvas, size);
+    _drawLegend(canvas, size);
   }
 
   void _drawGrid(Canvas canvas, Size size) {
@@ -2202,44 +2013,1250 @@ class VelocityChartPainter extends CustomPainter {
       ..color = Colors.grey.withOpacity(0.2)
       ..strokeWidth = 1;
 
+    // Horizontal grid lines
     for (int i = 0; i <= 4; i++) {
-      final y = size.height * (i / 4);
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+      final y = size.height * 0.05 + (size.height * 0.8) * (i / 4);
+      canvas.drawLine(
+          Offset(size.width * 0.1, y), Offset(size.width * 0.9, y), gridPaint);
     }
 
+    // Vertical grid lines
     for (int i = 0; i <= 6; i++) {
-      final x = size.width * (i / 6);
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+      final x = size.width * 0.1 + (size.width * 0.8) * (i / 6);
+      canvas.drawLine(Offset(x, size.height * 0.05),
+          Offset(x, size.height * 0.85), gridPaint);
     }
   }
 
-  void _drawVelocityLine(Canvas canvas, Size size, List<Map<String, dynamic>> data, Paint paint, bool isLinear) {
+  void _drawAxes(Canvas canvas, Size size) {
+    final axisPaint = Paint()
+      ..color = Colors.grey.shade600
+      ..strokeWidth = 2;
+
+    // Y-axis
+    canvas.drawLine(
+      Offset(size.width * 0.1, size.height * 0.05),
+      Offset(size.width * 0.1, size.height * 0.85),
+      axisPaint,
+    );
+
+    // X-axis
+    canvas.drawLine(
+      Offset(size.width * 0.1, size.height * 0.85),
+      Offset(size.width * 0.9, size.height * 0.85),
+      axisPaint,
+    );
+  }
+
+  void _drawVelocityLine(Canvas canvas, Size size,
+      List<Map<String, dynamic>> data, Paint paint, bool isLinear) {
     if (data.length < 2) return;
 
     final path = Path();
     final maxVelocity = 2.0;
+    final chartWidth = size.width * 0.8;
+    final chartHeight = size.height * 0.8;
+    final startX = size.width * 0.1;
+    final startY = size.height * 0.05;
 
     for (int i = 0; i < data.length; i++) {
-      final x = size.width * (i / (data.length - 1));
-      final velocity = isLinear 
+      final x = startX + chartWidth * (i / (data.length - 1));
+      final velocity = isLinear
           ? (data[i]['linear'] as double)
           : (data[i]['angular'] as double).abs();
-      final y = size.height * (1 - velocity / maxVelocity);
-      
+      final y = startY + chartHeight * (1 - velocity / maxVelocity);
+
       if (i == 0) {
         path.moveTo(x, y);
       } else {
         path.lineTo(x, y);
       }
     }
-    
+
     canvas.drawPath(path, paint);
   }
 
+  void _drawLabels(Canvas canvas, Size size) {
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    );
+
+    // Y-axis labels
+    for (int i = 0; i <= 4; i++) {
+      final velocity = 2.0 - (i * 0.5);
+      final y = size.height * 0.05 + (size.height * 0.8) * (i / 4);
+
+      textPainter.text = TextSpan(
+        text: '${velocity.toStringAsFixed(1)}',
+        style: AppTextStyles.caption.copyWith(color: Colors.grey.shade600),
+      );
+      textPainter.layout();
+      textPainter.paint(
+          canvas, Offset(size.width * 0.02, y - textPainter.height / 2));
+    }
+  }
+
+  void _drawLegend(Canvas canvas, Size size) {
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.left,
+    );
+
+    // Linear velocity legend
+    final linearPaint = Paint()
+      ..color = AppColors.info
+      ..strokeWidth = 3;
+    canvas.drawLine(
+      Offset(size.width * 0.12, size.height * 0.92),
+      Offset(size.width * 0.17, size.height * 0.92),
+      linearPaint,
+    );
+
+    textPainter.text = TextSpan(
+      text: 'Linear Velocity (m/s)',
+      style: AppTextStyles.caption.copyWith(color: AppColors.info),
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(size.width * 0.19, size.height * 0.91));
+
+    // Angular velocity legend
+    final angularPaint = Paint()
+      ..color = AppColors.error
+      ..strokeWidth = 3;
+    canvas.drawLine(
+      Offset(size.width * 0.5, size.height * 0.92),
+      Offset(size.width * 0.55, size.height * 0.92),
+      angularPaint,
+    );
+
+    textPainter.text = TextSpan(
+      text: 'Angular Velocity (rad/s)',
+      style: AppTextStyles.caption.copyWith(color: AppColors.error),
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(size.width * 0.57, size.height * 0.91));
+  }
+
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class NavigationTimelinePainter extends CustomPainter {
+  final Map<String, List<Map<String, dynamic>>> navigationHistory;
+  final String selectedDeviceId;
+
+  NavigationTimelinePainter(this.navigationHistory, this.selectedDeviceId);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    _drawGrid(canvas, size);
+    _drawAxes(canvas, size);
+
+    if (selectedDeviceId == 'all') {
+      int colorIndex = 0;
+      navigationHistory.forEach((deviceId, data) {
+        paint.color =
+            AppColors.chartColors[colorIndex % AppColors.chartColors.length];
+        _drawNavigationTimeline(canvas, size, data, paint);
+        colorIndex++;
+      });
+    } else if (navigationHistory.containsKey(selectedDeviceId)) {
+      paint.color = Colors.teal;
+      _drawNavigationTimeline(
+          canvas, size, navigationHistory[selectedDeviceId]!, paint);
+    }
+
+    _drawLabels(canvas, size);
+  }
+
+  void _drawGrid(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = Colors.grey.withOpacity(0.2)
+      ..strokeWidth = 1;
+
+    // Horizontal grid lines
+    for (int i = 0; i <= 4; i++) {
+      final y = size.height * 0.05 + (size.height * 0.8) * (i / 4);
+      canvas.drawLine(
+          Offset(size.width * 0.1, y), Offset(size.width * 0.9, y), gridPaint);
+    }
+
+    // Vertical grid lines
+    for (int i = 0; i <= 6; i++) {
+      final x = size.width * 0.1 + (size.width * 0.8) * (i / 6);
+      canvas.drawLine(Offset(x, size.height * 0.05),
+          Offset(x, size.height * 0.85), gridPaint);
+    }
+  }
+
+  void _drawAxes(Canvas canvas, Size size) {
+    final axisPaint = Paint()
+      ..color = Colors.grey.shade600
+      ..strokeWidth = 2;
+
+    // Y-axis
+    canvas.drawLine(
+      Offset(size.width * 0.1, size.height * 0.05),
+      Offset(size.width * 0.1, size.height * 0.85),
+      axisPaint,
+    );
+
+    // X-axis
+    canvas.drawLine(
+      Offset(size.width * 0.1, size.height * 0.85),
+      Offset(size.width * 0.9, size.height * 0.85),
+      axisPaint,
+    );
+  }
+
+  void _drawNavigationTimeline(
+      Canvas canvas, Size size, List<Map<String, dynamic>> data, Paint paint) {
+    if (data.length < 2) return;
+
+    final path = Path();
+    final maxDistance = data.fold(
+        0.0, (max, nav) => math.max(max, nav['distance_remaining'] as double));
+
+    if (maxDistance == 0) return;
+
+    final chartWidth = size.width * 0.8;
+    final chartHeight = size.height * 0.8;
+    final startX = size.width * 0.1;
+    final startY = size.height * 0.05;
+
+    for (int i = 0; i < data.length; i++) {
+      final x = startX + chartWidth * (i / (data.length - 1));
+      final distance = data[i]['distance_remaining'] as double;
+      final y = startY + chartHeight * (1 - distance / maxDistance);
+
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+
+      // Draw data points
+      final pointPaint = Paint()
+        ..color = paint.color
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(x, y), 2, pointPaint);
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
+  void _drawLabels(Canvas canvas, Size size) {
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    );
+
+    // Y-axis label
+    textPainter.text = TextSpan(
+      text: 'Distance Remaining (m)',
+      style: AppTextStyles.caption.copyWith(color: Colors.grey.shade600),
+    );
+    textPainter.layout();
+
+    canvas.save();
+    canvas.translate(size.width * 0.02, size.height * 0.5);
+    canvas.rotate(-math.pi / 2);
+    textPainter.paint(
+        canvas, Offset(-textPainter.width / 2, -textPainter.height / 2));
+    canvas.restore();
+
+    // X-axis label
+    textPainter.text = TextSpan(
+      text: 'Navigation Progress',
+      style: AppTextStyles.caption.copyWith(color: Colors.grey.shade600),
+    );
+    textPainter.layout();
+    textPainter.paint(canvas,
+        Offset(size.width * 0.5 - textPainter.width / 2, size.height * 0.92));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// ============================================================================
+// ENUMS & UTILITY CLASSES
+// ============================================================================
+enum DeviceType { phone, tablet, desktop }
+
+// ============================================================================
+// FORMAT UTILITIES
+// ============================================================================
+class FormatUtils {
+  static String formatDuration(double minutes) {
+    if (minutes < 60) {
+      return '${minutes.toStringAsFixed(0)} min';
+    }
+    final hours = minutes / 60;
+    return '${hours.toStringAsFixed(1)} h';
+  }
+
+  static String formatDistance(double meters) {
+    if (meters < 1000) {
+      return '${meters.toStringAsFixed(1)} m';
+    }
+    final kilometers = meters / 1000;
+    return '${kilometers.toStringAsFixed(2)} km';
+  }
+
+  static String formatDateTime(DateTime dateTime) {
+    return '${dateTime.day.toString().padLeft(2, '0')}/'
+        '${dateTime.month.toString().padLeft(2, '0')}/'
+        '${dateTime.year} '
+        '${dateTime.hour.toString().padLeft(2, '0')}:'
+        '${dateTime.minute.toString().padLeft(2, '0')}';
+  }
+
+  static String formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else {
+      return '${difference.inDays}d ago';
+    }
   }
 }
 
-enum DeviceType { phone, tablet, desktop }
+// ============================================================================
+// ENHANCED STAT CARD WIDGET
+// ============================================================================
+class EnhancedStatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const EnhancedStatCard({
+    Key? key,
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+        ),
+        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient:
+                    LinearGradient(colors: [color, color.withOpacity(0.8)]),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon,
+                  size: AppConstants.largeIconSize, color: Colors.white),
+            ),
+            const SizedBox(height: 12),
+            Text(value, style: AppTextStyles.heading3.copyWith(color: color)),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style:
+                  AppTextStyles.caption.copyWith(fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class RealTimeMetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final String suffix;
+
+  const RealTimeMetricCard({
+    Key? key,
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.suffix,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+        ),
+        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+        border: Border.all(color: color.withOpacity(0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient:
+                    LinearGradient(colors: [color, color.withOpacity(0.8)]),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(0.3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child:
+                  Icon(icon, size: AppConstants.iconSize, color: Colors.white),
+            ),
+            const SizedBox(height: 12),
+            Text(value, style: AppTextStyles.heading3.copyWith(color: color)),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style:
+                  AppTextStyles.caption.copyWith(fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              suffix,
+              style: AppTextStyles.overline.copyWith(color: color),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class CardHeader extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+
+  const CardHeader({
+    Key? key,
+    required this.title,
+    required this.icon,
+    required this.color,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        EnhancedIconContainer(
+          icon: icon,
+          gradient: LinearGradient(colors: [color, color.withOpacity(0.8)]),
+        ),
+        const SizedBox(width: 12),
+        Text(title, style: AppTextStyles.heading3),
+      ],
+    );
+  }
+}
+
+class DeviceHealthItem extends StatelessWidget {
+  final Map<String, dynamic> device;
+  final double batteryLevel;
+  final bool isOnline;
+
+  const DeviceHealthItem({
+    Key? key,
+    required this.device,
+    required this.batteryLevel,
+    required this.isOnline,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius + 4),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isOnline ? AppColors.success : AppColors.error,
+              boxShadow: [
+                BoxShadow(
+                  color: (isOnline ? AppColors.success : AppColors.error)
+                      .withOpacity(0.3),
+                  blurRadius: 4,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: Text(
+              device['name'] ?? device['id'],
+              style: AppTextStyles.subtitle,
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Container(
+              height: 8,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: batteryLevel / 100.0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: batteryLevel > 30
+                          ? [
+                              AppColors.success,
+                              AppColors.success.withOpacity(0.8)
+                            ]
+                          : batteryLevel > 15
+                              ? [
+                                  AppColors.warning,
+                                  AppColors.warning.withOpacity(0.8)
+                                ]
+                              : [
+                                  AppColors.error,
+                                  AppColors.error.withOpacity(0.8)
+                                ],
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '${batteryLevel.toStringAsFixed(0)}%',
+            style: AppTextStyles.subtitle,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MetricItem extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const MetricItem({
+    Key? key,
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius + 4),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: AppConstants.iconSize),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: AppTextStyles.body
+                .copyWith(fontWeight: FontWeight.bold, color: color),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: AppTextStyles.overline.copyWith(color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class OrdersHeader extends StatelessWidget {
+  final int totalOrders;
+
+  const OrdersHeader({Key? key, required this.totalOrders}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.warning.withOpacity(0.1),
+            AppColors.warning.withOpacity(0.2)
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius + 4),
+        border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.warning,
+              borderRadius:
+                  BorderRadius.circular(AppConstants.smallBorderRadius + 4),
+            ),
+            child: Icon(Icons.list_alt,
+                color: Colors.white, size: AppConstants.largeIconSize),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Order History', style: AppTextStyles.heading3),
+                Text(
+                  'Total: $totalOrders orders completed',
+                  style:
+                      AppTextStyles.body.copyWith(color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          if (totalOrders > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.warning,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '$totalOrders',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class OrderHistoryCard extends StatelessWidget {
+  final Map<String, dynamic> order;
+
+  const OrderHistoryCard({Key? key, required this.order}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final completedAt = order['completedAt'] as DateTime;
+    final duration = order['duration'] as double;
+    final distance = order['distance'] as double;
+
+    Color statusColor = AppColors.success;
+    if (duration > 60) {
+      statusColor = AppColors.error;
+    } else if (duration > 30) {
+      statusColor = AppColors.warning;
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.cardBackground, Colors.grey.shade50],
+        ),
+        borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius + 4),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(12),
+        leading: Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+                colors: [statusColor, statusColor.withOpacity(0.8)]),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.check, color: Colors.white),
+        ),
+        title: Text(order['name'], style: AppTextStyles.subtitle),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Completed: ${FormatUtils.formatDateTime(completedAt)}'),
+            Text('Distance: ${distance.toStringAsFixed(1)} m'),
+            Text('Waypoints: ${order['waypoints']}'),
+          ],
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '${duration.toStringAsFixed(0)}m',
+              style: AppTextStyles.subtitle.copyWith(color: statusColor),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                duration < 30
+                    ? 'FAST'
+                    : duration < 60
+                        ? 'NORMAL'
+                        : 'SLOW',
+                style: AppTextStyles.overline.copyWith(color: statusColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class NavigationHeader extends StatelessWidget {
+  final int activeNavigations;
+
+  const NavigationHeader({Key? key, required this.activeNavigations})
+      : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.teal.withOpacity(0.1), Colors.teal.withOpacity(0.2)],
+        ),
+        borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius + 4),
+        border: Border.all(color: Colors.teal.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.teal,
+              borderRadius:
+                  BorderRadius.circular(AppConstants.smallBorderRadius + 4),
+            ),
+            child: Icon(Icons.navigation,
+                color: Colors.white, size: AppConstants.largeIconSize),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Navigation Analytics', style: AppTextStyles.heading3),
+                Text(
+                  'Active navigations: $activeNavigations',
+                  style:
+                      AppTextStyles.body.copyWith(color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+          if (activeNavigations > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.success,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'ACTIVE',
+                    style: AppTextStyles.overline.copyWith(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class NavigationStatusCard extends StatelessWidget {
+  final String deviceId;
+  final Map<String, dynamic> status;
+
+  const NavigationStatusCard({
+    Key? key,
+    required this.deviceId,
+    required this.status,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final timeRemaining = status['estimated_time_remaining'] as double;
+    final distanceRemaining = status['distance_remaining'] as double;
+    final recoveries = status['number_of_recoveries'] as int;
+    final speed = status['speed'] as double;
+    final navigationTime = status['navigation_time'] as double;
+
+    return EnhancedCard(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [AppColors.info.withOpacity(0.1), AppColors.cardBackground],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.info,
+                  borderRadius:
+                      BorderRadius.circular(AppConstants.smallBorderRadius),
+                ),
+                child: const Icon(Icons.my_location,
+                    color: Colors.white, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(deviceId, style: AppTextStyles.subtitle),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.success,
+                  borderRadius:
+                      BorderRadius.circular(AppConstants.smallBorderRadius),
+                ),
+                child: Text(
+                  'NAVIGATING',
+                  style: AppTextStyles.overline.copyWith(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 2.5,
+            children: [
+              NavigationMetricItem(
+                label: 'ETA',
+                value: '${timeRemaining.toStringAsFixed(0)}s',
+                icon: Icons.timer,
+                color: AppColors.success,
+              ),
+              NavigationMetricItem(
+                label: 'Distance',
+                value: '${distanceRemaining.toStringAsFixed(1)}m',
+                icon: Icons.straighten,
+                color: AppColors.info,
+              ),
+              NavigationMetricItem(
+                label: 'Speed',
+                value: '${speed.toStringAsFixed(2)} m/s',
+                icon: Icons.speed,
+                color: AppColors.warning,
+              ),
+              NavigationMetricItem(
+                label: 'Recoveries',
+                value: recoveries.toString(),
+                icon: Icons.refresh,
+                color: recoveries > 0 ? AppColors.error : Colors.grey,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Progress',
+                      style: AppTextStyles.caption
+                          .copyWith(fontWeight: FontWeight.w500)),
+                  Text(
+                    'Time: ${navigationTime.toStringAsFixed(0)}s',
+                    style: AppTextStyles.overline,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Container(
+                height: 6,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: timeRemaining > 0
+                      ? math.max(
+                          0.0,
+                          math.min(
+                              1.0,
+                              (navigationTime) /
+                                  (navigationTime + timeRemaining)))
+                      : 1.0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+                        AppColors.success,
+                        AppColors.success.withOpacity(0.8)
+                      ]),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class NavigationMetricItem extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const NavigationMetricItem({
+    Key? key,
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      padding: const EdgeInsets.all(8),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  value,
+                  style: AppTextStyles.caption
+                      .copyWith(fontWeight: FontWeight.bold, color: color),
+                ),
+                Text(label,
+                    style: AppTextStyles.overline.copyWith(fontSize: 9)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class EventsHeader extends StatelessWidget {
+  final int totalEvents;
+
+  const EventsHeader({Key? key, required this.totalEvents}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.error.withOpacity(0.1),
+            AppColors.error.withOpacity(0.2)
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius + 4),
+        border: Border.all(color: AppColors.error.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.error,
+              borderRadius:
+                  BorderRadius.circular(AppConstants.smallBorderRadius + 4),
+            ),
+            child: Icon(Icons.event,
+                color: Colors.white, size: AppConstants.largeIconSize),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('System Events', style: AppTextStyles.heading3),
+                Text(
+                  'Total: $totalEvents events recorded',
+                  style:
+                      AppTextStyles.body.copyWith(color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class EventCard extends StatelessWidget {
+  final Map<String, dynamic> event;
+
+  const EventCard({Key? key, required this.event}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final type = event['type'];
+    final severity = event['severity'];
+
+    Color color;
+    IconData icon;
+
+    switch (type) {
+      case 'error':
+        color = AppColors.error;
+        icon = Icons.error;
+        break;
+      case 'warning':
+        color = AppColors.warning;
+        icon = Icons.warning;
+        break;
+      case 'success':
+        color = AppColors.success;
+        icon = Icons.check_circle;
+        break;
+      default:
+        color = AppColors.info;
+        icon = Icons.info;
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.cardBackground, color.withOpacity(0.02)],
+        ),
+        borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius + 4),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(12),
+        leading: Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [color, color.withOpacity(0.8)]),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.white),
+        ),
+        title: Text(event['message'], style: AppTextStyles.subtitle),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Device: ${event['deviceId']}'),
+            Text(FormatUtils.formatDateTime(event['timestamp'] as DateTime)),
+          ],
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                gradient:
+                    LinearGradient(colors: [color, color.withOpacity(0.8)]),
+                borderRadius:
+                    BorderRadius.circular(AppConstants.smallBorderRadius + 4),
+              ),
+              child: Text(
+                type.toUpperCase(),
+                style: AppTextStyles.overline.copyWith(color: Colors.white),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius:
+                    BorderRadius.circular(AppConstants.smallBorderRadius),
+              ),
+              child: Text(
+                severity.toUpperCase(),
+                style:
+                    AppTextStyles.overline.copyWith(fontSize: 8, color: color),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class EmptyStateCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const EmptyStateCard({
+    Key? key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return EnhancedCard(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Colors.grey.shade50, AppColors.cardBackground],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Icon(icon, size: 48, color: AppColors.primary),
+            const SizedBox(height: 12),
+            Text(title, style: AppTextStyles.heading3),
+            const SizedBox(height: 4),
+            Text(subtitle, style: AppTextStyles.body),
+          ],
+        ),
+      ),
+    );
+  }
+}

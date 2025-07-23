@@ -18,7 +18,7 @@ import 'services/api_service.dart';
 // Configuration constants - Update these for your setup
 class AppConfig {
   // Your AGV backend server configuration
-  static const String DEFAULT_SERVER_IP = '192.168.0.156'; // Your AGV IP
+  static const String DEFAULT_SERVER_IP = '192.168.0.84'; // Your AGV IP
   static const int DEFAULT_SERVER_PORT = 3000; // Backend port
   static const int AGV_SSH_PORT = 22; // AGV SSH port (mentioned by user)
 

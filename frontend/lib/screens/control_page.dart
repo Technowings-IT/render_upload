@@ -1,13 +1,16 @@
-// screens/control_page.dart - FIXED Enhanced Control Page with Complete Save Functions
+// screens/control_page.dart - Fixed Control Page with Map Grid and Joystick Touch Issues
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math' as math;
+
 import '../services/web_socket_service.dart';
 import '../services/api_service.dart';
 import '../widgets/joystick.dart';
 import '../widgets/live_maping_canvas.dart';
 import '../models/map_data.dart';
 import '../models/odom.dart' as odom;
+
+enum DeviceType { phone, tablet, desktop }
 
 class ControlPage extends StatefulWidget {
   final String deviceId;
@@ -23,6 +26,7 @@ class ControlPage extends StatefulWidget {
 
 class _ControlPageState extends State<ControlPage>
     with TickerProviderStateMixin {
+  // Services
   final WebSocketService _webSocketService = WebSocketService();
   final ApiService _apiService = ApiService();
 
@@ -37,27 +41,36 @@ class _ControlPageState extends State<ControlPage>
   late AnimationController _statusAnimationController;
   late TabController _tabController;
 
-  // State variables
+  // Connection state
   bool _isConnected = false;
+  String _connectionStatus = 'Disconnected';
+
+  // Robot control state
   bool _mappingActive = false;
   bool _controlEnabled = true;
+  bool _robotControlActive = false;
+  bool _scriptExecutionInProgress = false;
+
+  // Script status tracking
+  Map<String, String> _scriptStatus = {
+    'robot_control': 'stopped',
+    'slam': 'stopped',
+    'navigation': 'stopped'
+  };
+
+  // Map and robot data
   MapData? _currentMapData;
   List<odom.Position> _robotTrail = [];
   odom.OdometryData? _currentOdometry;
 
-  // Control settings with mobile-friendly defaults
+  // Control settings
   double _maxLinearSpeed = 0.3;
   double _maxAngularSpeed = 0.8;
   bool _useDeadmanSwitch = true;
   bool _showTrail = true;
   bool _autoCenter = true;
 
-  // UI state for mobile
-  bool _showAdvancedSettings = false;
-  bool _showStatusDetails = false;
-  int _currentTabIndex = 0;
-
-  // Current velocity tracking
+  // Current movement state
   double _currentLinear = 0.0;
   double _currentAngular = 0.0;
 
@@ -71,11 +84,23 @@ class _ControlPageState extends State<ControlPage>
   bool _showOccupancyGrid = true;
   double _costmapOpacity = 0.7;
 
-  // Status info
-  String _connectionStatus = 'Disconnected';
+  // UI state
+  bool _showAdvancedSettings = false;
+  String? _customMapName;
+
+  // Status tracking
   DateTime? _lastPositionUpdate;
   DateTime? _lastMapUpdate;
   int _messagesReceived = 0;
+
+  // Map zoom control variables
+  double _mapZoomLevel = 1.0;
+  final double _minZoom = 0.5;
+  final double _maxZoom = 3.0;
+
+  // 🔧 NEW: Joystick touch control variables
+  bool _joystickTouchActive = false;
+  final GlobalKey _joystickKey = GlobalKey();
 
   @override
   void initState() {
@@ -84,6 +109,22 @@ class _ControlPageState extends State<ControlPage>
     _initializeConnection();
     _setupSubscriptions();
   }
+
+  @override
+  void dispose() {
+    _realTimeDataSubscription?.cancel();
+    _mappingEventsSubscription?.cancel();
+    _controlEventsSubscription?.cancel();
+    _connectionStateSubscription?.cancel();
+    _errorSubscription?.cancel();
+    _statusAnimationController.dispose();
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  // ==========================================
+  // INITIALIZATION METHODS
+  // ==========================================
 
   void _initializeAnimations() {
     _statusAnimationController = AnimationController(
@@ -103,12 +144,14 @@ class _ControlPageState extends State<ControlPage>
     });
 
     if (!_webSocketService.isConnected) {
-      _webSocketService.connect('ws://192.168.0.113:3000',
-          deviceId: widget.deviceId,
-          deviceInfo: {
-            'type': 'mobile_controller',
-            'name': 'Flutter Control App'
-          }).then((connected) {
+      _webSocketService.connect(
+        'ws://192.168.0.59:3000',
+        deviceId: widget.deviceId,
+        deviceInfo: {
+          'type': 'mobile_controller',
+          'name': 'Flutter Control App'
+        },
+      ).then((connected) {
         if (connected) {
           _subscribeToTopics();
         }
@@ -119,22 +162,23 @@ class _ControlPageState extends State<ControlPage>
   }
 
   void _setupSubscriptions() {
-    _connectionStateSubscription =
-        _webSocketService.connectionState.listen((connected) {
-      if (mounted) {
-        setState(() {
-          _isConnected = connected;
-          _connectionStatus = connected ? 'Connected' : 'Disconnected';
-        });
+    _connectionStateSubscription = _webSocketService.connectionState.listen(
+      (connected) {
+        if (mounted) {
+          setState(() {
+            _isConnected = connected;
+            _connectionStatus = connected ? 'Connected' : 'Disconnected';
+          });
 
-        if (connected) {
-          _subscribeToTopics();
-          _statusAnimationController.forward();
-        } else {
-          _statusAnimationController.reverse();
+          if (connected) {
+            _subscribeToTopics();
+            _statusAnimationController.forward();
+          } else {
+            _statusAnimationController.reverse();
+          }
         }
-      }
-    });
+      },
+    );
 
     _realTimeDataSubscription = _webSocketService.realTimeData.listen((data) {
       if (mounted) {
@@ -164,24 +208,32 @@ class _ControlPageState extends State<ControlPage>
   void _subscribeToTopics() {
     if (_isConnected) {
       _webSocketService.subscribe('real_time_data', deviceId: widget.deviceId);
-      _webSocketService.subscribe('mapping_events', deviceId: widget.deviceId);
       _webSocketService.subscribe('control_events', deviceId: widget.deviceId);
-      print('📡 Subscribed to topics for device: ${widget.deviceId}');
+      _webSocketService.subscribe('mapping_events', deviceId: widget.deviceId);
+      _webSocketService.subscribe('script_status', deviceId: widget.deviceId);
+      _webSocketService.subscribe('ros2_status', deviceId: widget.deviceId);
+
+      print('📡 Subscribed to all topics for device: ${widget.deviceId}');
     }
   }
 
-  void _handleRealTimeData(Map<String, dynamic> data) {
-    setState(() {
-      _messagesReceived++;
-    });
-    final messageType = data['type'];
-    final deviceId = data['deviceId'];
-    if (deviceId != null && deviceId != widget.deviceId) return;
+  // ==========================================
+  // DATA HANDLING METHODS
+  // ==========================================
 
-    switch (messageType) {
+  void _handleRealTimeData(Map<String, dynamic> data) {
+    final dataType = data['type'];
+    final payload = data['data'];
+
+    switch (dataType) {
       case 'position_update':
-      case 'odometry_update':
-        _handlePositionUpdate(data['data']);
+        _handlePositionUpdate(payload);
+        break;
+      case 'navigation_feedback_update':
+        _handleNavigationFeedback(payload);
+        break;
+      case 'navigation_status_update':
+        _handleNavigationStatus(payload);
         break;
       case 'map_update':
         _handleMapUpdate(data['data']);
@@ -194,6 +246,9 @@ class _ControlPageState extends State<ControlPage>
         break;
       case 'local_costmap_update':
         _handleLocalCostmapUpdate(data['data']);
+        break;
+      case 'script_status_update':
+        _handleScriptStatusUpdate(data['data']);
         break;
     }
   }
@@ -290,6 +345,67 @@ class _ControlPageState extends State<ControlPage>
     }
   }
 
+  void _handleScriptStatusUpdate(Map<String, dynamic> data) {
+    if (mounted) {
+      setState(() {
+        final scriptType = data['script'] ?? data['process'];
+        final status = data['status'];
+
+        if (scriptType != null && status != null) {
+          _scriptStatus[scriptType] = status;
+
+          // Update specific flags
+          if (scriptType == 'robot_control') {
+            _robotControlActive = status == 'running';
+          } else if (scriptType == 'slam') {
+            _mappingActive = status == 'running';
+          }
+        }
+      });
+
+      // Show user feedback
+      final message = data['message'] ?? 'Script status updated';
+      final success = data['success'] ?? true;
+      _showSnackBar(message, success ? Colors.green : Colors.red);
+    }
+  }
+
+  void _handleNavigationFeedback(Map<String, dynamic> data) {
+    if (mounted) {
+      // Show progress updates
+      final timeRemaining = data['estimated_time_remaining'];
+      final distance = data['distance_remaining'];
+      final recoveries = data['number_of_recoveries'];
+
+      if (timeRemaining != null && distance != null) {
+        _showSnackBar(
+          'Navigation: ${timeRemaining}s remaining, ${distance.toStringAsFixed(1)}m left, ${recoveries} recoveries',
+          Colors.blue,
+        );
+      }
+    }
+  }
+
+  void _handleNavigationStatus(Map<String, dynamic> data) {
+    if (mounted) {
+      final status = data['status_text'];
+      final success = data['result']?['success'];
+
+      if (status == 'SUCCEEDED') {
+        _showSnackBar('Navigation completed successfully!', Colors.green);
+      } else if (status == 'ABORTED' || status == 'REJECTED') {
+        _showSnackBar(
+          'Navigation failed: ${data['result']?['error_msg'] ?? 'Unknown error'}',
+          Colors.red,
+        );
+      }
+    }
+  }
+
+  // ==========================================
+  // ROBOT TRAIL MANAGEMENT
+  // ==========================================
+
   void _addToRobotTrail(odom.Position position) {
     if (_robotTrail.isEmpty ||
         _distanceBetween(_robotTrail.last, position) > 0.05) {
@@ -301,9 +417,50 @@ class _ControlPageState extends State<ControlPage>
   }
 
   double _distanceBetween(odom.Position p1, odom.Position p2) {
-    return math
-        .sqrt((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y));
+    return math.sqrt(
+      (p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y),
+    );
   }
+
+  // ==========================================
+  // 🔧 NEW: MAP GRID CONTROL METHODS
+  // ==========================================
+
+  void _handleMapZoom(double zoomDelta) {
+    setState(() {
+      _mapZoomLevel = (_mapZoomLevel + zoomDelta).clamp(_minZoom, _maxZoom);
+    });
+  }
+
+  void _resetMapView() {
+    setState(() {
+      _mapZoomLevel = 1.0;
+    });
+  }
+
+  // ==========================================
+  // 🔧 NEW: JOYSTICK TOUCH CONTROL METHODS
+  // ==========================================
+
+  void _onJoystickTouchStart() {
+    setState(() {
+      _joystickTouchActive = true;
+    });
+  }
+
+  void _onJoystickTouchEnd() {
+    setState(() {
+      _joystickTouchActive = false;
+    });
+  }
+
+  bool _shouldAbsorbTouchEvents() {
+    return _joystickTouchActive;
+  }
+
+  // ==========================================
+  // UTILITY METHODS
+  // ==========================================
 
   DeviceType _getDeviceType(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -315,6 +472,594 @@ class _ControlPageState extends State<ControlPage>
       return DeviceType.phone;
     }
   }
+
+  String _getVelocityText() {
+    return 'L: ${_currentLinear.toStringAsFixed(2)} m/s, A: ${_currentAngular.toStringAsFixed(2)} rad/s';
+  }
+
+  String _getPositionText() {
+    if (_currentOdometry?.position != null) {
+      final pos = _currentOdometry!.position;
+      return '(${pos.x.toStringAsFixed(2)}, ${pos.y.toStringAsFixed(2)})';
+    }
+    return 'N/A';
+  }
+
+  String _getSessionDuration() {
+    final now = DateTime.now();
+    final startTime = DateTime.now().subtract(const Duration(minutes: 30));
+    final duration = now.difference(startTime);
+
+    if (duration.inHours > 0) {
+      return '${duration.inHours}h ${duration.inMinutes % 60}m';
+    } else {
+      return '${duration.inMinutes}m';
+    }
+  }
+
+  void _showSnackBar(String message, Color color) {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    scaffoldMessenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // ==========================================
+  // CONTROL METHODS
+  // ==========================================
+
+  void _onJoystickChanged(double linear, double angular, bool deadmanActive) {
+    if (!_isConnected) return;
+
+    final clampedLinear = linear.clamp(-_maxLinearSpeed, _maxLinearSpeed);
+    final clampedAngular = angular.clamp(-_maxAngularSpeed, _maxAngularSpeed);
+
+    setState(() {
+      _currentLinear = clampedLinear;
+      _currentAngular = clampedAngular;
+    });
+
+    _webSocketService.sendJoystickControl(
+      widget.deviceId,
+      clampedAngular / _maxAngularSpeed,
+      clampedLinear / _maxLinearSpeed,
+      deadmanActive,
+      maxLinearSpeed: _maxLinearSpeed,
+      maxAngularSpeed: _maxAngularSpeed,
+    );
+  }
+
+  void _toggleControl() {
+    setState(() {
+      _controlEnabled = !_controlEnabled;
+    });
+
+    if (!_controlEnabled) {
+      _webSocketService.stopRobot(widget.deviceId);
+      setState(() {
+        _currentLinear = 0.0;
+        _currentAngular = 0.0;
+      });
+    }
+  }
+
+  void _toggleMapping() {
+    if (_mappingActive) {
+      _webSocketService.sendMappingCommand(widget.deviceId, 'stop');
+    } else {
+      _webSocketService.sendMappingCommand(widget.deviceId, 'start');
+    }
+  }
+
+  Future<void> _emergencyStop() async {
+    _webSocketService.stopRobot(widget.deviceId);
+
+    if (_mappingActive) {
+      _webSocketService.sendMappingCommand(widget.deviceId, 'stop');
+    }
+
+    await _stopAllScripts();
+
+    setState(() {
+      _mappingActive = false;
+      _currentLinear = 0.0;
+      _currentAngular = 0.0;
+    });
+
+    _showSnackBar('Emergency stop activated!', Colors.red);
+  }
+
+  // ==========================================
+  // SCRIPT CONTROL METHODS
+  // ==========================================
+
+  Future<void> _startRobotControl() async {
+    if (_scriptExecutionInProgress) {
+      _showSnackBar('Another script operation is in progress', Colors.orange);
+      return;
+    }
+
+    setState(() {
+      _scriptExecutionInProgress = true;
+    });
+
+    try {
+      _showSnackBar('Sending robot control command...', Colors.blue);
+
+      final success = _webSocketService.sendScriptCommand(
+        widget.deviceId,
+        'start_robot_control',
+      );
+
+      if (success) {
+        _showSnackBar('Robot control command sent. Waiting for confirmation...',
+            Colors.blue);
+
+        // Wait a bit to see if we get status updates
+        await Future.delayed(Duration(seconds: 3));
+
+        if (_scriptStatus['robot_control'] == 'running') {
+          _showSnackBar('Robot control started successfully!', Colors.green);
+        } else {
+          _showSnackBar(
+              'Robot control command sent but no confirmation received',
+              Colors.orange);
+        }
+      } else {
+        _showSnackBar('Failed to send robot control command', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('Error starting robot control: $e', Colors.red);
+    } finally {
+      setState(() {
+        _scriptExecutionInProgress = false;
+      });
+    }
+  }
+
+  Future<void> _startSLAM() async {
+    if (_scriptExecutionInProgress) {
+      _showSnackBar('Another script operation is in progress', Colors.orange);
+      return;
+    }
+
+    setState(() {
+      _scriptExecutionInProgress = true;
+    });
+
+    try {
+      final success = _webSocketService.sendScriptCommand(
+          widget.deviceId, 'start_slam', options: {
+        'mapName': 'new_slam_map_${DateTime.now().millisecondsSinceEpoch}'
+      });
+
+      if (success) {
+        _showSnackBar(
+            'Starting SLAM mapping (will auto-start robot if needed)...',
+            Colors.blue);
+      } else {
+        _showSnackBar('Failed to send SLAM command', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('Error starting SLAM: $e', Colors.red);
+    } finally {
+      setState(() {
+        _scriptExecutionInProgress = false;
+      });
+    }
+  }
+
+  Future<void> _startNavigation() async {
+    if (_scriptExecutionInProgress) {
+      _showSnackBar('Another script operation is in progress', Colors.orange);
+      return;
+    }
+
+    setState(() {
+      _scriptExecutionInProgress = true;
+    });
+
+    try {
+      final success = _webSocketService.sendScriptCommand(
+          widget.deviceId, 'start_navigation',
+          options: {'mapPath': 'your_map_name.yaml'});
+
+      if (success) {
+        _showSnackBar(
+            'Starting navigation (will auto-start robot if needed)...',
+            Colors.blue);
+      } else {
+        _showSnackBar('Failed to send navigation command', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('Error starting navigation: $e', Colors.red);
+    } finally {
+      setState(() {
+        _scriptExecutionInProgress = false;
+      });
+    }
+  }
+
+  Future<void> _stopAllScripts() async {
+    if (_scriptExecutionInProgress) {
+      _showSnackBar('Another script operation is in progress', Colors.orange);
+      return;
+    }
+
+    setState(() {
+      _scriptExecutionInProgress = true;
+    });
+
+    try {
+      _showSnackBar('Stopping all scripts and processes...', Colors.orange);
+
+      final success = _webSocketService.sendScriptCommand(
+        widget.deviceId,
+        'stop_all_scripts',
+      );
+
+      if (success) {
+        _showSnackBar('Stop all command sent. Waiting for confirmation...',
+            Colors.orange);
+
+        // Wait a bit for all processes to stop
+        await Future.delayed(Duration(seconds: 5));
+
+        // Update UI state
+        setState(() {
+          _scriptStatus.forEach((key, value) {
+            _scriptStatus[key] = 'stopped';
+          });
+          _robotControlActive = false;
+          _mappingActive = false;
+        });
+
+        _showSnackBar('All scripts stopped successfully!', Colors.green);
+      } else {
+        _showSnackBar('Failed to send stop all command', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('Error stopping all scripts: $e', Colors.red);
+    } finally {
+      setState(() {
+        _scriptExecutionInProgress = false;
+      });
+    }
+  }
+
+  Future<void> _stopRobotControl() async {
+    if (_scriptExecutionInProgress) {
+      _showSnackBar('Another script operation is in progress', Colors.orange);
+      return;
+    }
+
+    setState(() {
+      _scriptExecutionInProgress = true;
+    });
+
+    try {
+      final success = _webSocketService.sendScriptCommand(
+        widget.deviceId,
+        'stop_robot_control',
+      );
+
+      if (success) {
+        _showSnackBar('Stopping robot control...', Colors.orange);
+      } else {
+        _showSnackBar('Failed to send stop command', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('Error stopping robot control: $e', Colors.red);
+    } finally {
+      setState(() {
+        _scriptExecutionInProgress = false;
+      });
+    }
+  }
+
+  Future<void> _stopSLAM() async {
+    if (_scriptExecutionInProgress) {
+      _showSnackBar('Another script operation is in progress', Colors.orange);
+      return;
+    }
+
+    setState(() {
+      _scriptExecutionInProgress = true;
+    });
+
+    try {
+      final success = _webSocketService.sendScriptCommand(
+        widget.deviceId,
+        'stop_slam',
+      );
+
+      if (success) {
+        _showSnackBar('Stopping SLAM...', Colors.orange);
+      } else {
+        _showSnackBar('Failed to send stop command', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('Error stopping SLAM: $e', Colors.red);
+    } finally {
+      setState(() {
+        _scriptExecutionInProgress = false;
+      });
+    }
+  }
+
+  Future<void> _stopNavigation() async {
+    if (_scriptExecutionInProgress) {
+      _showSnackBar('Another script operation is in progress', Colors.orange);
+      return;
+    }
+
+    setState(() {
+      _scriptExecutionInProgress = true;
+    });
+
+    try {
+      final success = _webSocketService.sendScriptCommand(
+        widget.deviceId,
+        'stop_navigation',
+      );
+
+      if (success) {
+        _showSnackBar('Stopping navigation...', Colors.orange);
+      } else {
+        _showSnackBar('Failed to send stop command', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('Error stopping navigation: $e', Colors.red);
+    } finally {
+      setState(() {
+        _scriptExecutionInProgress = false;
+      });
+    }
+  }
+
+  // ==========================================
+  // MAP SAVING METHODS
+  // ==========================================
+
+  bool _isTrailSaveable() {
+    return _robotTrail.isNotEmpty;
+  }
+
+  bool _isMapSaveable() {
+    return _currentMapData != null || _mappingActive;
+  }
+
+  bool _isCompleteMappingSaveable() {
+    return _currentMapData != null ||
+        _mappingActive ||
+        _robotTrail.isNotEmpty ||
+        _currentOdometry != null;
+  }
+
+  Future<void> _saveMap() async {
+    if (!_isMapSaveable()) {
+      _showSnackBar('No map data to save', Colors.red);
+      return;
+    }
+
+    try {
+      _webSocketService.sendMappingCommand(widget.deviceId, 'save');
+
+      MapData? mapToSave = _currentMapData;
+      if (mapToSave == null && _mappingActive) {
+        mapToSave = _createEmptyMapData();
+      }
+
+      if (mapToSave != null) {
+        final response = await _apiService.saveMapData(
+          deviceId: widget.deviceId,
+          mapData: mapToSave,
+        );
+
+        if (response['success'] == true) {
+          _showSnackBar('Map saved successfully!', Colors.green);
+        } else {
+          _showSnackBar('Failed to save map: ${response['error']}', Colors.red);
+        }
+      }
+    } catch (e) {
+      _showSnackBar('Error saving map: $e', Colors.red);
+    }
+  }
+
+  Future<void> _saveTrailAsMap() async {
+    if (!_isTrailSaveable()) {
+      _showSnackBar('No trail data to save', Colors.orange);
+      return;
+    }
+
+    try {
+      final trailShape = MapShape(
+        id: 'trail_${DateTime.now().millisecondsSinceEpoch}',
+        name:
+            'Robot Trail ${DateTime.now().toLocal().toString().split('.')[0]}',
+        type: 'waypoint',
+        points: List<odom.Position>.from(_robotTrail),
+        color: 'FF9800',
+        sides: {'left': '', 'right': '', 'front': '', 'back': ''},
+        createdAt: DateTime.now(),
+      );
+
+      MapData mapToSave;
+      if (_currentMapData != null) {
+        mapToSave = _currentMapData!.addShape(trailShape);
+      } else {
+        mapToSave = _createEmptyMapData().addShape(trailShape);
+      }
+
+      final response = await _apiService.saveMapData(
+        deviceId: widget.deviceId,
+        mapData: mapToSave,
+      );
+
+      if (response['success'] == true) {
+        setState(() {
+          _currentMapData = mapToSave;
+        });
+        _showSnackBar('Trail saved as waypoint path!', Colors.green);
+      } else {
+        _showSnackBar('Failed to save trail: ${response['error']}', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('Error saving trail: $e', Colors.red);
+    }
+  }
+
+  Future<void> _saveCompleteMap() async {
+    if (!_isCompleteMappingSaveable()) {
+      _showSnackBar('No complete map data available to save', Colors.red);
+      return;
+    }
+
+    try {
+      _showMapSavingDialog();
+      final completeMapData = await _collectCompleteMapData();
+
+      final response = await _apiService.saveCompleteMapData(
+        deviceId: widget.deviceId,
+        mapData: completeMapData,
+        mapName: _customMapName,
+      );
+
+      if (response['success'] == true) {
+        setState(() {
+          _currentMapData = completeMapData;
+        });
+
+        Navigator.of(context).pop();
+        _showSnackBar('Complete map saved successfully!', Colors.green);
+        _showMapSaveSuccess(response);
+      } else {
+        Navigator.of(context).pop();
+        _showSnackBar('Failed to save map: ${response['error']}', Colors.red);
+      }
+    } catch (e) {
+      Navigator.of(context).pop();
+      _showSnackBar('Error saving complete map: $e', Colors.red);
+    }
+  }
+
+  Future<MapData> _collectCompleteMapData() async {
+    MapData baseMapData = _currentMapData ?? _createEmptyMapData();
+
+    // Add robot trail as waypoint path if available
+    if (_robotTrail.isNotEmpty) {
+      final trailShape = MapShape(
+        id: 'robot_trail_${DateTime.now().millisecondsSinceEpoch}',
+        name: 'Robot Trail Path',
+        type: 'waypoint',
+        points: List<odom.Position>.from(_robotTrail),
+        color: 'FF9800',
+        sides: {'left': '', 'right': '', 'front': '', 'back': ''},
+        createdAt: DateTime.now(),
+      );
+      baseMapData = baseMapData.addShape(trailShape);
+    }
+
+    // Add current robot position as reference point
+    if (_currentOdometry?.position != null) {
+      final robotPosShape = MapShape(
+        id: 'robot_position_${DateTime.now().millisecondsSinceEpoch}',
+        name: 'Robot Current Position',
+        type: 'waypoint',
+        points: [_currentOdometry!.position],
+        color: 'FF4CAF50',
+        sides: {'left': '', 'right': '', 'front': '', 'back': ''},
+        createdAt: DateTime.now(),
+      );
+      baseMapData = baseMapData.addShape(robotPosShape);
+    }
+
+    // Add session metadata
+    final sessionMetadata = MapShape(
+      id: 'session_metadata_${DateTime.now().millisecondsSinceEpoch}',
+      name: 'Mapping Session Info',
+      type: 'metadata',
+      points: [],
+      color: 'FF9C27B0',
+      sides: {
+        'mapping_active': _mappingActive.toString(),
+        'trail_points': _robotTrail.length.toString(),
+        'messages_received': _messagesReceived.toString(),
+        'session_duration': _getSessionDuration(),
+        'has_global_costmap': (_globalCostmap != null).toString(),
+        'has_local_costmap': (_localCostmap != null).toString(),
+      },
+      createdAt: DateTime.now(),
+    );
+
+    return baseMapData.addShape(sessionMetadata);
+  }
+
+  MapData _createEmptyMapData() {
+    return MapData(
+      deviceId: widget.deviceId,
+      timestamp: DateTime.now(),
+      info: MapInfo(
+        resolution: 0.05,
+        width: 1000,
+        height: 1000,
+        origin: odom.Position(x: -25.0, y: -25.0, z: 0.0),
+        originOrientation: odom.Orientation(x: 0, y: 0, z: 0, w: 1),
+      ),
+      occupancyData: List.filled(1000 * 1000, -1),
+      shapes: [],
+      version: 1,
+    );
+  }
+
+  // ==========================================
+  // NAVIGATION METHODS
+  // ==========================================
+
+  void _openMapEditor() {
+    Navigator.of(context).pushNamed(
+      '/map',
+      arguments: {'deviceId': widget.deviceId},
+    ).then((_) {
+      if (_currentMapData != null) {
+        _loadCurrentMapData();
+      }
+    });
+  }
+
+  void _navigateToMapEditor() {
+    Navigator.pushNamed(
+      context,
+      '/map',
+      arguments: {
+        'deviceId': widget.deviceId,
+        'mapData': _currentMapData,
+        'editMode': true,
+      },
+    );
+  }
+
+  Future<void> _loadCurrentMapData() async {
+    try {
+      final response = await _apiService.getMapData(widget.deviceId);
+      if (response['success'] == true && response['mapData'] != null) {
+        setState(() {
+          _currentMapData = MapData.fromJson(response['mapData']);
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading map data: $e');
+    }
+  }
+
+  // ==========================================
+  // UI BUILDING METHODS
+  // ==========================================
 
   @override
   Widget build(BuildContext context) {
@@ -363,8 +1108,52 @@ class _ControlPageState extends State<ControlPage>
       floatingActionButton: FloatingActionButton(
         onPressed: _emergencyStop,
         backgroundColor: Colors.red,
-        child: const Icon(Icons.stop, color: Colors.white),
         tooltip: 'Emergency Stop',
+        child: const Icon(Icons.stop, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildConnectionIndicator() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          Icon(
+            _isConnected ? Icons.wifi : Icons.wifi_off,
+            color: _isConnected ? Colors.green : Colors.red,
+            size: 22,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _isConnected ? 'Online' : 'Offline',
+            style: TextStyle(
+              color: _isConnected ? Colors.green : Colors.red,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMappingIndicator() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.map, color: Colors.green, size: 22),
+          const SizedBox(width: 4),
+          Text(
+            'Mapping',
+            style: TextStyle(
+              color: Colors.green[700],
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -390,22 +1179,41 @@ class _ControlPageState extends State<ControlPage>
         child: Row(
           children: [
             _buildEnhancedStatusItem(
-                Icons.location_on, _getPositionText(), Colors.blue),
+              Icons.location_on,
+              _getPositionText(),
+              Colors.blue,
+            ),
             const SizedBox(width: 20),
             _buildEnhancedStatusItem(
-                Icons.speed, _getVelocityText(), Colors.green),
+              Icons.speed,
+              _getVelocityText(),
+              Colors.green,
+            ),
             const SizedBox(width: 20),
             _buildEnhancedStatusItem(
-                Icons.timeline, 'Trail: ${_robotTrail.length}', Colors.orange),
+              Icons.timeline,
+              'Trail: ${_robotTrail.length}',
+              Colors.orange,
+            ),
             const SizedBox(width: 20),
             _buildEnhancedStatusItem(
-                Icons.layers,
-                'Shapes: ${_currentMapData?.shapes.length ?? 0}',
-                Colors.purple),
+              Icons.layers,
+              'Shapes: ${_currentMapData?.shapes.length ?? 0}',
+              Colors.purple,
+            ),
             const SizedBox(width: 20),
             _buildEnhancedStatusItem(
-                Icons.message, 'Msgs: $_messagesReceived', Colors.indigo),
-            // --- ADD THIS FOR MAP INFO ---
+              Icons.message,
+              'Msgs: $_messagesReceived',
+              Colors.indigo,
+            ),
+            // 🔧 NEW: Map zoom indicator
+            const SizedBox(width: 20),
+            _buildEnhancedStatusItem(
+              Icons.zoom_in,
+              'Zoom: ${(_mapZoomLevel * 100).toInt()}%',
+              Colors.teal,
+            ),
             if (_currentMapData != null) ...[
               const SizedBox(width: 20),
               _buildEnhancedStatusItem(
@@ -414,7 +1222,6 @@ class _ControlPageState extends State<ControlPage>
                 Colors.blueGrey,
               ),
             ],
-            // --- END ADD ---
             if (_globalCostmap != null) ...[
               const SizedBox(width: 20),
               _buildEnhancedStatusItem(Icons.public, 'Global', Colors.blue),
@@ -486,23 +1293,7 @@ class _ControlPageState extends State<ControlPage>
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: LiveMappingCanvas(
-                mapData: _currentMapData,
-                currentOdometry: _currentOdometry,
-                robotTrail: _showTrail ? _robotTrail : [],
-                mappingActive: _mappingActive,
-                deviceId: widget.deviceId,
-                globalCostmap: _showGlobalCostmap ? _globalCostmap : null,
-                localCostmap: _showLocalCostmap ? _localCostmap : null,
-                showOccupancyGrid: _showOccupancyGrid,
-                costmapOpacity: _costmapOpacity,
-                onMapChanged: (mapData) {
-                  setState(() {
-                    _currentMapData = mapData;
-                  });
-                },
-                onTrailSaved: _saveTrailAsMap,
-              ),
+              child: _buildFixedLiveMappingCanvas(),
             ),
           ),
         ),
@@ -538,23 +1329,7 @@ class _ControlPageState extends State<ControlPage>
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: LiveMappingCanvas(
-                mapData: _currentMapData,
-                currentOdometry: _currentOdometry,
-                robotTrail: _showTrail ? _robotTrail : [],
-                mappingActive: _mappingActive,
-                deviceId: widget.deviceId,
-                globalCostmap: _showGlobalCostmap ? _globalCostmap : null,
-                localCostmap: _showLocalCostmap ? _localCostmap : null,
-                showOccupancyGrid: _showOccupancyGrid,
-                costmapOpacity: _costmapOpacity,
-                onMapChanged: (mapData) {
-                  setState(() {
-                    _currentMapData = mapData;
-                  });
-                },
-                onTrailSaved: _saveTrailAsMap,
-              ),
+              child: _buildFixedLiveMappingCanvas(),
             ),
           ),
         ),
@@ -592,29 +1367,149 @@ class _ControlPageState extends State<ControlPage>
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: LiveMappingCanvas(
-              mapData: _currentMapData,
-              currentOdometry: _currentOdometry,
-              robotTrail: _showTrail ? _robotTrail : [],
-              mappingActive: _mappingActive,
-              deviceId: widget.deviceId,
-              globalCostmap: _showGlobalCostmap ? _globalCostmap : null,
-              localCostmap: _showLocalCostmap ? _localCostmap : null,
-              showOccupancyGrid: _showOccupancyGrid,
-              costmapOpacity: _costmapOpacity,
-              onMapChanged: (mapData) {
-                setState(() {
-                  _currentMapData = mapData;
-                });
-              },
-              onTrailSaved: _saveTrailAsMap,
-            ),
+            child: _buildFixedLiveMappingCanvas(),
           ),
         ),
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: _buildEnhancedControlPanel(isCompact: true),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 🔧 NEW: Fixed Live Mapping Canvas with zoom controls
+  Widget _buildFixedLiveMappingCanvas() {
+    return Stack(
+      children: [
+        // Main map canvas with fixed grid
+        Transform.scale(
+          scale: _mapZoomLevel,
+          child: LiveMappingCanvas(
+            mapData: _currentMapData,
+            currentOdometry: _currentOdometry,
+            robotTrail: _showTrail ? _robotTrail : [],
+            mappingActive: _mappingActive,
+            deviceId: widget.deviceId,
+            globalCostmap: _showGlobalCostmap ? _globalCostmap : null,
+            localCostmap: _showLocalCostmap ? _localCostmap : null,
+            showOccupancyGrid: _showOccupancyGrid,
+            costmapOpacity: _costmapOpacity,
+            onMapChanged: (mapData) {
+              setState(() {
+                _currentMapData = mapData;
+              });
+            },
+            onTrailSaved: _saveTrailAsMap,
+          ),
+        ),
+
+        // Map controls overlay
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Column(
+            children: [
+              // Zoom in button
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  onPressed: _mapZoomLevel < _maxZoom
+                      ? () => _handleMapZoom(0.1)
+                      : null,
+                  icon: const Icon(Icons.zoom_in),
+                  iconSize: 20,
+                ),
+              ),
+              const SizedBox(height: 4),
+
+              // Zoom out button
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  onPressed: _mapZoomLevel > _minZoom
+                      ? () => _handleMapZoom(-0.1)
+                      : null,
+                  icon: const Icon(Icons.zoom_out),
+                  iconSize: 20,
+                ),
+              ),
+              const SizedBox(height: 4),
+
+              // Reset zoom button
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  onPressed: _resetMapView,
+                  icon: const Icon(Icons.center_focus_strong),
+                  iconSize: 20,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Zoom level indicator
+        Positioned(
+          top: 8,
+          left: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.zoom_in,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Zoom: ${(_mapZoomLevel * 100).toInt()}%',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -631,6 +1526,8 @@ class _ControlPageState extends State<ControlPage>
       children: [
         _buildGradientSpeedControls(),
         SizedBox(height: isCompact ? 12 : 20),
+
+        // 🔧 NEW: Enhanced joystick with touch absorption
         Center(
           child: Container(
             decoration: BoxDecoration(
@@ -643,16 +1540,28 @@ class _ControlPageState extends State<ControlPage>
                 ),
               ],
             ),
-            child: JoystickWidget(
-              size: joystickSize,
-              maxLinearSpeed: _maxLinearSpeed,
-              maxAngularSpeed: _maxAngularSpeed,
-              enabled: _controlEnabled && _isConnected,
-              requireDeadman: _useDeadmanSwitch,
-              onChanged: _onJoystickChanged,
+            child: AbsorbPointer(
+              absorbing: _shouldAbsorbTouchEvents(),
+              child: Listener(
+                onPointerDown: (_) => _onJoystickTouchStart(),
+                onPointerUp: (_) => _onJoystickTouchEnd(),
+                onPointerCancel: (_) => _onJoystickTouchEnd(),
+                child: Container(
+                  key: _joystickKey,
+                  child: JoystickWidget(
+                    size: joystickSize,
+                    maxLinearSpeed: _maxLinearSpeed,
+                    maxAngularSpeed: _maxAngularSpeed,
+                    enabled: _controlEnabled && _isConnected,
+                    requireDeadman: _useDeadmanSwitch,
+                    onChanged: _onJoystickChanged,
+                  ),
+                ),
+              ),
             ),
           ),
         ),
+
         SizedBox(height: isCompact ? 12 : 20),
         _buildEnhancedVelocityDisplay(),
         SizedBox(height: isCompact ? 12 : 20),
@@ -809,9 +1718,13 @@ class _ControlPageState extends State<ControlPage>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label,
-                style:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -1053,198 +1966,321 @@ class _ControlPageState extends State<ControlPage>
   Widget _buildEnhancedMappingControls() {
     if (!_isConnected) return const SizedBox.shrink();
 
+    return Column(
+      children: [
+        // Existing robot controls container
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.green.shade50,
+                Colors.green.shade100,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.green.withOpacity(0.3)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.smart_toy,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Robot & Mapping Controls',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const Spacer(),
+                    if (_scriptExecutionInProgress)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Script Status Indicators
+                Row(
+                  children: [
+                    _buildScriptStatusChip(
+                        'Robot', _scriptStatus['robot_control'] ?? 'stopped'),
+                    const SizedBox(width: 8),
+                    _buildScriptStatusChip(
+                        'SLAM', _scriptStatus['slam'] ?? 'stopped'),
+                    const SizedBox(width: 8),
+                    _buildScriptStatusChip(
+                        'Nav', _scriptStatus['navigation'] ?? 'stopped'),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Control Buttons
+                _buildMappingControlButtons(),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Add a dedicated Save section
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.blue.shade50,
+                Colors.blue.shade100,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.blue.withOpacity(0.3)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.save,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Save Map Data',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Save status indicators
+                Row(
+                  children: [
+                    _buildSaveStatusChip(
+                        'Trail', _isTrailSaveable(), _robotTrail.length),
+                    const SizedBox(width: 8),
+                    _buildSaveStatusChip('Map', _isMapSaveable(),
+                        _currentMapData?.shapes.length ?? 0),
+                    const SizedBox(width: 8),
+                    _buildSaveStatusChip(
+                        'Complete',
+                        _isCompleteMappingSaveable(),
+                        (_robotTrail.length +
+                            (_currentMapData?.shapes.length ?? 0))),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Save buttons
+                _buildSaveButtons(),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper method for save status chips
+  Widget _buildSaveStatusChip(String label, bool isAvailable, int count) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.green.shade50,
-            Colors.green.shade100,
-          ],
+        color: isAvailable
+            ? Colors.green.withOpacity(0.1)
+            : Colors.grey.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isAvailable
+              ? Colors.green.withOpacity(0.3)
+              : Colors.grey.withOpacity(0.3),
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.green.withOpacity(0.3)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.map, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Mapping Controls',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isAvailable ? Icons.check_circle : Icons.cancel,
+            size: 14,
+            color: isAvailable ? Colors.green : Colors.grey,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '$label ($count)',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: isAvailable ? Colors.green : Colors.grey,
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 45,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: _mappingActive
-                            ? [Colors.red.shade400, Colors.red.shade600]
-                            : [Colors.green.shade400, Colors.green.shade600],
-                      ),
-                      borderRadius: BorderRadius.circular(22.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (_mappingActive ? Colors.red : Colors.green)
-                              .withOpacity(0.3),
-                          blurRadius: 6,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: ElevatedButton.icon(
-                      onPressed: () => _toggleMapping(),
-                      icon:
-                          Icon(_mappingActive ? Icons.stop : Icons.play_arrow),
-                      label: Text(_mappingActive ? 'Stop' : 'Start'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(22.5),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    height: 45,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.blue.shade400, Colors.blue.shade600],
-                      ),
-                      borderRadius: BorderRadius.circular(22.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.blue.withOpacity(0.3),
-                          blurRadius: 6,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: ElevatedButton.icon(
-                      onPressed: _isMapSaveable() ? _saveMap : null,
-                      icon: const Icon(Icons.save),
-                      label: const Text('Save'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(22.5),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 45,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.purple.shade400,
-                          Colors.purple.shade600
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(22.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.purple.withOpacity(0.3),
-                          blurRadius: 6,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: ElevatedButton.icon(
-                      onPressed: _isTrailSaveable() ? _saveTrailAsMap : null,
-                      icon: const Icon(Icons.timeline),
-                      label: const Text('Save Trail'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(22.5),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    height: 45,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.orange.shade400,
-                          Colors.orange.shade600
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(22.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.orange.withOpacity(0.3),
-                          blurRadius: 6,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: ElevatedButton.icon(
-                      onPressed: _openMapEditor,
-                      icon: const Icon(Icons.edit),
-                      label: const Text('Edit'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(22.5),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  // ✅ FIXED: Helper methods to determine if save buttons should be enabled
-  bool _isMapSaveable() {
-    return _currentMapData != null || _mappingActive;
+  // Save buttons row
+  Widget _buildSaveButtons() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed:
+                    _isCompleteMappingSaveable() ? _saveCompleteMap : null,
+                icon: const Icon(Icons.save_alt),
+                label: const Text('Save Complete Map'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isCompleteMappingSaveable()
+                      ? Colors.blue
+                      : Colors.grey.shade300,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _showSaveOptionsDialog,
+                icon: const Icon(Icons.tune),
+                label: const Text('Advanced Options'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _isTrailSaveable() ? _saveTrailAsMap : null,
+                icon: const Icon(Icons.timeline),
+                label: const Text('Save Trail Only'),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: _isTrailSaveable()
+                        ? Colors.green.shade600
+                        : Colors.grey.shade400,
+                  ),
+                  foregroundColor: _isTrailSaveable()
+                      ? Colors.green.shade600
+                      : Colors.grey.shade400,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _isMapSaveable() ? _saveMap : null,
+                icon: const Icon(Icons.map),
+                label: const Text('Save Map Only'),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(
+                    color: _isMapSaveable()
+                        ? Colors.indigo.shade600
+                        : Colors.grey.shade400,
+                  ),
+                  foregroundColor: _isMapSaveable()
+                      ? Colors.indigo.shade600
+                      : Colors.grey.shade400,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
-  bool _isTrailSaveable() {
-    return _robotTrail.isNotEmpty;
+  Widget _buildScriptStatusChip(String label, String status) {
+    Color statusColor;
+    IconData statusIcon;
+
+    switch (status) {
+      case 'running':
+        statusColor = Colors.green;
+        statusIcon = Icons.play_circle_filled;
+        break;
+      case 'stopped':
+        statusColor = Colors.grey;
+        statusIcon = Icons.stop_circle;
+        break;
+      case 'starting':
+        statusColor = Colors.orange;
+        statusIcon = Icons.hourglass_empty;
+        break;
+      case 'error':
+        statusColor = Colors.red;
+        statusIcon = Icons.error;
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusIcon = Icons.help;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(statusIcon, size: 14, color: statusColor),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: statusColor,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildEnhancedMapOverlayControls() {
@@ -1277,193 +2313,107 @@ class _ControlPageState extends State<ControlPage>
                 ),
                 const SizedBox(width: 12),
                 const Text(
-                  'Map Layers',
+                  'Map Display Settings',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            _buildEnhancedSwitchTile(
-              'Occupancy Grid',
-              'Show main SLAM map',
-              _showOccupancyGrid,
-              Colors.blue,
-              (value) => setState(() => _showOccupancyGrid = value),
-            ),
-            _buildEnhancedSwitchTile(
-              'Global Costmap',
-              'Show global path planning layer',
-              _showGlobalCostmap,
-              Colors.green,
-              (value) => setState(() => _showGlobalCostmap = value),
-            ),
-            _buildEnhancedSwitchTile(
-              'Local Costmap',
-              'Show local obstacle detection',
-              _showLocalCostmap,
-              Colors.red,
-              (value) => setState(() => _showLocalCostmap = value),
-            ),
-            _buildEnhancedSwitchTile(
-              'Robot Trail',
-              'Show path history (${_robotTrail.length} points)',
-              _showTrail,
-              Colors.orange,
-              (value) => setState(() => _showTrail = value),
-            ),
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.opacity, color: Colors.blue, size: 20),
-                      const SizedBox(width: 8),
-                      const Text('Layer Opacity: '),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.blue,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '${(_costmapOpacity * 100).round()}%',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SliderTheme(
-                    data: SliderTheme.of(context).copyWith(
-                      trackHeight: 6,
-                      thumbShape:
-                          const RoundSliderThumbShape(enabledThumbRadius: 8),
-                      overlayShape:
-                          const RoundSliderOverlayShape(overlayRadius: 16),
-                    ),
-                    child: Slider(
-                      value: _costmapOpacity,
-                      min: 0.1,
-                      max: 1.0,
-                      divisions: 9,
-                      onChanged: (value) {
-                        setState(() {
-                          _costmapOpacity = value;
-                        });
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (_robotTrail.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _robotTrail.clear();
-                        });
-                        _showSnackBar('Trail cleared', Colors.orange);
-                      },
-                      icon: const Icon(Icons.clear),
-                      label: const Text('Clear Trail'),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.orange),
-                        foregroundColor: Colors.orange,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _convertTrailToWaypoints,
-                      icon: const Icon(Icons.route),
-                      label: const Text('To Waypoints'),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.purple),
-                        foregroundColor: Colors.purple,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            _buildMapOverlaySwitches(),
+            const SizedBox(height: 12),
+            _buildCostmapOpacitySlider(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEnhancedSwitchTile(
-    String title,
-    String subtitle,
-    bool value,
-    Color color,
-    Function(bool) onChanged,
-  ) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            height: 40,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
+  Widget _buildMapOverlaySwitches() {
+    return Column(
+      children: [
+        SwitchListTile(
+          title: const Text('Show Robot Trail'),
+          subtitle: Text('${_robotTrail.length} points'),
+          value: _showTrail,
+          onChanged: (value) {
+            setState(() {
+              _showTrail = value;
+            });
+          },
+          dense: true,
+        ),
+        SwitchListTile(
+          title: const Text('Show Occupancy Grid'),
+          subtitle: const Text('SLAM map data'),
+          value: _showOccupancyGrid,
+          onChanged: (value) {
+            setState(() {
+              _showOccupancyGrid = value;
+            });
+          },
+          dense: true,
+        ),
+        SwitchListTile(
+          title: const Text('Show Global Costmap'),
+          subtitle: const Text('Path planning overlay'),
+          value: _showGlobalCostmap,
+          onChanged: _globalCostmap != null
+              ? (value) {
+                  setState(() {
+                    _showGlobalCostmap = value;
+                  });
+                }
+              : null,
+          dense: true,
+        ),
+        SwitchListTile(
+          title: const Text('Show Local Costmap'),
+          subtitle: const Text('Dynamic obstacles'),
+          value: _showLocalCostmap,
+          onChanged: _localCostmap != null
+              ? (value) {
+                  setState(() {
+                    _showLocalCostmap = value;
+                  });
+                }
+              : null,
+          dense: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCostmapOpacitySlider() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Costmap Opacity',
+              style: TextStyle(fontSize: 12),
             ),
+          ],
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 6,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
+          child: Slider(
+            value: _costmapOpacity,
+            min: 0.1,
+            max: 1.0,
+            divisions: 9,
+            onChanged: (value) {
+              setState(() {
+                _costmapOpacity = value;
+              });
+            },
           ),
-          Transform.scale(
-            scale: 0.8,
-            child: Switch(
-              value: value,
-              onChanged: onChanged,
-              activeColor: color,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1473,722 +2423,384 @@ class _ControlPageState extends State<ControlPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSettingsSection(
-            'Control Settings',
-            Icons.control_camera,
-            Colors.blue,
-            [
-              _buildSettingsSwitchTile(
-                'Deadman Switch',
-                'Require holding joystick to move',
-                _useDeadmanSwitch,
-                (value) => setState(() => _useDeadmanSwitch = value),
-              ),
-              _buildSettingsSwitchTile(
-                'Auto Center Map',
-                'Center map on robot position',
-                _autoCenter,
-                (value) => setState(() => _autoCenter = value),
-              ),
-            ],
+          const Text(
+            'Robot Control Settings',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          _buildSettingsSection(
-            'Speed Settings',
-            Icons.speed,
-            Colors.orange,
-            [
-              _buildEnhancedSpeedSlider(
-                'Max Linear Speed',
-                _maxLinearSpeed,
-                0.1,
-                2.0,
-                'm/s',
-                (value) => setState(() => _maxLinearSpeed = value),
-              ),
-              const SizedBox(height: 16),
-              _buildEnhancedSpeedSlider(
-                'Max Angular Speed',
-                _maxAngularSpeed,
-                0.1,
-                3.0,
-                'rad/s',
-                (value) => setState(() => _maxAngularSpeed = value),
-              ),
-            ],
+          _buildControlSettings(),
+          const SizedBox(height: 24),
+          const Text(
+            'Map Display Settings',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          if (_currentMapData != null) ...[
-            _buildSettingsSection(
-              'Map Analysis',
-              Icons.analytics,
-              Colors.green,
-              [_buildMapAnalysis(_currentMapData!)],
-            ),
-            const SizedBox(height: 16),
-          ],
-          _buildSettingsSection(
-            'Status Information',
-            Icons.info,
-            Colors.purple,
-            [_buildStatusInformation()],
+          _buildMapSettings(),
+          const SizedBox(height: 24),
+          const Text(
+            'Connection Settings',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
+          const SizedBox(height: 16),
+          _buildConnectionSettings(),
         ],
       ),
     );
   }
 
-  Widget _buildSettingsSection(
-    String title,
-    IconData icon,
-    Color color,
-    List<Widget> children,
-  ) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            color.withOpacity(0.1),
-            color.withOpacity(0.05),
+  Widget _buildControlSettings() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            SwitchListTile(
+              title: const Text('Use Deadman Switch'),
+              subtitle: const Text('Require continuous press for movement'),
+              value: _useDeadmanSwitch,
+              onChanged: (value) {
+                setState(() {
+                  _useDeadmanSwitch = value;
+                });
+              },
+            ),
+            SwitchListTile(
+              title: const Text('Auto Center Map'),
+              subtitle: const Text('Keep robot centered in view'),
+              value: _autoCenter,
+              onChanged: (value) {
+                setState(() {
+                  _autoCenter = value;
+                });
+              },
+            ),
+            const Divider(),
+            _buildEnhancedSpeedSlider(
+              'Max Linear Speed',
+              _maxLinearSpeed,
+              0.1,
+              2.0,
+              'm/s',
+              (value) => setState(() => _maxLinearSpeed = value),
+            ),
+            const SizedBox(height: 16),
+            _buildEnhancedSpeedSlider(
+              'Max Angular Speed',
+              _maxAngularSpeed,
+              0.1,
+              3.0,
+              'rad/s',
+              (value) => setState(() => _maxAngularSpeed = value),
+            ),
           ],
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3)),
       ),
+    );
+  }
+
+  Widget _buildMapSettings() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _buildCostmapOpacitySlider(),
+            const Divider(),
+            const Text(
+              'Display Options',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            _buildMapOverlaySwitches(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConnectionSettings() {
+    return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            ListTile(
+              leading: Icon(
+                _isConnected ? Icons.wifi : Icons.wifi_off,
+                color: _isConnected ? Colors.green : Colors.red,
+              ),
+              title: Text('Connection Status: $_connectionStatus'),
+              subtitle: Text('Device ID: ${widget.deviceId}'),
             ),
-            const SizedBox(height: 16),
-            ...children,
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.info),
+              title: const Text('Statistics'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Messages Received: $_messagesReceived'),
+                  if (_lastPositionUpdate != null)
+                    Text(
+                        'Last Position Update: ${_lastPositionUpdate!.toLocal().toString().split('.')[0]}'),
+                  if (_lastMapUpdate != null)
+                    Text(
+                        'Last Map Update: ${_lastMapUpdate!.toLocal().toString().split('.')[0]}'),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSettingsSwitchTile(
-    String title,
-    String subtitle,
-    bool value,
-    Function(bool) onChanged,
-  ) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(12),
+  // ==========================================
+  // MAPPING CONTROL BUTTONS
+  // ==========================================
+
+  Widget _buildMappingControlButtons() {
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed:
+                _robotControlActive ? _stopRobotControl : _startRobotControl,
+            icon: Icon(_robotControlActive ? Icons.pause : Icons.play_arrow),
+            label: Text(_robotControlActive ? 'Stop Robot' : 'Start Robot'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _robotControlActive ? Colors.red : Colors.green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: _mappingActive ? _stopSLAM : _startSLAM,
+            icon: Icon(_mappingActive ? Icons.stop : Icons.play_arrow),
+            label: Text(_mappingActive ? 'Stop SLAM' : 'Start SLAM'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _mappingActive ? Colors.orange : Colors.blue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: _scriptStatus['navigation'] == 'running'
+                ? _stopNavigation
+                : _startNavigation,
+            icon: Icon(_scriptStatus['navigation'] == 'running'
+                ? Icons.stop
+                : Icons.play_arrow),
+            label: Text(_scriptStatus['navigation'] == 'running'
+                ? 'Stop Nav'
+                : 'Start Nav'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _scriptStatus['navigation'] == 'running'
+                  ? Colors.red
+                  : Colors.indigo,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ==========================================
+  // DIALOG METHODS
+  // ==========================================
+
+  void _showMapSavingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            CircularProgressIndicator(strokeWidth: 2),
+            SizedBox(width: 16),
+            Text('Saving Complete Map'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Collecting map data...'),
+            const SizedBox(height: 8),
+            const Text('• Occupancy grid'),
+            Text('• Robot trail (${_robotTrail.length} points)'),
+            const Text('• Current position'),
+            if (_globalCostmap != null) const Text('• Global costmap'),
+            if (_localCostmap != null) const Text('• Local costmap'),
+            const Text('• Session metadata'),
+            const SizedBox(height: 16),
+            const LinearProgressIndicator(),
+          ],
+        ),
       ),
-      child: Row(
-        children: [
-          Expanded(
+    );
+  }
+
+  void _showMapSaveSuccess(Map<String, dynamic> response) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 28),
+            SizedBox(width: 12),
+            Text('Map Saved Successfully'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Map Details:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text('Device: ${widget.deviceId}'),
+            Text('Map Name: ${response['mapName'] ?? 'Auto-generated'}'),
+            Text('Shapes: ${_currentMapData?.shapes.length ?? 0}'),
+            Text('Trail Points: ${_robotTrail.length}'),
+            Text('File Size: ${response['fileSize'] ?? 'Unknown'}'),
+            Text(
+                'Saved At: ${DateTime.now().toLocal().toString().split('.')[0]}'),
+            const SizedBox(height: 16),
+            const Text(
+                'The map is now available in the Dashboard > Maps tab for editing.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _navigateToMapEditor();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.purple,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Edit Now'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSaveOptionsDialog() {
+    final TextEditingController nameController = TextEditingController();
+    bool includeTrail = _robotTrail.isNotEmpty;
+    bool includePosition = _currentOdometry != null;
+    bool includeCostmaps = _globalCostmap != null || _localCostmap != null;
+    bool includeMetadata = true;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Advanced Save Options'),
+          content: SingleChildScrollView(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Custom Map Name (Optional)',
+                    hintText: 'Leave empty for auto-generated name',
+                    border: OutlineInputBorder(),
                   ),
+                  onChanged: (value) {
+                    _customMapName = value.isEmpty ? null : value;
+                  },
                 ),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  title: const Text('Include Occupancy Grid'),
+                  subtitle: const Text('SLAM-generated map data'),
+                  value: true,
+                  onChanged: null,
+                  dense: true,
+                ),
+                CheckboxListTile(
+                  title: const Text('Include Robot Trail'),
+                  subtitle: Text('${_robotTrail.length} waypoints'),
+                  value: includeTrail,
+                  onChanged: _robotTrail.isNotEmpty
+                      ? (value) => setState(() => includeTrail = value!)
+                      : null,
+                  dense: true,
+                ),
+                CheckboxListTile(
+                  title: const Text('Include Current Position'),
+                  subtitle: const Text('Robot location marker'),
+                  value: includePosition,
+                  onChanged: _currentOdometry != null
+                      ? (value) => setState(() => includePosition = value!)
+                      : null,
+                  dense: true,
+                ),
+                CheckboxListTile(
+                  title: const Text('Include Costmap Data'),
+                  subtitle: const Text('Path planning layers'),
+                  value: includeCostmaps,
+                  onChanged: (_globalCostmap != null || _localCostmap != null)
+                      ? (value) => setState(() => includeCostmaps = value!)
+                      : null,
+                  dense: true,
+                ),
+                CheckboxListTile(
+                  title: const Text('Include Session Metadata'),
+                  subtitle: const Text('Mapping session info'),
+                  value: includeMetadata,
+                  onChanged: (value) =>
+                      setState(() => includeMetadata = value!),
+                  dense: true,
                 ),
               ],
             ),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMapAnalysis(MapData mapData) {
-    final shapesByType = <String, int>{};
-    for (final shape in mapData.shapes) {
-      shapesByType[shape.type] = (shapesByType[shape.type] ?? 0) + 1;
-    }
-
-    final occupiedCells =
-        mapData.occupancyData.where((cell) => cell == 100).length;
-    final freeCells = mapData.occupancyData.where((cell) => cell == 0).length;
-    final unknownCells =
-        mapData.occupancyData.where((cell) => cell == -1).length;
-    final totalCells = mapData.occupancyData.length;
-
-    final mapAreaM2 = (mapData.info.width * mapData.info.resolution) *
-        (mapData.info.height * mapData.info.resolution);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildAnalysisRow(
-          'Map Coverage',
-          '${((freeCells + occupiedCells) / totalCells * 100).toStringAsFixed(1)}%',
-          Colors.blue,
-        ),
-        _buildAnalysisRow(
-          'Free Space',
-          '${(freeCells / totalCells * 100).toStringAsFixed(1)}%',
-          Colors.green,
-        ),
-        _buildAnalysisRow(
-          'Obstacles',
-          '${(occupiedCells / totalCells * 100).toStringAsFixed(1)}%',
-          Colors.red,
-        ),
-        if (shapesByType.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          const Divider(),
-          const SizedBox(height: 8),
-          const Text('Shape Summary:',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          ...shapesByType.entries.map(
-            (entry) => _buildAnalysisRow(
-              '${entry.key.toUpperCase()}',
-              '${entry.value}',
-              _getShapeTypeColor(entry.key),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
             ),
-          ),
-        ],
-        const SizedBox(height: 12),
-        const Divider(),
-        const SizedBox(height: 8),
-        _buildAnalysisRow(
-          'Total Area',
-          '${mapAreaM2.toStringAsFixed(1)} m²',
-          Colors.purple,
-        ),
-        _buildAnalysisRow(
-          'Last Updated',
-          _formatTimestamp(mapData.timestamp),
-          Colors.grey,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAnalysisRow(String label, String value, Color color) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            height: 20,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _saveCompleteMap();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Save Complete Map'),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(label)),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getShapeTypeColor(String type) {
-    switch (type) {
-      case 'pickup':
-        return Colors.orange;
-      case 'drop':
-        return Colors.green;
-      case 'charging':
-        return Colors.blue;
-      case 'obstacle':
-        return Colors.red;
-      case 'waypoint':
-        return Colors.purple;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inHours < 1) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inDays < 1) {
-      return '${difference.inHours}h ago';
-    } else {
-      return '${difference.inDays}d ago';
-    }
-  }
-
-  Widget _buildStatusInformation() {
-    return Column(
-      children: [
-        _buildStatusRow('Connected', _isConnected ? 'Yes' : 'No'),
-        _buildStatusRow('Mapping Active', _mappingActive ? 'Yes' : 'No'),
-        _buildStatusRow('Control Enabled', _controlEnabled ? 'Yes' : 'No'),
-        _buildStatusRow('Messages Received', _messagesReceived.toString()),
-        _buildStatusRow('Trail Points', _robotTrail.length.toString()),
-        _buildStatusRow(
-            'Map Shapes', _currentMapData?.shapes.length.toString() ?? '0'),
-        _buildStatusRow(
-            'Global Costmap', _globalCostmap != null ? 'Available' : 'N/A'),
-        _buildStatusRow(
-            'Local Costmap', _localCostmap != null ? 'Available' : 'N/A'),
-        if (_currentMapData != null) ...[
-          _buildStatusRow('Map Version', _currentMapData!.version.toString()),
-          _buildStatusRow('Map Size',
-              '${_currentMapData!.info.width}x${_currentMapData!.info.height}'),
-          _buildStatusRow('Resolution',
-              '${_currentMapData!.info.resolution.toStringAsFixed(3)}m/px'),
-        ],
-        if (_currentOdometry?.position != null)
-          _buildStatusRow(
-            'Position',
-            '(${_currentOdometry!.position.x.toStringAsFixed(2)}, ${_currentOdometry!.position.y.toStringAsFixed(2)})',
-          ),
-      ],
-    );
-  }
-
-  Widget _buildStatusRow(String label, String value) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConnectionIndicator() {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: _isConnected
-              ? [Colors.green.shade400, Colors.green.shade600]
-              : [Colors.red.shade400, Colors.red.shade600],
+          ],
         ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: (_isConnected ? Colors.green : Colors.red).withOpacity(0.3),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _isConnected ? Icons.wifi : Icons.wifi_off,
-            size: 14,
-            color: Colors.white,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            _isConnected ? 'Online' : 'Offline',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
       ),
     );
-  }
-
-  Widget _buildMappingIndicator() {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Colors.green, Colors.lightGreen],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green.withOpacity(0.3),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 12,
-            height: 12,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          ),
-          SizedBox(width: 6),
-          Text(
-            'MAPPING',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 9,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getPositionText() {
-    if (_currentOdometry?.position == null) return 'N/A';
-    final pos = _currentOdometry!.position;
-    return '${pos.x.toStringAsFixed(1)}, ${pos.y.toStringAsFixed(1)}';
-  }
-
-  String _getVelocityText() {
-    final speed = math.sqrt(
-        _currentLinear * _currentLinear + _currentAngular * _currentAngular);
-    return '${speed.toStringAsFixed(2)} m/s';
-  }
-
-  // ==========================================
-  // ✅ FIXED: COMPLETE CONTROL METHODS
-  // ==========================================
-
-  void _onJoystickChanged(double linear, double angular, bool deadmanActive) {
-    if (!_isConnected) return;
-
-    final clampedLinear = linear.clamp(-_maxLinearSpeed, _maxLinearSpeed);
-    final clampedAngular = angular.clamp(-_maxAngularSpeed, _maxAngularSpeed);
-
-    setState(() {
-      _currentLinear = clampedLinear;
-      _currentAngular = clampedAngular;
-    });
-
-    _webSocketService.sendJoystickControl(
-      widget.deviceId,
-      clampedAngular / _maxAngularSpeed,
-      clampedLinear / _maxLinearSpeed,
-      deadmanActive,
-      maxLinearSpeed: _maxLinearSpeed,
-      maxAngularSpeed: _maxAngularSpeed,
-    );
-  }
-
-  void _toggleMapping() {
-    if (_mappingActive) {
-      _webSocketService.sendMappingCommand(widget.deviceId, 'stop');
-    } else {
-      _webSocketService.sendMappingCommand(widget.deviceId, 'start');
-    }
-  }
-
-  Future<void> _saveMap() async {
-    if (!_isMapSaveable()) {
-      _showSnackBar('No map data to save', Colors.red);
-      return;
-    }
-
-    try {
-      _webSocketService.sendMappingCommand(widget.deviceId, 'save');
-
-      MapData? mapToSave = _currentMapData;
-      if (mapToSave == null && _mappingActive) {
-        mapToSave = MapData(
-          deviceId: widget.deviceId,
-          timestamp: DateTime.now(),
-          info: MapInfo(
-            resolution: 0.05,
-            width: 1000,
-            height: 1000,
-            origin: odom.Position(x: -25.0, y: -25.0, z: 0.0),
-            originOrientation: odom.Orientation(x: 0, y: 0, z: 0, w: 1),
-          ),
-          occupancyData: List.filled(1000 * 1000, -1),
-          shapes: [],
-          version: 1,
-        );
-      }
-
-      if (mapToSave != null) {
-        final response = await _apiService.saveMapData(
-          deviceId: widget.deviceId,
-          mapData: mapToSave,
-        );
-
-        if (response['success'] == true) {
-          _showSnackBar('Map saved successfully!', Colors.green);
-        } else {
-          _showSnackBar('Failed to save map: ${response['error']}', Colors.red);
-        }
-      }
-    } catch (e) {
-      _showSnackBar('Error saving map: $e', Colors.red);
-    }
-  }
-
-  Future<void> _saveTrailAsMap() async {
-    if (!_isTrailSaveable()) {
-      _showSnackBar('No trail data to save', Colors.orange);
-      return;
-    }
-
-    try {
-      final trailShape = MapShape(
-        id: 'trail_${DateTime.now().millisecondsSinceEpoch}',
-        name:
-            'Robot Trail ${DateTime.now().toLocal().toString().split('.')[0]}',
-        type: 'waypoint',
-        points: List<odom.Position>.from(_robotTrail),
-        color: 'FF9800',
-        sides: {'left': '', 'right': '', 'front': '', 'back': ''},
-        createdAt: DateTime.now(),
-      );
-
-      MapData mapToSave;
-      if (_currentMapData != null) {
-        mapToSave = _currentMapData!.addShape(trailShape);
-      } else {
-        mapToSave = MapData(
-          deviceId: widget.deviceId,
-          timestamp: DateTime.now(),
-          info: MapInfo(
-            resolution: 0.05,
-            width: 1000,
-            height: 1000,
-            origin: odom.Position(x: -25.0, y: -25.0, z: 0.0),
-            originOrientation: odom.Orientation(x: 0, y: 0, z: 0, w: 1),
-          ),
-          occupancyData: List.filled(1000 * 1000, -1),
-          shapes: [trailShape],
-          version: 1,
-        );
-      }
-
-      final response = await _apiService.saveMapData(
-        deviceId: widget.deviceId,
-        mapData: mapToSave,
-      );
-
-      if (response['success'] == true) {
-        setState(() {
-          _currentMapData = mapToSave;
-        });
-        _showSnackBar('Trail saved as waypoint path!', Colors.green);
-      } else {
-        _showSnackBar('Failed to save trail: ${response['error']}', Colors.red);
-      }
-    } catch (e) {
-      _showSnackBar('Error saving trail: $e', Colors.red);
-    }
-  }
-
-  void _openMapEditor() {
-    Navigator.of(context).pushNamed(
-      '/map',
-      arguments: {'deviceId': widget.deviceId},
-    ).then((_) {
-      if (_currentMapData != null) {
-        _loadCurrentMapData();
-      }
-    });
-  }
-
-  Future<void> _loadCurrentMapData() async {
-    try {
-      final response = await _apiService.getMapData(widget.deviceId);
-      if (response['success'] == true && response['mapData'] != null) {
-        setState(() {
-          _currentMapData = MapData.fromJson(response['mapData']);
-        });
-      }
-    } catch (e) {
-      debugPrint('❌ Error loading map data: $e');
-    }
-  }
-
-  void _convertTrailToWaypoints() async {
-    if (_robotTrail.isEmpty) {
-      _showSnackBar('No trail data to convert', Colors.orange);
-      return;
-    }
-
-    try {
-      final simplifiedTrail = <odom.Position>[];
-      for (int i = 0; i < _robotTrail.length; i += 10) {
-        simplifiedTrail.add(_robotTrail[i]);
-      }
-
-      if (_robotTrail.length > 1 &&
-          simplifiedTrail.isNotEmpty &&
-          simplifiedTrail.last != _robotTrail.last) {
-        simplifiedTrail.add(_robotTrail.last);
-      }
-
-      final waypoints = <MapShape>[];
-      for (int i = 0; i < simplifiedTrail.length; i++) {
-        final point = simplifiedTrail[i];
-        final waypoint = MapShape(
-          id: 'waypoint_${DateTime.now().millisecondsSinceEpoch}_$i',
-          name: 'Waypoint ${i + 1}',
-          type: 'waypoint',
-          points: [point],
-          color: 'FF2196F3',
-          sides: {'left': '', 'right': '', 'front': '', 'back': ''},
-          createdAt: DateTime.now(),
-        );
-        waypoints.add(waypoint);
-      }
-
-      MapData mapToSave;
-      if (_currentMapData != null) {
-        mapToSave = _currentMapData!;
-        for (final waypoint in waypoints) {
-          mapToSave = mapToSave.addShape(waypoint);
-        }
-      } else {
-        mapToSave = MapData(
-          deviceId: widget.deviceId,
-          timestamp: DateTime.now(),
-          info: MapInfo(
-            resolution: 0.05,
-            width: 1000,
-            height: 1000,
-            origin: odom.Position(x: -25.0, y: -25.0, z: 0.0),
-            originOrientation: odom.Orientation(x: 0, y: 0, z: 0, w: 1),
-          ),
-          occupancyData: List.filled(1000 * 1000, -1),
-          shapes: waypoints,
-          version: 1,
-        );
-      }
-
-      final response = await _apiService.saveMapData(
-        deviceId: widget.deviceId,
-        mapData: mapToSave,
-      );
-
-      if (response['success'] == true) {
-        setState(() {
-          _currentMapData = mapToSave;
-        });
-        _showSnackBar(
-            'Trail converted to ${waypoints.length} waypoints!', Colors.green);
-      } else {
-        _showSnackBar(
-            'Failed to save waypoints: ${response['error']}', Colors.red);
-      }
-    } catch (e) {
-      _showSnackBar('Error converting trail: $e', Colors.red);
-    }
-  }
-
-  void _toggleControl() {
-    setState(() {
-      _controlEnabled = !_controlEnabled;
-    });
-
-    if (!_controlEnabled) {
-      _webSocketService.stopRobot(widget.deviceId);
-      setState(() {
-        _currentLinear = 0.0;
-        _currentAngular = 0.0;
-      });
-    }
-  }
-
-  void _emergencyStop() {
-    _webSocketService.stopRobot(widget.deviceId);
-    setState(() {
-      _currentLinear = 0.0;
-      _currentAngular = 0.0;
-    });
-    _showSnackBar('Emergency stop activated!', Colors.red);
-  }
-
-  void _showSnackBar(String message, Color color) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: color,
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _realTimeDataSubscription?.cancel();
-    _mappingEventsSubscription?.cancel();
-    _controlEventsSubscription?.cancel();
-    _connectionStateSubscription?.cancel();
-    _errorSubscription?.cancel();
-    _statusAnimationController.dispose();
-    _tabController.dispose();
-    super.dispose();
   }
 }
-
-enum DeviceType { phone, tablet, desktop }

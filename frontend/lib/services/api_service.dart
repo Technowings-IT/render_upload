@@ -171,6 +171,89 @@ class ApiService {
     }
   }
 
+  /// Convert JSON map to PGM+YAML format
+  Future<Map<String, dynamic>> convertMapToPGM({
+    required String deviceId,
+    String? mapName,
+    String? sourceMapName,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/convert-to-pgm', {
+        'mapName':
+            mapName ?? 'converted_${DateTime.now().millisecondsSinceEpoch}',
+        'sourceMapName': sourceMapName,
+        'convertedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Map converted to PGM: ${response['outputMapName']}');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error converting map to PGM: $e');
+      throw ApiException('Failed to convert map to PGM: $e');
+    }
+  }
+
+  /// Edit PGM map by adding location markers
+  Future<Map<String, dynamic>> editPGMMap({
+    required String deviceId,
+    required String mapName,
+    required List<Map<String, dynamic>> locations,
+    Map<String, dynamic>? metadata,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _put('/api/maps/$deviceId/edit-pgm/$mapName', {
+        'locations': locations,
+        'metadata': metadata ?? {},
+        'editedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ PGM map edited: $mapName with ${locations.length} locations');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error editing PGM map: $e');
+      throw ApiException('Failed to edit PGM map: $e');
+    }
+  }
+
+  /// Rename map for deployment
+  Future<Map<String, dynamic>> renameMapForDeployment({
+    required String deviceId,
+    required String sourceMapName,
+    required String targetMapName,
+    String? deploymentNotes,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response =
+          await _post('/api/maps/$deviceId/rename-for-deployment', {
+        'sourceMapName': sourceMapName,
+        'targetMapName': targetMapName,
+        'deploymentNotes': deploymentNotes ?? '',
+        'preparedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Map renamed for deployment: $sourceMapName -> $targetMapName');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error renaming map for deployment: $e');
+      throw ApiException('Failed to rename map for deployment: $e');
+    }
+  }
+
   /// Upload map to AGV (send PGM + YAML back to ROS)
   Future<Map<String, dynamic>> uploadMapToAGV({
     required String deviceId,
@@ -215,6 +298,143 @@ class ApiService {
     } catch (e) {
       print('❌ Error getting available maps: $e');
       throw ApiException('Failed to get available maps: $e');
+    }
+  }
+
+// ==========================================
+// RASPBERRY PI DEPLOYMENT METHODS
+// ==========================================
+
+  /// Deploy map to Raspberry Pi via SSH
+  Future<Map<String, dynamic>> deployMapToRaspberryPi({
+    required String deviceId,
+    required String mapName,
+    Map<String, dynamic>? piConfig,
+    bool autoLoad = true,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/deploy-to-pi', {
+        'mapName': mapName,
+        'piConfig': piConfig,
+        'autoLoad': autoLoad,
+        'deployedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Map deployed to Raspberry Pi: $mapName');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error deploying map to Raspberry Pi: $e');
+      throw ApiException('Failed to deploy map to Raspberry Pi: $e');
+    }
+  }
+
+  /// Get available maps on Raspberry Pi
+  Future<List<Map<String, dynamic>>> getAvailablePiMaps(String deviceId) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _get('/api/maps/$deviceId/pi-maps');
+
+      if (response['success'] == true) {
+        final maps = response['maps'] as List?;
+        if (maps != null) {
+          return maps.cast<Map<String, dynamic>>();
+        }
+      }
+
+      return [];
+    } catch (e) {
+      print('❌ Error getting Pi maps: $e');
+      throw ApiException('Failed to get Pi maps: $e');
+    }
+  }
+
+  /// Set active map on Raspberry Pi
+  Future<Map<String, dynamic>> setActivePiMap({
+    required String deviceId,
+    required String mapName,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/set-active-pi-map', {
+        'mapName': mapName,
+        'setAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Active Pi map set: $mapName');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error setting active Pi map: $e');
+      throw ApiException('Failed to set active Pi map: $e');
+    }
+  }
+
+  /// Get Raspberry Pi status
+  Future<Map<String, dynamic>> getRaspberryPiStatus(String deviceId) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _get('/api/maps/$deviceId/pi-status');
+
+      if (response['success'] == true) {
+        return response;
+      }
+
+      throw ApiException('Failed to get Pi status: ${response['error']}');
+    } catch (e) {
+      print('❌ Error getting Pi status: $e');
+      throw ApiException('Failed to get Pi status: $e');
+    }
+  }
+
+  /// Test SSH connection to Raspberry Pi
+  Future<Map<String, dynamic>> testPiConnection({
+    required String deviceId,
+    Map<String, dynamic>? piConfig,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/test-pi-connection', {
+        'piConfig': piConfig,
+        'testedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Pi connection test successful');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error testing Pi connection: $e');
+      throw ApiException('Failed to test Pi connection: $e');
+    }
+  }
+
+  /// Get Pi map loading logs
+  Future<Map<String, dynamic>> getPiMapLogs(String deviceId) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _get('/api/maps/$deviceId/pi-logs');
+
+      if (response['success'] == true) {
+        return response;
+      }
+
+      throw ApiException('Failed to get Pi logs: ${response['error']}');
+    } catch (e) {
+      print('❌ Error getting Pi logs: $e');
+      throw ApiException('Failed to get Pi logs: $e');
     }
   }
 
@@ -457,6 +677,173 @@ class ApiService {
     } catch (e) {
       print('❌ Error getting map statistics: $e');
       throw ApiException('Failed to get map statistics: $e');
+    }
+  }
+
+// ==========================================
+// COMPLETE MAP EDITING WORKFLOW
+// ==========================================
+
+  /// Complete workflow: Convert -> Edit -> Rename -> Deploy
+  Future<Map<String, dynamic>> completeMapDeploymentWorkflow({
+    required String deviceId,
+    String? sourceMapName,
+    required String finalMapName,
+    required List<Map<String, dynamic>> locations,
+    Map<String, dynamic>? piConfig,
+    String? deploymentNotes,
+    bool autoLoad = true,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      print('🚀 Starting complete map deployment workflow...');
+
+      final workflowResults = <String, dynamic>{};
+
+      // Step 1: Convert to PGM
+      print('📋 Step 1: Converting to PGM format...');
+      final convertResult = await convertMapToPGM(
+        deviceId: deviceId,
+        sourceMapName: sourceMapName,
+        mapName: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+      );
+
+      if (convertResult['success'] != true) {
+        throw ApiException('Conversion failed: ${convertResult['error']}');
+      }
+
+      workflowResults['conversion'] = convertResult;
+      final tempMapName = convertResult['outputMapName'];
+
+      // Step 2: Edit map with locations
+      print('📋 Step 2: Adding location markers...');
+      final editResult = await editPGMMap(
+        deviceId: deviceId,
+        mapName: tempMapName,
+        locations: locations,
+      );
+
+      if (editResult['success'] != true) {
+        throw ApiException('Editing failed: ${editResult['error']}');
+      }
+
+      workflowResults['editing'] = editResult;
+
+      // Step 3: Rename for deployment
+      print('📋 Step 3: Renaming for deployment...');
+      final renameResult = await renameMapForDeployment(
+        deviceId: deviceId,
+        sourceMapName: tempMapName,
+        targetMapName: finalMapName,
+        deploymentNotes: deploymentNotes,
+      );
+
+      if (renameResult['success'] != true) {
+        throw ApiException('Renaming failed: ${renameResult['error']}');
+      }
+
+      workflowResults['renaming'] = renameResult;
+
+      // Step 4: Deploy to Raspberry Pi
+      print('📋 Step 4: Deploying to Raspberry Pi...');
+      final deployResult = await deployMapToRaspberryPi(
+        deviceId: deviceId,
+        mapName: finalMapName,
+        piConfig: piConfig,
+        autoLoad: autoLoad,
+      );
+
+      if (deployResult['success'] != true) {
+        throw ApiException('Deployment failed: ${deployResult['error']}');
+      }
+
+      workflowResults['deployment'] = deployResult;
+
+      print('✅ Complete map deployment workflow finished successfully!');
+
+      return {
+        'success': true,
+        'message': 'Complete workflow executed successfully',
+        'deviceId': deviceId,
+        'finalMapName': finalMapName,
+        'locationsAdded': locations.length,
+        'autoLoadEnabled': autoLoad,
+        'completedAt': DateTime.now().toIso8601String(),
+        'workflowResults': workflowResults,
+      };
+    } catch (e) {
+      print('❌ Map deployment workflow failed: $e');
+      throw ApiException('Map deployment workflow failed: $e');
+    }
+  }
+
+// ==========================================
+// MAP SELECTION FOR NAVIGATION
+// ==========================================
+
+  /// Get available maps for navigation selection
+  Future<Map<String, dynamic>> getNavigationMapOptions(String deviceId) async {
+    _ensureInitialized();
+
+    try {
+      // Get local maps
+      final localMaps = await getAvailableMaps(deviceId);
+
+      // Get Pi maps
+      final piMaps = await getAvailablePiMaps(deviceId);
+
+      // Get saved maps
+      final savedMaps = await getSavedMaps(deviceId);
+
+      return {
+        'success': true,
+        'deviceId': deviceId,
+        'localMaps': localMaps,
+        'piMaps': piMaps,
+        'savedMaps': savedMaps,
+        'retrievedAt': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      print('❌ Error getting navigation map options: $e');
+      throw ApiException('Failed to get navigation map options: $e');
+    }
+  }
+
+  /// Start navigation with selected map
+  Future<Map<String, dynamic>> startNavigationWithMap({
+    required String deviceId,
+    required String mapName,
+    required String mapSource, // 'local', 'pi', 'saved'
+    bool setAsActive = true,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      print('🧭 Starting navigation with map: $mapName from $mapSource');
+
+      // If using Pi map, set it as active first
+      if (mapSource == 'pi' && setAsActive) {
+        await setActivePiMap(deviceId: deviceId, mapName: mapName);
+      }
+
+      // Start navigation
+      final response =
+          await _post('/api/control/devices/$deviceId/navigation/start', {
+        'mapName': mapName,
+        'mapSource': mapSource,
+        'setAsActive': setAsActive,
+        'startedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Navigation started with map: $mapName');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error starting navigation with map: $e');
+      throw ApiException('Failed to start navigation with map: $e');
     }
   }
 
@@ -1260,7 +1647,223 @@ class ApiService {
     }
   }
 
+  /// FIXED: Enhanced map data loading with proper error handling
   Future<Map<String, dynamic>> getMapData(String deviceId) async {
+    _ensureInitialized();
+
+    try {
+      print('🗺️ Loading map data for device: $deviceId');
+
+      // Try multiple endpoints to get map data
+      Map<String, dynamic> response;
+
+      // Method 1: Try the control endpoint first (your existing API)
+      try {
+        response =
+            await _get('/api/control/devices/$deviceId/maps', useCache: false);
+        if (response['success'] == true && response['mapData'] != null) {
+          print('✅ Map data loaded from control endpoint');
+          return _normalizeMapResponse(response);
+        }
+      } catch (e) {
+        print('⚠️ Control endpoint failed: $e');
+      }
+
+      // Method 2: Try the enhanced map endpoint
+      try {
+        response =
+            await _get('/api/maps/$deviceId/load-complete', useCache: false);
+        if (response['success'] == true && response['mapData'] != null) {
+          print('✅ Map data loaded from enhanced endpoint');
+          return _normalizeMapResponse(response);
+        }
+      } catch (e) {
+        print('⚠️ Enhanced endpoint failed: $e');
+      }
+
+      // Method 3: Try to get the latest saved map
+      try {
+        final savedMaps = await getSavedMapsEnhanced(deviceId);
+        if (savedMaps.isNotEmpty) {
+          final latestMap = savedMaps.first;
+          response = await loadCompleteMapDataEnhanced(
+            deviceId: deviceId,
+            mapName: latestMap['name'],
+          );
+          if (response['success'] == true && response['mapData'] != null) {
+            print('✅ Map data loaded from saved maps');
+            return _normalizeMapResponse(response);
+          }
+        }
+      } catch (e) {
+        print('⚠️ Saved maps endpoint failed: $e');
+      }
+
+      // Method 4: Create empty map if nothing found
+      print('⚠️ No map data found, creating empty map');
+      return _createEmptyMapResponse(deviceId);
+    } catch (e) {
+      print('❌ Error getting map data: $e');
+      throw ApiException('Failed to get map data: $e');
+    }
+  }
+
+  /// FIXED: Normalize map response to consistent format
+  Map<String, dynamic> _normalizeMapResponse(Map<String, dynamic> response) {
+    if (response['mapData'] != null) {
+      final mapData = response['mapData'];
+
+      // Ensure required fields exist
+      mapData['deviceId'] = mapData['deviceId'] ?? 'unknown';
+      mapData['timestamp'] =
+          mapData['timestamp'] ?? DateTime.now().toIso8601String();
+      mapData['version'] = mapData['version'] ?? 1;
+
+      // Ensure info field exists
+      if (mapData['info'] == null) {
+        mapData['info'] = {
+          'resolution': 0.05,
+          'width': 1000,
+          'height': 1000,
+          'origin': {
+            'position': {'x': -25.0, 'y': -25.0, 'z': 0.0},
+            'orientation': {'x': 0, 'y': 0, 'z': 0, 'w': 1}
+          }
+        };
+      }
+
+      // Ensure shapes field exists
+      mapData['shapes'] = mapData['shapes'] ?? [];
+
+      // Ensure occupancy data exists
+      if (mapData['occupancyData'] == null && mapData['data'] == null) {
+        mapData['occupancyData'] = [];
+      }
+
+      // Backward compatibility: copy 'data' to 'occupancyData' if needed
+      if (mapData['occupancyData'] == null && mapData['data'] != null) {
+        mapData['occupancyData'] = mapData['data'];
+      }
+
+      return {
+        'success': true,
+        'mapData': mapData,
+        'source': 'normalized',
+        'loadedAt': DateTime.now().toIso8601String(),
+      };
+    }
+
+    throw ApiException('Invalid map response format');
+  }
+
+  /// Create empty map response when no data is available
+  Map<String, dynamic> _createEmptyMapResponse(String deviceId) {
+    return {
+      'success': true,
+      'mapData': {
+        'deviceId': deviceId,
+        'timestamp': DateTime.now().toIso8601String(),
+        'info': {
+          'resolution': 0.05,
+          'width': 1000,
+          'height': 1000,
+          'origin': {
+            'position': {'x': -25.0, 'y': -25.0, 'z': 0.0},
+            'orientation': {'x': 0, 'y': 0, 'z': 0, 'w': 1}
+          }
+        },
+        'occupancyData': [],
+        'shapes': [],
+        'version': 1,
+      },
+      'source': 'empty',
+      'loadedAt': DateTime.now().toIso8601String(),
+    };
+  }
+
+  /// FIXED: Get saved maps with proper error handling
+  Future<List<Map<String, dynamic>>> getSavedMapsEnhanced(
+    String deviceId, {
+    bool includePreview = true,
+    String? sortBy = 'savedAt',
+    bool descending = true,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      print('📋 Getting saved maps for device: $deviceId');
+
+      final params = {
+        'includePreview': includePreview.toString(),
+        'sortBy': sortBy ?? 'savedAt',
+        'descending': descending.toString(),
+      };
+
+      final queryString = params.entries
+          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+
+      final response = await _get('/api/maps/$deviceId/saved?$queryString');
+
+      if (response['success'] == true) {
+        final maps = response['maps'] as List?;
+        if (maps != null) {
+          print('✅ Found ${maps.length} saved maps');
+          return maps.cast<Map<String, dynamic>>();
+        }
+      }
+
+      print('⚠️ No saved maps found');
+      return [];
+    } catch (e) {
+      print('❌ Error getting saved maps: $e');
+      // Return empty list instead of throwing to handle gracefully
+      return [];
+    }
+  }
+
+  /// FIXED: Load specific map with proper validation
+  Future<Map<String, dynamic>> loadCompleteMapDataEnhanced({
+    required String deviceId,
+    String? mapName,
+    bool includeShapes = true,
+    bool includeMetadata = true,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      print(
+          '📂 Loading map data: ${mapName ?? 'current'} for device: $deviceId');
+
+      final params = <String, String>{
+        'includeShapes': includeShapes.toString(),
+        'includeMetadata': includeMetadata.toString(),
+      };
+
+      if (mapName != null) {
+        params['mapName'] = mapName;
+      }
+
+      final queryString = params.entries
+          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+
+      final response =
+          await _get('/api/maps/$deviceId/load-complete?$queryString');
+
+      if (response['success'] == true) {
+        print('✅ Map loaded successfully: ${mapName ?? 'current'}');
+        return _normalizeMapResponse(response);
+      }
+
+      throw ApiException('Failed to load map: ${response['error']}');
+    } catch (e) {
+      print('❌ Error loading map data: $e');
+      throw ApiException('Failed to load map data: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getLiveMapData(String deviceId) async {
     _ensureInitialized();
 
     try {
@@ -1901,6 +2504,506 @@ class ApiService {
   void dispose() {
     clearCache();
     clearStats();
+  }
+
+  // ✅ ADD THESE NEW METHODS to your existing ApiService class:
+
+  /// Save complete map data with all layers and metadata
+  Future<Map<String, dynamic>> saveCompleteMapData({
+    required String deviceId,
+    required MapData mapData,
+    String? mapName,
+    bool includeMetadata = true,
+    bool createBackup = true,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final completeMapName = mapName ??
+          'complete_map_${deviceId}_${DateTime.now().millisecondsSinceEpoch}';
+
+      final requestData = {
+        'mapData': mapData.toJson(),
+        'mapName': completeMapName,
+        'saveType': 'complete',
+        'includeMetadata': includeMetadata,
+        'createBackup': createBackup,
+        'savedAt': DateTime.now().toIso8601String(),
+        'clientInfo': {
+          'platform': 'flutter',
+          'version': '1.0.0',
+          'source': 'live_mapping',
+        },
+      };
+
+      final response =
+          await _post('/api/maps/$deviceId/save-complete', requestData);
+
+      if (response['success'] == true) {
+        print('✅ Complete map saved successfully: $completeMapName');
+
+        // Clear cache for this device to force reload
+        clearCacheForEndpoint('/api/maps/$deviceId');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error saving complete map data: $e');
+      throw ApiException('Failed to save complete map data: $e');
+    }
+  }
+
+  /// Load complete map data for editing
+  Future<Map<String, dynamic>> loadCompleteMapData({
+    required String deviceId,
+    String? mapName,
+    bool includeShapes = true,
+    bool includeMetadata = true,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final params = <String, String>{
+        'includeShapes': includeShapes.toString(),
+        'includeMetadata': includeMetadata.toString(),
+      };
+
+      if (mapName != null) {
+        params['mapName'] = mapName;
+      }
+
+      final queryString = params.entries
+          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+
+      final response =
+          await _get('/api/maps/$deviceId/load-complete?$queryString');
+
+      if (response['success'] == true) {
+        print('✅ Complete map loaded for device: $deviceId');
+        return response;
+      }
+
+      throw ApiException('Failed to load complete map: ${response['error']}');
+    } catch (e) {
+      print('❌ Error loading complete map data: $e');
+      throw ApiException('Failed to load complete map data: $e');
+    }
+  }
+
+  /// Get all saved maps for a device with metadata
+  Future<List<Map<String, dynamic>>> getSavedMaps(
+    String deviceId, {
+    bool includePreview = true,
+    String? sortBy = 'savedAt',
+    bool descending = true,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final params = {
+        'includePreview': includePreview.toString(),
+        'sortBy': sortBy ?? 'savedAt',
+        'descending': descending.toString(),
+      };
+
+      final queryString = params.entries
+          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+
+      final response = await _get('/api/maps/$deviceId/saved?$queryString');
+
+      if (response['success'] == true) {
+        final maps = response['maps'] as List?;
+        if (maps != null) {
+          return maps.cast<Map<String, dynamic>>();
+        }
+      }
+
+      return [];
+    } catch (e) {
+      print('❌ Error getting saved maps: $e');
+      // Return empty list instead of throwing to handle gracefully
+      return [];
+    }
+  }
+
+  /// Get map preview/summary without full data
+  Future<Map<String, dynamic>> getMapPreview({
+    required String deviceId,
+    required String mapName,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _get('/api/maps/$deviceId/$mapName/preview');
+
+      if (response['success'] == true) {
+        return response;
+      }
+
+      throw ApiException('Failed to get map preview: ${response['error']}');
+    } catch (e) {
+      print('❌ Error getting map preview: $e');
+      throw ApiException('Failed to get map preview: $e');
+    }
+  }
+
+  /// Clone/duplicate a saved map
+  Future<Map<String, dynamic>> cloneMap({
+    required String deviceId,
+    required String sourceMapName,
+    required String targetMapName,
+    bool includeShapes = true,
+    bool includeMetadata = true,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/$sourceMapName/clone', {
+        'targetMapName': targetMapName,
+        'includeShapes': includeShapes,
+        'includeMetadata': includeMetadata,
+        'clonedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Map cloned: $sourceMapName -> $targetMapName');
+
+        // Clear cache to force reload
+        clearCacheForEndpoint('/api/maps/$deviceId');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error cloning map: $e');
+      throw ApiException('Failed to clone map: $e');
+    }
+  }
+
+  /// Delete saved map
+  Future<Map<String, dynamic>> deleteSavedMap({
+    required String deviceId,
+    required String mapName,
+    bool deleteBackups = false,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _delete(
+          '/api/maps/$deviceId/$mapName?deleteBackups=$deleteBackups');
+
+      if (response['success'] == true) {
+        print('✅ Map deleted: $mapName');
+
+        // Clear cache for this device
+        clearCacheForEndpoint('/api/maps/$deviceId');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error deleting saved map: $e');
+      throw ApiException('Failed to delete saved map: $e');
+    }
+  }
+
+  /// Export maps in various formats
+  Future<Map<String, dynamic>> exportMaps({
+    required String deviceId,
+    required List<String> mapNames,
+    required String format, // 'json', 'pgm', 'png', 'zip'
+    bool includeMetadata = true,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/export', {
+        'mapNames': mapNames,
+        'format': format,
+        'includeMetadata': includeMetadata,
+        'exportedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Maps exported in $format format: ${mapNames.join(', ')}');
+        return response;
+      }
+
+      throw ApiException('Failed to export maps: ${response['error']}');
+    } catch (e) {
+      print('❌ Error exporting maps: $e');
+      throw ApiException('Failed to export maps: $e');
+    }
+  }
+
+  /// Share map with other devices
+  Future<Map<String, dynamic>> shareMapWithDevices({
+    required String sourceDeviceId,
+    required String mapName,
+    required List<String> targetDeviceIds,
+    bool overwriteExisting = false,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$sourceDeviceId/$mapName/share', {
+        'targetDeviceIds': targetDeviceIds,
+        'overwriteExisting': overwriteExisting,
+        'sharedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Map shared: $mapName to ${targetDeviceIds.length} devices');
+
+        // Clear cache for all affected devices
+        for (final deviceId in targetDeviceIds) {
+          clearCacheForEndpoint('/api/maps/$deviceId');
+        }
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error sharing map: $e');
+      throw ApiException('Failed to share map: $e');
+    }
+  }
+
+// ==========================================
+// LOCATION MANAGEMENT FOR MAP EDITING
+// ==========================================
+
+  /// Create location marker for map
+  Map<String, dynamic> createLocationMarker({
+    required String name,
+    required String type, // 'pickup', 'drop', 'charging', 'home', 'waypoint'
+    required Map<String, double> position,
+    Map<String, double>? orientation,
+    Map<String, dynamic>? metadata,
+  }) {
+    return {
+      'name': name,
+      'type': type,
+      'position': {
+        'x': position['x'] ?? 0.0,
+        'y': position['y'] ?? 0.0,
+        'z': position['z'] ?? 0.0,
+      },
+      'orientation': {
+        'x': orientation?['x'] ?? 0.0,
+        'y': orientation?['y'] ?? 0.0,
+        'z': orientation?['z'] ?? 0.0,
+        'w': orientation?['w'] ?? 1.0,
+      },
+      'metadata': metadata ?? {},
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+  }
+
+  /// Validate location data
+  bool validateLocationData(Map<String, dynamic> location) {
+    final requiredFields = ['name', 'type', 'position'];
+
+    for (final field in requiredFields) {
+      if (!location.containsKey(field) || location[field] == null) {
+        return false;
+      }
+    }
+
+    final validTypes = ['pickup', 'drop', 'charging', 'home', 'waypoint'];
+    if (!validTypes.contains(location['type'])) {
+      return false;
+    }
+
+    final position = location['position'];
+    if (position is! Map ||
+        !position.containsKey('x') ||
+        !position.containsKey('y')) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Get location type color
+  String getLocationTypeColor(String type) {
+    switch (type) {
+      case 'pickup':
+        return '#4CAF50'; // Green
+      case 'drop':
+        return '#2196F3'; // Blue
+      case 'charging':
+        return '#FF9800'; // Orange
+      case 'home':
+        return '#9C27B0'; // Purple
+      case 'waypoint':
+        return '#607D8B'; // Blue Grey
+      default:
+        return '#757575'; // Grey
+    }
+  }
+
+  /// Get location type icon
+  String getLocationTypeIcon(String type) {
+    switch (type) {
+      case 'pickup':
+        return '📦';
+      case 'drop':
+        return '🎯';
+      case 'charging':
+        return '🔋';
+      case 'home':
+        return '🏠';
+      case 'waypoint':
+        return '📍';
+      default:
+        return '⭕';
+    }
+  }
+
+// ==========================================
+// DEPLOYMENT CONFIGURATION MANAGEMENT
+// ==========================================
+
+  /// Save deployment configuration
+  Future<Map<String, dynamic>> saveDeploymentConfig({
+    required String deviceId,
+    required Map<String, dynamic> config,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/deployment-config', {
+        'config': config,
+        'savedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Deployment config saved');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error saving deployment config: $e');
+      throw ApiException('Failed to save deployment config: $e');
+    }
+  }
+
+  /// Get saved deployment configuration
+  Future<Map<String, dynamic>> getDeploymentConfig(String deviceId) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _get('/api/maps/$deviceId/deployment-config');
+
+      if (response['success'] == true) {
+        return response;
+      }
+
+      // Return default config if none saved
+      return {
+        'success': true,
+        'config': {
+          'piHost': '192.168.1.100',
+          'piPort': 22,
+          'piUser': 'pi',
+          'piMapDir': '/home/pi/ros2_ws/src/nav2_bringup/maps',
+          'autoLoad': true,
+          'backupMaps': true,
+        },
+      };
+    } catch (e) {
+      print('❌ Error getting deployment config: $e');
+      throw ApiException('Failed to get deployment config: $e');
+    }
+  }
+
+  /// Deploy multiple maps to Raspberry Pi
+  Future<Map<String, dynamic>> batchDeployMaps({
+    required String deviceId,
+    required List<String> mapNames,
+    Map<String, dynamic>? piConfig,
+    bool autoLoad = false, // Only last map auto-loads
+  }) async {
+    _ensureInitialized();
+
+    try {
+      print('🚀 Starting batch deployment of ${mapNames.length} maps...');
+
+      final results = <String, dynamic>{};
+      String? lastDeployedMap;
+
+      for (int i = 0; i < mapNames.length; i++) {
+        final mapName = mapNames[i];
+        final isLastMap = i == mapNames.length - 1;
+
+        print('📋 Deploying ${i + 1}/${mapNames.length}: $mapName');
+
+        try {
+          final result = await deployMapToRaspberryPi(
+            deviceId: deviceId,
+            mapName: mapName,
+            piConfig: piConfig,
+            autoLoad: autoLoad && isLastMap, // Only auto-load the last map
+          );
+
+          results[mapName] = result;
+
+          if (result['success'] == true) {
+            lastDeployedMap = mapName;
+            print('✅ Deployed: $mapName');
+          } else {
+            print('❌ Failed to deploy: $mapName');
+          }
+
+          // Small delay between deployments
+          await Future.delayed(Duration(seconds: 2));
+        } catch (e) {
+          results[mapName] = {
+            'success': false,
+            'error': e.toString(),
+          };
+          print('❌ Error deploying $mapName: $e');
+        }
+      }
+
+      final successCount =
+          results.values.where((result) => result['success'] == true).length;
+
+      return {
+        'success': successCount > 0,
+        'message': 'Batch deployment completed',
+        'totalMaps': mapNames.length,
+        'successfulDeployments': successCount,
+        'failedDeployments': mapNames.length - successCount,
+        'lastDeployedMap': lastDeployedMap,
+        'results': results,
+        'completedAt': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      print('❌ Batch deployment failed: $e');
+      throw ApiException('Batch deployment failed: $e');
+    }
+  }
+
+  /// Get map analytics/statistics
+  Future<Map<String, dynamic>> getMapAnalytics({
+    required String deviceId,
+    required String mapName,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _get('/api/maps/$deviceId/$mapName/analytics');
+
+      if (response['success'] == true) {
+        return response;
+      }
+
+      throw ApiException('Failed to get map analytics: ${response['error']}');
+    } catch (e) {
+      print('❌ Error getting map analytics: $e');
+      throw ApiException('Failed to get map analytics: $e');
+    }
   }
 }
 

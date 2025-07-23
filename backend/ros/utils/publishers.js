@@ -41,14 +41,14 @@ function getCurrentMaxSpeeds() {
 // ✅ FIXED: Pre-create publishers for immediate use
 function createEssentialPublishers() {
     try {
-        // Create cmd_vel publisher immediately for joystick control
-        getOrCreatePublisher('/cmd_vel', 'geometry_msgs/msg/Twist');
+        // Create cmd_vel_joystick publisher immediately for joystick control
+        getOrCreatePublisher('/cmd_vel_joystick', 'geometry_msgs/msg/Twist');
         
         // Create map publisher for map editing
         // getOrCreatePublisher('/map', 'nav_msgs/msg/OccupancyGrid');
         
         // Create goal publisher for navigation
-        getOrCreatePublisher('/goal_pose', 'geometry_msgs/msg/PoseStamped');
+        getOrCreatePublisher('/target_pose', 'geometry_msgs/msg/PoseStamped');
         
         console.log('✅ Essential publishers created');
         
@@ -108,7 +108,7 @@ function publishVelocity(linear = 0, angular = 0) {
             Math.min(config.SAFETY.VELOCITY_LIMITS.ANGULAR.MAX, angular)
         );
         
-        const publisher = getOrCreatePublisher('/cmd_vel', 'geometry_msgs/msg/Twist');
+        const publisher = getOrCreatePublisher('/cmd_vel_joystick', 'geometry_msgs/msg/Twist');
         
         const velocityMsg = {
             linear: { 
@@ -126,13 +126,13 @@ function publishVelocity(linear = 0, angular = 0) {
         publisher.publish(velocityMsg);
         
         // Update message count
-        if (publishers['/cmd_vel']) {
-            publishers['/cmd_vel'].messageCount++;
+        if (publishers['/cmd_vel_joystick']) {
+            publishers['/cmd_vel_joystick'].messageCount++;
         }
         
         // Log every few messages to avoid spam
-        if (publishers['/cmd_vel'].messageCount % 10 === 0 || Math.abs(clampedLinear) > 0.1 || Math.abs(clampedAngular) > 0.1) {
-            console.log(`🚗 Published velocity [${publishers['/cmd_vel'].messageCount}]: linear=${clampedLinear.toFixed(3)}, angular=${clampedAngular.toFixed(3)}`);
+        if (publishers['/cmd_vel_joystick'].messageCount % 10 === 0 || Math.abs(clampedLinear) > 0.1 || Math.abs(clampedAngular) > 0.1) {
+            console.log(`🚗 Published velocity [${publishers['/cmd_vel_joystick'].messageCount}]: linear=${clampedLinear.toFixed(3)}, angular=${clampedAngular.toFixed(3)}`);
         }
         
         return {
@@ -141,7 +141,7 @@ function publishVelocity(linear = 0, angular = 0) {
             data: { 
                 linear: clampedLinear, 
                 angular: clampedAngular,
-                messageCount: publishers['/cmd_vel'].messageCount
+                messageCount: publishers['/cmd_vel_joystick'].messageCount
             },
             timestamp: new Date().toISOString()
         };
@@ -518,7 +518,7 @@ function testPublishing() {
             return { success: false, error: 'Publishers not initialized' };
         }
         
-        // Test cmd_vel publishing
+        // Test cmd_vel_joystick publishing
         const velResult = publishVelocity(0.0, 0.0);
         
         return {

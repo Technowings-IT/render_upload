@@ -179,82 +179,6 @@ function subscribeToPosition() {
     subscribeToOdometry();
 }
 
-/**
- * Subscribe to odometry (fallback for position)
- */
-// function subscribeToOdometry() {
-//     const callback = (odomMsg) => {
-//         try {
-//             const processedOdom = {
-//                 position: {
-//                     x: odomMsg.pose.pose.position.x,
-//                     y: odomMsg.pose.pose.position.y,
-//                     z: odomMsg.pose.pose.position.z
-//                 },
-//                 orientation: {
-//                     x: odomMsg.pose.pose.orientation.x,
-//                     y: odomMsg.pose.pose.orientation.y,
-//                     z: odomMsg.pose.pose.orientation.z,
-//                     w: odomMsg.pose.pose.orientation.w,
-//                     yaw: quaternionToYaw(odomMsg.pose.pose.orientation)
-//                 },
-//                 velocity: {
-//                     linear: {
-//                         x: odomMsg.twist.twist.linear.x,
-//                         y: odomMsg.twist.twist.linear.y,
-//                         z: odomMsg.twist.twist.linear.z
-//                     },
-//                     angular: {
-//                         x: odomMsg.twist.twist.angular.x,
-//                         y: odomMsg.twist.twist.angular.y,
-//                         z: odomMsg.twist.twist.angular.z
-//                     }
-//                 },
-//                 timestamp: new Date().toISOString(),
-//                 frame_id: odomMsg.header?.frame_id || 'odom'
-//             };
-
-//             // Update global live data
-//             updateGlobalLiveData('odometry', processedOdom);
-
-//             // Broadcast odometry update with device ID
-//             broadcastToSubscribers('real_time_data', {
-//                 type: 'odometry_update',
-//                 data: processedOdom,
-//                 deviceId: currentDeviceId,
-//                 timestamp: new Date().toISOString()
-//             });
-
-//             // Console log every 5 seconds for odometry
-//             if (Date.now() % 5000 < 100) {
-//                 console.log(`🔄 [${currentDeviceId}] Odom Position: (${processedOdom.position.x.toFixed(2)}, ${processedOdom.position.y.toFixed(2)})`);
-//             }
-
-//         } catch (error) {
-//             console.error('❌ Error processing odometry:', error);
-//         }
-//     };
-
-//     // Try different possible odometry topic names
-//     const odomTopics = [
-//         '/odom',
-//         '/odometry/local',
-//         '/diff_drive_controller/odom',
-//         '/robot/odom'
-//     ];
-
-//     for (const topicName of odomTopics) {
-//         try {
-//             getOrCreateSubscriber(topicName, 'nav_msgs/msg/Odometry', callback);
-//             console.log(`✅ Successfully subscribed to odometry topic: ${topicName}`);
-//             return;
-//         } catch (error) {
-//             console.warn(`⚠️ Failed to subscribe to ${topicName}, trying next...`);
-//         }
-//     }
-
-//     console.error('❌ Failed to subscribe to any odometry topic');
-// }
 
 /**
  * Subscribe to global costmap - ENHANCED with multiple topic attempts
@@ -647,12 +571,17 @@ function subscribeToAllTopics() {
     console.log('🎯 Priority 3: Control feedback...');
     subscribeToVelocityFeedback();
 
-    // Joint states (wheel encoders) 
+    // Map data
     console.log('🎯 Priority 4: Map...');
     subscribeToMap();
 
+    // Navigation feedback and status (NEW)
+    console.log('🎯 Priority 5: Navigation progress...');
+    subscribeToNavigationFeedback();
+    subscribeToNavigationStatus();
+
     // Battery monitoring
-    console.log('🎯 Priority 5: Battery...');
+    console.log('🎯 Priority 6: Battery...');
     subscribeToBattery();
 
     console.log(`✅ All topic subscriptions attempted for device: ${currentDeviceId}`);
@@ -662,7 +591,6 @@ function subscribeToAllTopics() {
         console.log('📊 Active subscriptions:');
         Object.keys(subscribers).forEach(topic => {
             const sub = subscribers[topic];
-            // ✅ FIXED: Added safety check here too
             try {
                 if (sub && typeof sub.isClosed === 'function' && !sub.isClosed()) {
                     console.log(`   ✅ ${topic}`);
@@ -782,6 +710,252 @@ function testSubscribing() {
     }
 }
 
+// Add this function after the existing subscriber functions:
+
+/**
+ * Subscribe to navigate_to_pose action feedback for navigation progress tracking
+ */
+function subscribeToNavigationFeedback() {
+    const callback = (feedbackMsg) => {
+        try {
+            // Extract navigation feedback data
+            const navigationFeedback = {
+                // Current position during navigation
+                current_pose: {
+                    position: {
+                        x: feedbackMsg.feedback?.current_pose?.pose?.position?.x || 0,
+                        y: feedbackMsg.feedback?.current_pose?.pose?.position?.y || 0,
+                        z: feedbackMsg.feedback?.current_pose?.pose?.position?.z || 0
+                    },
+                    orientation: {
+                        x: feedbackMsg.feedback?.current_pose?.pose?.orientation?.x || 0,
+                        y: feedbackMsg.feedback?.current_pose?.pose?.orientation?.y || 0,
+                        z: feedbackMsg.feedback?.current_pose?.pose?.orientation?.z || 0,
+                        w: feedbackMsg.feedback?.current_pose?.pose?.orientation?.w || 1,
+                        yaw: feedbackMsg.feedback?.current_pose?.pose?.orientation ? 
+                            quaternionToYaw(feedbackMsg.feedback.current_pose.pose.orientation) : 0
+                    }
+                },
+                
+                // Navigation progress metrics
+                navigation_time: feedbackMsg.feedback?.navigation_time?.sec || 0,
+                estimated_time_remaining: feedbackMsg.feedback?.estimated_time_remaining?.sec || 0,
+                number_of_recoveries: feedbackMsg.feedback?.number_of_recoveries || 0,
+                distance_remaining: feedbackMsg.feedback?.distance_remaining || 0,
+                
+                // Additional useful metrics
+                speed: feedbackMsg.feedback?.speed || 0,
+                
+                // Goal information if available
+                goal_pose: feedbackMsg.feedback?.goal_pose ? {
+                    position: {
+                        x: feedbackMsg.feedback.goal_pose.pose?.position?.x || 0,
+                        y: feedbackMsg.feedback.goal_pose.pose?.position?.y || 0,
+                        z: feedbackMsg.feedback.goal_pose.pose?.position?.z || 0
+                    },
+                    orientation: {
+                        x: feedbackMsg.feedback.goal_pose.pose?.orientation?.x || 0,
+                        y: feedbackMsg.feedback.goal_pose.pose?.orientation?.y || 0,
+                        z: feedbackMsg.feedback.goal_pose.pose?.orientation?.z || 0,
+                        w: feedbackMsg.feedback.goal_pose.pose?.orientation?.w || 1
+                    }
+                } : null,
+                
+                // Status information
+                status: {
+                    goal_id: feedbackMsg.goal_id || null,
+                    stamp: feedbackMsg.feedback?.header?.stamp || null
+                },
+                
+                timestamp: new Date().toISOString(),
+                frame_id: feedbackMsg.feedback?.current_pose?.header?.frame_id || 'map'
+            };
+
+            // Calculate additional metrics
+            if (navigationFeedback.current_pose && navigationFeedback.goal_pose) {
+                const dx = navigationFeedback.goal_pose.position.x - navigationFeedback.current_pose.position.x;
+                const dy = navigationFeedback.goal_pose.position.y - navigationFeedback.current_pose.position.y;
+                navigationFeedback.calculated_distance_to_goal = Math.sqrt(dx * dx + dy * dy);
+            }
+
+            // Update global live data
+            updateGlobalLiveData('navigation_feedback', navigationFeedback);
+
+            // Broadcast navigation feedback with device ID
+            broadcastToSubscribers('real_time_data', {
+                type: 'navigation_feedback_update',
+                data: navigationFeedback,
+                deviceId: currentDeviceId,
+                timestamp: new Date().toISOString()
+            });
+
+            // Log navigation progress every 2 seconds
+            if (!global.lastNavigationFeedbackLog || Date.now() - global.lastNavigationFeedbackLog > 2000) {
+                console.log(`🧭 [${currentDeviceId}] Navigation Progress:`);
+                console.log(`   📍 Current: (${navigationFeedback.current_pose.position.x.toFixed(2)}, ${navigationFeedback.current_pose.position.y.toFixed(2)})`);
+                console.log(`   ⏱️  Time: ${navigationFeedback.navigation_time}s, ETA: ${navigationFeedback.estimated_time_remaining}s`);
+                console.log(`   📏 Distance remaining: ${navigationFeedback.distance_remaining?.toFixed(2) || 'N/A'}m`);
+                console.log(`   🔄 Recoveries: ${navigationFeedback.number_of_recoveries}`);
+                console.log(`   🏃 Speed: ${navigationFeedback.speed?.toFixed(2) || 'N/A'}m/s`);
+                global.lastNavigationFeedbackLog = Date.now();
+            }
+
+        } catch (error) {
+            console.error('❌ Error processing navigation feedback:', error);
+        }
+    };
+
+    // Try different possible navigation feedback topic names
+    const navigationFeedbackTopics = [
+        '/navigate_to_pose/_action/feedback',
+        '/navigate_to_pose/feedback',
+        '/navigation/navigate_to_pose/_action/feedback',
+        '/nav2/navigate_to_pose/_action/feedback',
+        '/move_base/_action/feedback',
+        '/move_base/feedback'
+    ];
+
+    for (const topicName of navigationFeedbackTopics) {
+        try {
+            // Try to determine the correct message type
+            let messageType = 'nav2_msgs/action/NavigateToPose_Feedback';
+            
+            // Alternative message types to try
+            const messageTypes = [
+                'nav2_msgs/action/NavigateToPose_Feedback',
+                'geometry_msgs/msg/PoseStamped',
+                'move_base_msgs/action/MoveBase_Feedback',
+                'actionlib_msgs/msg/GoalStatusArray'
+            ];
+            
+            for (const msgType of messageTypes) {
+                try {
+                    getOrCreateSubscriber(topicName, msgType, callback, {
+                        depth: 10,
+                        reliability: 'reliable',
+                        durability: 'volatile', // Action feedback is typically volatile
+                        history: 'keep_last'
+                    });
+                    console.log(`✅ Successfully subscribed to navigation feedback: ${topicName} [${msgType}]`);
+                    return topicName;
+                } catch (msgError) {
+                    console.warn(`⚠️ Failed to subscribe to ${topicName} with ${msgType}`);
+                    continue;
+                }
+            }
+        } catch (error) {
+            console.warn(`⚠️ Failed to subscribe to ${topicName}, trying next...`);
+        }
+    }
+
+    console.warn('⚠️ No navigation feedback topics found');
+    return null;
+}
+
+/**
+ * Subscribe to navigation status/result for completion tracking
+ */
+function subscribeToNavigationStatus() {
+    const callback = (statusMsg) => {
+        try {
+            // Process navigation status/result
+            const navigationStatus = {
+                goal_id: statusMsg.goal_id || null,
+                status: statusMsg.status || 0,
+                result_code: statusMsg.result?.result || null,
+                
+                // Status meanings (based on actionlib)
+                status_text: getNavigationStatusText(statusMsg.status || 0),
+                
+                // Timing information
+                stamp: statusMsg.stamp || statusMsg.header?.stamp || null,
+                
+                // Result information if available
+                result: statusMsg.result ? {
+                    success: statusMsg.result.success || false,
+                    error_code: statusMsg.result.error_code || 0,
+                    error_msg: statusMsg.result.error_msg || ''
+                } : null,
+                
+                timestamp: new Date().toISOString()
+            };
+
+            // Update global live data
+            updateGlobalLiveData('navigation_status', navigationStatus);
+
+            // Broadcast navigation status with device ID
+            broadcastToSubscribers('real_time_data', {
+                type: 'navigation_status_update',
+                data: navigationStatus,
+                deviceId: currentDeviceId,
+                timestamp: new Date().toISOString()
+            });
+
+            // Log status changes
+            console.log(`📊 [${currentDeviceId}] Navigation Status: ${navigationStatus.status_text} (${navigationStatus.status})`);
+            if (navigationStatus.result) {
+                console.log(`   Result: ${navigationStatus.result.success ? 'SUCCESS' : 'FAILED'} - ${navigationStatus.result.error_msg}`);
+            }
+
+        } catch (error) {
+            console.error('❌ Error processing navigation status:', error);
+        }
+    };
+
+    // Try different navigation status topics
+    const statusTopics = [
+        '/navigate_to_pose/_action/status',
+        '/navigate_to_pose/status',
+        '/navigate_to_pose/_action/result',
+        '/navigation/status',
+        '/move_base/status',
+        '/move_base/result'
+    ];
+
+    for (const topicName of statusTopics) {
+        try {
+            const messageTypes = [
+                'action_msgs/msg/GoalStatusArray',
+                'nav2_msgs/action/NavigateToPose_Result',
+                'actionlib_msgs/msg/GoalStatusArray',
+                'move_base_msgs/action/MoveBase_Result'
+            ];
+            
+            for (const msgType of messageTypes) {
+                try {
+                    getOrCreateSubscriber(topicName, msgType, callback);
+                    console.log(`✅ Successfully subscribed to navigation status: ${topicName} [${msgType}]`);
+                    return topicName;
+                } catch (msgError) {
+                    continue;
+                }
+            }
+        } catch (error) {
+            console.warn(`⚠️ Failed to subscribe to ${topicName}, trying next...`);
+        }
+    }
+
+    console.warn('⚠️ No navigation status topics found');
+    return null;
+}
+
+// Helper function to convert status codes to readable text
+function getNavigationStatusText(status) {
+    const statusMap = {
+        0: 'PENDING',
+        1: 'ACTIVE', 
+        2: 'PREEMPTED',
+        3: 'SUCCEEDED',
+        4: 'ABORTED',
+        5: 'REJECTED',
+        6: 'PREEMPTING',
+        7: 'RECALLING',
+        8: 'RECALLED',
+        9: 'LOST'
+    };
+    return statusMap[status] || `UNKNOWN(${status})`;
+}
+
 module.exports = {
     initializeSubscribers,
     subscribeToAllTopics,
@@ -791,6 +965,8 @@ module.exports = {
     subscribeToLocalCostmap,
     subscribeToVelocityFeedback,
     // subscribeToJointStates,
+    subscribeToNavigationFeedback,    // NEW
+    subscribeToNavigationStatus,      // NEW
     subscribeToMap,
     subscribeToBattery,
     setDeviceId,
@@ -798,4 +974,6 @@ module.exports = {
     listAvailableTopics,
     cleanup,
     testSubscribing,
+    subscribeToNavigationFeedback,
+    subscribeToNavigationStatus,
 };

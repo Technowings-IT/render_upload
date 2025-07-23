@@ -4,6 +4,7 @@
   "description": "Backend server for AGV Fleet Management System with ROS2 integration",
   "main": "app.js",
   "scripts": {
+    
     "start": "node app.js",
     "dev": "nodemon app.js",
     "debug": "nodemon --inspect=0.0.0.0:9229 app.js",
@@ -38,7 +39,10 @@
     "ros:topics": "ros2 topic list",
     "ros:nodes": "ros2 node list",
     "backup": "tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz storage/ config/",
-    "health-check": "curl -f http://localhost:3000/api/control/health || exit 1"
+    "health-check": "curl -f http://localhost:3000/api/control/health || exit 1",
+    "setup-pi": "node scripts/setup-rasberry-pi.js",
+    "test-ssh": "node scripts/test-ssh-connection.js",
+    "convert-map": "python3 scripts/map_converter.py"
   },
   "keywords": [
     "agv",
@@ -66,28 +70,33 @@
     "npm": ">=8.0.0"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.2",
-    "compression": "^1.7.4",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "express": "^4.18.2",
+    "express": "^4.21.2",
     "express-async-errors": "^3.1.1",
     "express-rate-limit": "^7.1.1",
     "express-validator": "^7.0.1",
     "fs-extra": "^11.1.1",
     "helmet": "^7.0.0",
+    "http": "^0.0.1-security",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
     "moment": "^2.29.4",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
-    "node-cron": "^3.0.2",
+    "node-cron": "^3.0.3",
+    "rate-limiter-flexible": "^7.1.1",
     "rclnodejs": "^1.2.0",
+    "ssh2": "^1.16.0",
     "uuid": "^9.0.0",
     "winston": "^3.10.0",
     "winston-daily-rotate-file": "^4.7.1",
-    "ws": "^8.14.2"
+    "ws": "^8.18.3",
+    "yaml": "^2.8.0"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",

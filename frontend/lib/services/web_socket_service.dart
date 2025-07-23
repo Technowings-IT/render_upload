@@ -24,7 +24,7 @@ class WebSocketService {
   WebSocketChannel? _channel;
   String? _clientId;
   String? _serverUrl;
-  
+
   // ✅ FIXED: Added missing analytics fields
   final Map<String, int> _messageStats = {};
   int _totalMessagesReceived = 0;
@@ -56,9 +56,9 @@ class WebSocketService {
   StreamController<Map<String, dynamic>>? _deviceEventsController;
   StreamController<bool>? _connectionStateController;
   StreamController<String>? _errorController;
-  
+
   // ✅ FIXED: Added analytics controller
-  final StreamController<Map<String, dynamic>> _analyticsDataController = 
+  final StreamController<Map<String, dynamic>> _analyticsDataController =
       StreamController<Map<String, dynamic>>.broadcast();
 
   // ==========================================
@@ -66,7 +66,7 @@ class WebSocketService {
   // ==========================================
   bool get isConnected => _isConnected;
   String? get clientId => _clientId;
-  
+
   // ✅ FIXED: Analytics getters
   Map<String, int> get messageStats => Map.unmodifiable(_messageStats);
   int get totalMessagesReceived => _totalMessagesReceived;
@@ -119,7 +119,8 @@ class WebSocketService {
   }
 
   // ✅ FIXED: Analytics stream
-  Stream<Map<String, dynamic>> get analyticsData => _analyticsDataController.stream;
+  Stream<Map<String, dynamic>> get analyticsData =>
+      _analyticsDataController.stream;
 
   // Legacy streams for backward compatibility
   Stream<Map<String, dynamic>> get odometry => realTimeData
@@ -440,8 +441,14 @@ class WebSocketService {
       }
 
       // Handle analytics data routing
-      if (type != null && ['battery_update', 'velocity_update', 'error_event', 
-          'system_metrics', 'order_completed'].contains(type)) {
+      if (type != null &&
+          [
+            'battery_update',
+            'velocity_update',
+            'error_event',
+            'system_metrics',
+            'order_completed'
+          ].contains(type)) {
         if (!_analyticsDataController.isClosed) {
           _analyticsDataController.add(message);
         }
@@ -684,6 +691,45 @@ class WebSocketService {
     }
   }
 
+// Add this method to your existing WebSocketService class
+  bool sendScriptCommand(String deviceId, String command,
+      {Map<String, dynamic>? options}) {
+    if (!isConnected) return false;
+
+    try {
+      final message = {
+        'type': 'script_command',
+        'deviceId': deviceId,
+        'command': command,
+        'options': options ?? {},
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+
+      _channel?.sink.add(jsonEncode(message));
+      print('📤 Sent script command: $command for device: $deviceId');
+      return true;
+    } catch (e) {
+      print('❌ Error sending script command: $e');
+      return false;
+    }
+  }
+
+// Add this method for ROS2 status requests
+  bool requestROS2Status(String deviceId) {
+    final message = {
+      'type': 'get_ros2_status',
+      'deviceId': deviceId,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+
+    return sendMessage(message);
+  }
+
+// Add this stream getter for script status updates
+  Stream<Map<String, dynamic>> get scriptStatus => realTimeData
+      .where((data) =>
+          ['script_status_update', 'ros2_status_update'].contains(data['type']))
+      .map((data) => data['data'] ?? {});
   void _startReconnectTimer([Duration? delay]) {
     _stopReconnectTimer();
 
@@ -751,9 +797,11 @@ class WebSocketService {
 
       _channel!.sink.add(jsonMessage);
       _totalMessagesSent++;
-      _messageStats[message['type']] = (_messageStats[message['type']] ?? 0) + 1;
+      _messageStats[message['type']] =
+          (_messageStats[message['type']] ?? 0) + 1;
 
-      print('📤 Sent: ${message['type']} to ${message['deviceId'] ?? 'server'}');
+      print(
+          '📤 Sent: ${message['type']} to ${message['deviceId'] ?? 'server'}');
       return true;
     } catch (e) {
       print('❌ Error sending message: $e');
@@ -765,7 +813,7 @@ class WebSocketService {
   // ==========================================
   // JOYSTICK & MOVEMENT CONTROL
   // ==========================================
-  void sendJoystickControl(String deviceId, double x, double y, bool deadman, 
+  void sendJoystickControl(String deviceId, double x, double y, bool deadman,
       {double? maxLinearSpeed, double? maxAngularSpeed}) {
     sendMessage({
       'type': 'joystick_control',
@@ -959,7 +1007,7 @@ class WebSocketService {
     _connectionStateController?.close();
     _errorController?.close();
     _analyticsDataController.close();
-    
+
     // Set them to null
     _realTimeDataController = null;
     _controlEventsController = null;

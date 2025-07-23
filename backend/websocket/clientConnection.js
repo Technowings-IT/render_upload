@@ -132,7 +132,62 @@ function stopPingPong(clientId) {
         pingTimers.delete(clientId);
     }
 }
+// ADD THIS NEW FUNCTION to clientConnection.js (after the existing handlers)
 
+function handleScriptCommand(clientId, message) {
+    try {
+        console.log(`🤖 Script command from ${clientId}:`, message);
+        const { deviceId, command, options = {} } = message;
+        
+        if (!deviceId) {
+            throw new Error('Missing deviceId in script command');
+        }
+        
+        if (!command) {
+            throw new Error('Missing command in script request');
+        }
+
+        // Import and use the message handler
+        const EnhancedMessageHandler = require('./messageHandler');
+        const messageHandler = new EnhancedMessageHandler();
+        
+        // Create a mock WebSocket object for the handler
+        const ws = {
+            send: (data) => {
+                const client = connectedClients.get(clientId);
+                if (client && client.ws.readyState === 1) {
+                    client.ws.send(data);
+                }
+            }
+        };
+        
+        // Call the enhanced message handler
+        messageHandler.handleScriptCommand(ws, message, generateCommandId())
+            .catch(error => {
+                console.error('❌ Error in script command handler:', error);
+                sendToClient(clientId, {
+                    type: 'error',
+                    message: 'Script command failed',
+                    details: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            });
+        
+    } catch (error) {
+        console.error('❌ Error handling script command:', error);
+        sendToClient(clientId, {
+            type: 'error',
+            message: 'Failed to process script command',
+            details: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+}
+
+// ADD THIS HELPER FUNCTION if it doesn't exist
+function generateCommandId() {
+    return `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
 // ✅ FIXED: Enhanced message handling with proper string matching
 function handleClientMessage(clientId, message) {
     const client = connectedClients.get(clientId);
@@ -166,6 +221,9 @@ function handleClientMessage(clientId, message) {
             
         case 'unsubscribe':
             handleUnsubscription(clientId, message);
+            break;
+        case 'script_command':
+            handleScriptCommand(clientId, message);
             break;
             
         // ✅ FIXED: Use direct string matching instead of config constants
@@ -589,7 +647,7 @@ function handleDeviceDiscovery(clientId, message) {
             type: 'device_discovery_response',
             devices: availableDevices,
             server: {
-                ip: '192.168.0.113',
+                ip: '192.168.0.59',
                 port: 3000,
                 websocket_port: 3000,
                 capabilities: ['mapping', 'navigation', 'remote_control'],
