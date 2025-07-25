@@ -1,7 +1,7 @@
 {
   "deviceId": "piros",
-  "timestamp": "2025-07-22T12:07:32.033471",
-  "version": 2,
+  "timestamp": "2025-07-23T09:43:51.697Z",
+  "version": 1,
   "info": {
     "resolution": 0.05000000074505806,
     "width": 149,
@@ -43838,40 +43838,8 @@
     0,
     0
   ],
-  "shapes": [
-    {
-      "id": "session_metadata_1753166252032",
-      "type": "metadata",
-      "name": "Mapping Session Info",
-      "points": [],
-      "sides": {
-        "mapping_active": "false",
-        "trail_points": "0",
-        "messages_received": "0",
-        "session_duration": "29m",
-        "has_global_costmap": "false",
-        "has_local_costmap": "false"
-      },
-      "color": "FF9C27B0",
-      "createdAt": "2025-07-22T12:07:32.033014"
-    }
-  ],
-  "savedAt": "2025-07-22T06:37:32.114Z",
-  "lastSaved": "2025-07-22T06:37:32.114Z",
-  "saveType": "complete",
-  "clientInfo": {
-    "platform": "flutter",
-    "version": "1.0.0",
-    "source": "live_mapping"
-  },
-  "metadata": {
-    "totalShapes": 1,
-    "hasOccupancyData": true,
-    "mapDimensions": {
-      "width": 149,
-      "height": 147,
-      "resolution": 0.05000000074505806
-    },
-    "saveTimestamp": 1753166252114
-  }
+  "shapes": [],
+  "savedAt": "2025-07-23T09:55:51.362Z",
+  "lastSaved": "2025-07-23T09:55:51.362Z",
+  "metadata": {}
 }

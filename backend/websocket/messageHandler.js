@@ -302,126 +302,34 @@ class EnhancedMessageHandler {
                 throw new Error(`Failed to initialize ROS2 manager: ${error.message}`);
             }
             
+            // Use the new integrated handleScriptCommand method
             let result;
             
-            switch (command) {
-                case 'start_robot_control':  // Add this back
-                    console.log('🤖 Starting robot control...');
-                    try {
-                        if (typeof ros2Manager.startRobotControl !== 'function') {
-                            throw new Error('startRobotControl method not available in ROS2 manager');
-                        }
-                        
-                        result = await ros2Manager.startRobotControl();
-                        this.broadcastScriptStatus(deviceId, 'robot_control', 'starting', 'Robot control starting...');
-                    } catch (error) {
-                        console.error('❌ Robot control start failed:', error);
-                        throw new Error(`Robot control start failed: ${error.message}`);
-                    }
-                    break;
+            try {
+                result = await ros2Manager.handleScriptCommand(command, options);
                 
-                case 'start_slam':
-                    console.log('🗺️ Starting SLAM...');
-                    try {
-                        if (typeof ros2Manager.startSLAM !== 'function') {
-                            throw new Error('startSLAM method not available in ROS2 manager');
-                        }
-                        
-                        result = await ros2Manager.startSLAM(options);
-                        this.broadcastScriptStatus(deviceId, 'slam', 'starting', 'SLAM mapping starting...');
-                    } catch (error) {
-                        console.error('❌ SLAM start failed:', error);
-                        throw new Error(`SLAM start failed: ${error.message}`);
-                    }
-                    break;
-                
-                case 'start_navigation':
-                    if (!options.mapPath && !options.mapName) {
-                        throw new Error('mapPath or mapName is required for navigation');
-                    }
-                    console.log('🚀 Starting navigation...');
-                    try {
-                        if (typeof ros2Manager.startNavigation !== 'function') {
-                            throw new Error('startNavigation method not available in ROS2 manager');
-                        }
-                        
-                        const mapPath = options.mapPath || options.mapName;
-                        result = await ros2Manager.startNavigation(mapPath, options);
-                        this.broadcastScriptStatus(deviceId, 'navigation', 'starting', 'Navigation starting...');
-                    } catch (error) {
-                        console.error('❌ Navigation start failed:', error);
-                        throw new Error(`Navigation start failed: ${error.message}`);
-                    }
-                    break;
-                
-                case 'stop_all_scripts':
-                    console.log('🛑 Stopping all scripts...');
-                    try {
-                        if (typeof ros2Manager.stopAllScripts !== 'function') {
-                            throw new Error('stopAllScripts method not available in ROS2 manager');
-                        }
-                        
-                        result = await ros2Manager.stopAllScripts();
-                        this.broadcastScriptStatus(deviceId, 'all_scripts', 'stopping', 'Stopping all scripts...');
-                        
-                        // Send individual status updates
+                // Broadcast appropriate status based on command
+                switch (command) {
+                    case 'start_robot_control':
+                        this.broadcastScriptStatus(deviceId, 'robot_control', 'running', 'Robot control started successfully');
+                        break;
+                    case 'start_slam':
+                        this.broadcastScriptStatus(deviceId, 'slam', 'running', 'SLAM started successfully');
+                        break;
+                    case 'start_navigation':
+                        this.broadcastScriptStatus(deviceId, 'navigation', 'running', 'Navigation started successfully');
+                        break;
+                    case 'stop_all_scripts':
+                        this.broadcastScriptStatus(deviceId, 'all_scripts', 'stopped', 'All scripts stopped successfully');
                         ['robot_control', 'slam', 'navigation'].forEach(scriptType => {
                             this.broadcastScriptStatus(deviceId, scriptType, 'stopped', `${scriptType} stopped`);
                         });
-                        
-                    } catch (error) {
-                        console.error('❌ Stop all scripts failed:', error);
-                        throw new Error(`Stop all scripts failed: ${error.message}`);
-                    }
-                    break;
-
-                case 'stop_slam':
-                    console.log('🛑 Stopping SLAM...');
-                    try {
-                        if (typeof ros2Manager.stopProcess !== 'function') {
-                            throw new Error('stopProcess method not available in ROS2 manager');
-                        }
-                        
-                        result = await ros2Manager.stopProcess('slam');
-                        this.broadcastScriptStatus(deviceId, 'slam', 'stopping', 'Stopping SLAM...');
-                    } catch (error) {
-                        console.error('❌ SLAM stop failed:', error);
-                        throw new Error(`SLAM stop failed: ${error.message}`);
-                    }
-                    break;
-
-                case 'stop_navigation':
-                    console.log('🛑 Stopping navigation...');
-                    try {
-                        if (typeof ros2Manager.stopProcess !== 'function') {
-                            throw new Error('stopProcess method not available in ROS2 manager');
-                        }
-                        
-                        result = await ros2Manager.stopProcess('navigation');
-                        this.broadcastScriptStatus(deviceId, 'navigation', 'stopping', 'Stopping navigation...');
-                    } catch (error) {
-                        console.error('❌ Navigation stop failed:', error);
-                        throw new Error(`Navigation stop failed: ${error.message}`);
-                    }
-                    break;
-
-                case 'stop_robot_control':  // Add this back
-                    console.log('🛑 Stopping robot control...');
-                    try {
-                        if (typeof ros2Manager.stopProcess !== 'function') {
-                            throw new Error('stopProcess method not available in ROS2 manager');
-                        }
-                        
-                        result = await ros2Manager.stopProcess('robot_control');
-                        this.broadcastScriptStatus(deviceId, 'robot_control', 'stopping', 'Stopping robot control...');
-                    } catch (error) {
-                        console.error('❌ Robot control stop failed:', error);
-                        throw new Error(`Robot control stop failed: ${error.message}`);
-                    }
-                    break;
+                        break;
+                }
                 
-                default:
-                    throw new Error(`Unknown script command: ${command}. Available commands: start_robot_control, start_slam, start_navigation, stop_robot_control, stop_slam, stop_navigation, stop_all_scripts`);
+            } catch (error) {
+                console.error('❌ Script command failed:', error);
+                throw error;
             }
             
             this.setCommandCompleted(commandId, result);
@@ -433,11 +341,20 @@ class EnhancedMessageHandler {
                 data: result,
                 command: command,
                 deviceId: deviceId,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                ...(result.warnings && { warnings: result.warnings }),
+                ...(result.note && { note: result.note })
             };
             
             ws.send(JSON.stringify(response));
-            console.log(`✅ Script command ${command} completed successfully`);
+            
+            // Log completion with details
+            if (result.warnings && result.warnings.length > 0) {
+                console.log(`⚠️ Script command ${command} completed with warnings:`, result.warnings);
+                console.log(`ℹ️ Script status: ${result.message}`);
+            } else {
+                console.log(`✅ Script command ${command} completed successfully`);
+            }
             
         } catch (error) {
             this.setCommandFailed(commandId, error);

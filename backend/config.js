@@ -1,6 +1,16 @@
 // config.js - FIXED Configuration with stable WebSocket settings
 const path = require('path');
-
+// SSH CONFIGURATION - Add to your config.js
+// ==========================================
+const SSH_CONFIG = {
+    host: process.env.RASPBERRY_PI_HOST || '192.168.0.84', // Default Pi IP
+    port: process.env.RASPBERRY_PI_PORT || 22,
+    username: process.env.RASPBERRY_PI_USER || 'piros',
+    password: process.env.RASPBERRY_PI_PASSWORD || 'piros',
+    // Or use privateKey: require('fs').readFileSync('/path/to/private/key')
+    mapDirectory: process.env.RASPBERRY_PI_MAP_DIR || '/home/piros/ros2_ws/src/nav2_bringup/maps',
+    rosLaunchScript: process.env.RASPBERRY_PI_ROS_SCRIPT || '/home/piros/scripts/nav2.sh'
+};
 const config = {
     // Server Configuration
     SERVER: {

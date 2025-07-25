@@ -426,7 +426,7 @@ function stopMapping(deviceId) {
     }
 }
 
-function saveMap(deviceId) {
+async function saveMap(deviceId, options = {}) {
     try {
         if (!isInitialized || isShutdown) {
             console.warn('⚠️ ROS not initialized, cannot save map');
@@ -437,19 +437,64 @@ function saveMap(deviceId) {
             };
         }
         
-        console.log(`💾 Saving map for device: ${deviceId}`);
-        return {
-            success: true,
-            message: 'Map save command sent',
-            deviceId: deviceId,
-            timestamp: new Date().toISOString()
-        };
+        console.log(`💾 Saving map via ROS2 script for device: ${deviceId}`);
+        
+        // Use the enhanced ROS2 script manager for map saving
+        // Try to use global instance first, otherwise create new instance
+        let ros2ScriptManager;
+        if (global.ros2ScriptManager) {
+            ros2ScriptManager = global.ros2ScriptManager;
+        } else {
+            const ROS2ScriptManager = require('./ros2ScriptManager');
+            ros2ScriptManager = new ROS2ScriptManager();
+        }
+        
+        // Extract options with defaults
+        const {
+            mapName = `map_${Date.now()}`,
+            directory = '/home/piros/my_map',
+            format = 'pgm'
+        } = options;
+        
+        console.log(`🗺️ Map save parameters: name="${mapName}", directory="${directory}"`);
+        
+        // Execute the enhanced save_map.sh script on Pi
+        const result = await ros2ScriptManager.executeROS2MapSaver({
+            deviceId,
+            mapName,
+            directory,
+            format
+        });
+        
+        if (result.success) {
+            console.log(`✅ Map saved successfully via script: ${mapName}`);
+            return {
+                success: true,
+                message: 'Map saved successfully via ROS2 script',
+                deviceId: deviceId,
+                mapName: mapName,
+                directory: directory,
+                files: result.files,
+                scriptOutput: result.scriptOutput,
+                timestamp: new Date().toISOString()
+            };
+        } else {
+            console.error(`❌ Map save failed: ${result.error}`);
+            return {
+                success: false,
+                error: result.error,
+                deviceId: deviceId,
+                mapName: mapName,
+                timestamp: new Date().toISOString()
+            };
+        }
         
     } catch (error) {
         console.error('❌ Error saving map:', error);
         return {
             success: false,
             error: error.message,
+            deviceId: deviceId,
             timestamp: new Date().toISOString()
         };
     }

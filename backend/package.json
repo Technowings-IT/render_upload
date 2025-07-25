@@ -4,7 +4,6 @@
   "description": "Backend server for AGV Fleet Management System with ROS2 integration",
   "main": "app.js",
   "scripts": {
-    
     "start": "node app.js",
     "dev": "nodemon app.js",
     "debug": "nodemon --inspect=0.0.0.0:9229 app.js",
@@ -91,6 +90,7 @@
     "node-cron": "^3.0.3",
     "rate-limiter-flexible": "^7.1.1",
     "rclnodejs": "^1.2.0",
+    "sharp": "^0.34.3",
     "ssh2": "^1.16.0",
     "uuid": "^9.0.0",
     "winston": "^3.10.0",

@@ -3,13 +3,12 @@ import 'package:flutter/material.dart';
 import '../models/map_data.dart';
 import '../services/api_service.dart';
 import '../widgets/map_canvas.dart';
+import '../widgets/pgm_map_editor.dart';
 import '../services/web_socket_service.dart';
-import 'package:flutter/widgets.dart';
+import '../widgets/ros2_saved_maps_screen.dart';
 import 'dart:async';
 import '../models/odom.dart' as odom;
 
-// import '../services/api_service.dart';
-// import '../services/web_socket_service.dart';
 class EnhancedMapPage extends StatefulWidget {
   final String? deviceId;
 
@@ -45,10 +44,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   Map<String, dynamic>? _rawApiResponse;
   bool _showDebugInfo = false;
 
-  // Real-time data (for compatibility)
-  Map<String, dynamic>? _realTimeMapData;
-  odom.OdometryData? _currentOdometry;
-
   // UI state for responsive design
   DeviceType _deviceType = DeviceType.phone;
   bool _showSidebar = true;
@@ -57,7 +52,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadingAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
@@ -75,6 +70,16 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     // Determine device type
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateDeviceType();
+
+      // Check if we should load a ROS2 saved map
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args != null && args['loadROS2Map'] == true) {
+        final mapName = args['ros2MapName'] as String?;
+        if (mapName != null && _selectedDeviceId != null) {
+          _loadROS2SavedMap(mapName);
+        }
+      }
     });
   }
 
@@ -164,12 +169,12 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     setState(() {
       switch (data['type']) {
         case 'map_update':
-          _realTimeMapData = data['data'];
+          // Handle real-time map data
           break;
         case 'odometry_update':
         case 'position_update':
           try {
-            _currentOdometry = odom.OdometryData.fromJson(data['data']);
+            // Handle odometry data
           } catch (e) {
             print('❌ Error parsing odometry data: $e');
           }
@@ -195,6 +200,17 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       final devices = await _apiService.getDevices();
       setState(() {
         _connectedDevices = devices;
+
+        // Validate that selected device still exists in the list
+        if (_selectedDeviceId != null) {
+          final deviceExists = devices
+              .any((device) => device['id']?.toString() == _selectedDeviceId);
+          if (!deviceExists) {
+            _selectedDeviceId = null;
+            _currentMap = null;
+            _hasUnsavedChanges = false;
+          }
+        }
       });
     } catch (e) {
       print('❌ Error loading devices: $e');
@@ -364,10 +380,11 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
         Navigator.pushReplacementNamed(context, '/dashboard');
-        return false; // Prevent default pop
       },
       child: Scaffold(
         appBar: _buildEnhancedAppBar(theme),
@@ -524,6 +541,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               unselectedLabelColor: Colors.white70,
               tabs: const [
                 Tab(icon: Icon(Icons.edit), text: 'Edit Map'),
+                Tab(icon: Icon(Icons.brush), text: 'PGM Editor'),
                 Tab(icon: Icon(Icons.list), text: 'Locations'),
                 Tab(icon: Icon(Icons.analytics), text: 'Analysis'),
               ],
@@ -572,6 +590,26 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   }
 
   Widget _buildDeviceSelector() {
+    // Get unique devices and check if selected device exists
+    final uniqueDevices = _connectedDevices
+        .fold<Map<String, Map<String, dynamic>>>(
+          {},
+          (map, device) {
+            final deviceId = device['id']?.toString() ?? '';
+            if (deviceId.isNotEmpty) {
+              map[deviceId] = device;
+            }
+            return map;
+          },
+        )
+        .values
+        .toList();
+
+    // Validate selected device exists in unique devices
+    final selectedDeviceExists = _selectedDeviceId != null &&
+        uniqueDevices
+            .any((device) => device['id']?.toString() == _selectedDeviceId);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -580,13 +618,13 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         borderRadius: BorderRadius.circular(20),
       ),
       child: DropdownButton<String>(
-        value: _selectedDeviceId,
+        value: selectedDeviceExists ? _selectedDeviceId : null,
         hint:
             const Text('Select Device', style: TextStyle(color: Colors.white)),
         dropdownColor: Colors.grey[800],
         style: const TextStyle(color: Colors.white),
         underline: Container(),
-        items: _connectedDevices.map((device) {
+        items: uniqueDevices.map((device) {
           final deviceId = device['id']?.toString() ?? '';
           final deviceName = device['name']?.toString() ?? deviceId;
           final deviceStatus = device['status']?.toString() ?? 'unknown';
@@ -618,8 +656,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               _selectedDeviceId = deviceId;
               _currentMap = null;
               _hasUnsavedChanges = false;
-              _realTimeMapData = null;
-              _currentOdometry = null;
             });
             _loadMapForDevice(deviceId);
 
@@ -644,6 +680,14 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             dense: true,
           ),
           onTap: () => _showSavedMaps(),
+        ),
+        PopupMenuItem(
+          child: ListTile(
+            leading: const Icon(Icons.rocket_launch),
+            title: const Text('ROS2 Saved Maps'),
+            dense: true,
+          ),
+          onTap: () => _showROS2SavedMaps(),
         ),
         PopupMenuItem(
           child: ListTile(
@@ -743,6 +787,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                   indicatorColor: Theme.of(context).primaryColor,
                   tabs: const [
                     Tab(icon: Icon(Icons.edit), text: 'Edit Map'),
+                    Tab(icon: Icon(Icons.brush), text: 'PGM Editor'),
                     Tab(icon: Icon(Icons.list), text: 'Locations'),
                     Tab(icon: Icon(Icons.analytics), text: 'Analysis'),
                   ],
@@ -801,6 +846,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             indicatorColor: Theme.of(context).primaryColor,
             tabs: const [
               Tab(icon: Icon(Icons.edit), text: 'Edit Map'),
+              Tab(icon: Icon(Icons.brush), text: 'PGM Editor'),
               Tab(icon: Icon(Icons.list), text: 'Locations'),
               Tab(icon: Icon(Icons.analytics), text: 'Analysis'),
             ],
@@ -1061,6 +1107,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       controller: _tabController,
       children: [
         _buildMapEditor(),
+        _buildPGMEditor(),
         _buildLocationsView(),
         _buildAnalysisView(),
       ],
@@ -1130,6 +1177,38 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         deviceId: _selectedDeviceId,
         enableRealTimeUpdates: _isWebSocketConnected,
       ),
+    );
+  }
+
+  Widget _buildPGMEditor() {
+    if (_currentMap == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.map, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              'No map data available for PGM editing',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Load a map first to enable GIMP-like editing',
+              style: TextStyle(color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return EnhancedPGMMapEditor(
+      mapData: _currentMap,
+      onMapChanged: _onMapChanged,
+      deviceId: _selectedDeviceId,
     );
   }
 
@@ -1985,6 +2064,26 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   }
 
   Widget _buildSidebarDeviceSelector() {
+    // Get unique devices and check if selected device exists
+    final uniqueDevices = _connectedDevices
+        .fold<Map<String, Map<String, dynamic>>>(
+          {},
+          (map, device) {
+            final deviceId = device['id']?.toString() ?? '';
+            if (deviceId.isNotEmpty) {
+              map[deviceId] = device;
+            }
+            return map;
+          },
+        )
+        .values
+        .toList();
+
+    // Validate selected device exists in unique devices
+    final selectedDeviceExists = _selectedDeviceId != null &&
+        uniqueDevices
+            .any((device) => device['id']?.toString() == _selectedDeviceId);
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -2001,10 +2100,10 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           ),
           const SizedBox(height: 8),
           DropdownButton<String>(
-            value: _selectedDeviceId,
+            value: selectedDeviceExists ? _selectedDeviceId : null,
             hint: const Text('Select Device'),
             isExpanded: true,
-            items: _connectedDevices.map((device) {
+            items: uniqueDevices.map((device) {
               final deviceId = device['id']?.toString() ?? '';
               final deviceName = device['name']?.toString() ?? deviceId;
               final deviceStatus = device['status']?.toString() ?? 'unknown';
@@ -2468,6 +2567,70 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               _hasUnsavedChanges = false;
             });
             _showInfoSnackBar('Map loaded from saved maps');
+          },
+        ),
+      ),
+    );
+  }
+
+  // NEW: Load ROS2 saved map
+  Future<void> _loadROS2SavedMap(String mapName) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      print('🔄 Loading ROS2 saved map: $mapName');
+
+      final response = await _apiService.loadROS2SavedMap(
+        deviceId: _selectedDeviceId!,
+        mapName: mapName,
+      );
+
+      if (response['success'] == true && response['mapData'] != null) {
+        final mapData = MapData.fromJson(response['mapData']);
+        setState(() {
+          _currentMap = mapData;
+          _hasUnsavedChanges = false;
+          _loadSource = 'ros2_saved';
+          _error = null;
+        });
+
+        _showInfoSnackBar('ROS2 saved map loaded: $mapName');
+        print('✅ ROS2 saved map loaded successfully: $mapName');
+      } else {
+        setState(() {
+          _error = response['error'] ?? 'Failed to load ROS2 saved map';
+        });
+        _showErrorSnackBar('Failed to load ROS2 map: ${response['error']}');
+      }
+    } catch (e) {
+      print('❌ Error loading ROS2 saved map: $e');
+      setState(() {
+        _error = 'Failed to load ROS2 saved map: $e';
+      });
+      _showErrorSnackBar('Failed to load ROS2 saved map: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // NEW: Show ROS2 saved maps dialog
+  void _showROS2SavedMaps() {
+    if (_selectedDeviceId == null) {
+      _showErrorSnackBar('Please select a device first');
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ROS2SavedMapsScreen(
+          deviceId: _selectedDeviceId!,
+          onMapSelected: (mapName) {
+            _loadROS2SavedMap(mapName);
           },
         ),
       ),

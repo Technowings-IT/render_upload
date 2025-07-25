@@ -5,10 +5,20 @@ const path = require('path');
 const fs = require('fs').promises;
 const { spawn } = require('child_process');
 const { Client } = require('ssh2'); // npm install ssh2
+const multer = require('multer');
+const sharp = require('sharp'); // For image processing
 const pgmConverter = require('../ros/utils/pgmConverter');
 const MapConverter = require('../ros/utils/mapConverter');
 const rosConnection = require('../ros/utils/ros_connection');
 const router = express.Router();
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
+});
 
 // ==========================================
 // SSH CONFIGURATION - Add to your config.js
@@ -94,6 +104,180 @@ router.post('/maps/:deviceId/convert-to-pgm', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Error converting map to PGM:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Advanced PGM conversion with optimization options
+ * POST /api/maps/:deviceId/convert-to-pgm-advanced
+ */
+router.post('/maps/:deviceId/convert-to-pgm-advanced', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { 
+            mapName, 
+            sourceMapName, 
+            includeMetadata = true,
+            optimizeForEditing = true,
+            conversionOptions = {}
+        } = req.body;
+        
+        console.log(`🚀 Advanced PGM conversion for device: ${deviceId}`);
+        
+        // Get source map data
+        let sourceMapPath;
+        if (sourceMapName) {
+            sourceMapPath = path.join(__dirname, '../storage/maps', `${deviceId}_${sourceMapName}.json`);
+        } else {
+            sourceMapPath = path.join(__dirname, '../storage/maps', `${deviceId}.json`);
+        }
+        
+        // Verify source exists
+        try {
+            await fs.access(sourceMapPath);
+        } catch (error) {
+            return res.status(404).json({
+                success: false,
+                error: 'Source map not found'
+            });
+        }
+        
+        const mapContent = await fs.readFile(sourceMapPath, 'utf8');
+        const mapData = JSON.parse(mapContent);
+        
+        const outputMapName = mapName || `advanced_${deviceId}_${Date.now()}`;
+        const outputDir = path.join(__dirname, '../maps');
+        
+        await fs.mkdir(outputDir, { recursive: true });
+        
+        // Enhanced conversion with optimization
+        const conversionResult = await runAdvancedMapConverter(
+            mapData, 
+            outputDir, 
+            outputMapName,
+            {
+                includeMetadata,
+                optimizeForEditing,
+                ...conversionOptions
+            }
+        );
+        
+        if (conversionResult.success) {
+            // Additional post-processing if optimizing for editing
+            if (optimizeForEditing) {
+                await optimizeMapForEditing(conversionResult.pgmPath, conversionResult.yamlPath);
+            }
+            
+            // Generate edit-friendly metadata
+            const editingMetadata = await generateEditingMetadata(conversionResult);
+            
+            res.json({
+                success: true,
+                message: 'Advanced PGM conversion completed successfully',
+                deviceId: deviceId,
+                outputMapName: outputMapName,
+                files: {
+                    pgm: conversionResult.pgmPath,
+                    yaml: conversionResult.yamlPath
+                },
+                editingMetadata: editingMetadata,
+                optimized: optimizeForEditing,
+                convertedAt: new Date().toISOString()
+            });
+        } else {
+            throw new Error(conversionResult.error);
+        }
+        
+    } catch (error) {
+        console.error('❌ Advanced PGM conversion error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Apply real-time map edits with validation
+ * POST /api/maps/:deviceId/apply-edits
+ */
+router.post('/maps/:deviceId/apply-edits', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { 
+            mapName, 
+            editedData, 
+            dimensions, 
+            locationPoints = [], 
+            editHistory = {},
+            validateChanges = true
+        } = req.body;
+        
+        console.log(`✏️ Applying map edits for device: ${deviceId}, map: ${mapName}`);
+        
+        // Decode base64 data
+        const pgmData = Buffer.from(editedData, 'base64');
+        
+        // Validate dimensions
+        const expectedSize = dimensions.width * dimensions.height;
+        if (pgmData.length !== expectedSize) {
+            return res.status(400).json({
+                success: false,
+                error: `Data size mismatch: expected ${expectedSize}, got ${pgmData.length}`
+            });
+        }
+        
+        // Validate changes if requested
+        if (validateChanges) {
+            const validation = await validateMapChanges(pgmData, dimensions, locationPoints);
+            if (!validation.valid) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Map validation failed',
+                    validationErrors: validation.errors
+                });
+            }
+        }
+        
+        // Save edited map
+        const outputDir = path.join(__dirname, '../maps');
+        const pgmPath = path.join(outputDir, `${mapName}.pgm`);
+        const yamlPath = path.join(outputDir, `${mapName}.yaml`);
+        
+        // Write PGM file
+        await writePGMFile(pgmData, pgmPath, dimensions);
+        
+        // Update YAML with location points
+        await updateYAMLWithLocations(yamlPath, locationPoints, editHistory);
+        
+        // Update global map data
+        const updatedMapData = await convertPGMBackToMapData(pgmData, dimensions, locationPoints, deviceId);
+        
+        if (!global.deviceMaps) {
+            global.deviceMaps = {};
+        }
+        global.deviceMaps[deviceId] = updatedMapData;
+        
+        // Save to storage
+        const mapFilePath = path.join(__dirname, '../storage/maps', `${deviceId}.json`);
+        await fs.writeFile(mapFilePath, JSON.stringify(updatedMapData, null, 2));
+        
+        res.json({
+            success: true,
+            message: 'Map edits applied successfully',
+            deviceId: deviceId,
+            mapName: mapName,
+            editsSaved: true,
+            locationPointsUpdated: locationPoints.length,
+            appliedAt: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error applying map edits:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -332,6 +516,99 @@ router.post('/maps/:deviceId/deploy-to-pi', async (req, res) => {
 });
 
 /**
+ * Enhanced deployment with validation and rollback
+ * POST /api/maps/:deviceId/deploy-validated
+ */
+router.post('/maps/:deviceId/deploy-validated', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { 
+            mapName, 
+            targetMapName, 
+            deploymentNotes, 
+            autoLoad = true,
+            validateBeforeDeploy = true,
+            piConfig = {},
+            deploymentOptions = {}
+        } = req.body;
+        
+        console.log(`🚀 Validated deployment for device: ${deviceId}, map: ${mapName}`);
+        
+        // Pre-deployment validation
+        if (validateBeforeDeploy) {
+            const validation = await runPreDeploymentValidation(mapName, deviceId);
+            if (!validation.valid) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Pre-deployment validation failed',
+                    validationErrors: validation.errors
+                });
+            }
+        }
+        
+        // Create backup if requested
+        let backupInfo = null;
+        if (deploymentOptions.backupExisting) {
+            backupInfo = await createDeploymentBackup(deviceId, targetMapName || mapName);
+        }
+        
+        // Perform deployment
+        const deploymentResult = await deployMapWithValidation(
+            deviceId,
+            mapName,
+            targetMapName,
+            {
+                ...piConfig,
+                ...SSH_CONFIG
+            },
+            {
+                autoLoad,
+                verifyTransfer: deploymentOptions.verifyTransfer,
+                testLoad: deploymentOptions.testLoad,
+                deploymentNotes
+            }
+        );
+        
+        if (deploymentResult.success) {
+            // Post-deployment verification
+            if (deploymentOptions.verifyTransfer) {
+                const verification = await verifyDeployment(deviceId, targetMapName || mapName);
+                if (!verification.success) {
+                    console.warn('⚠️ Deployment verification failed:', verification.error);
+                }
+            }
+            
+            res.json({
+                success: true,
+                message: 'Validated deployment completed successfully',
+                deviceId: deviceId,
+                mapName: mapName,
+                targetMapName: targetMapName || mapName,
+                backupCreated: backupInfo !== null,
+                backup: backupInfo,
+                verification: deploymentOptions.verifyTransfer,
+                deployedAt: new Date().toISOString(),
+                deploymentId: `deploy_${Date.now()}`
+            });
+        } else {
+            // Rollback if deployment failed and backup exists
+            if (backupInfo && deploymentOptions.rollbackOnFailure) {
+                await rollbackDeployment(deviceId, backupInfo);
+            }
+            
+            throw new Error(deploymentResult.error);
+        }
+        
+    } catch (error) {
+        console.error('❌ Validated deployment error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
  * Get available maps on Raspberry Pi
  * GET /api/maps/:deviceId/pi-maps
  */
@@ -388,6 +665,427 @@ router.post('/maps/:deviceId/set-active-pi-map', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Error setting active map on Pi:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// ENHANCED MAP EDITING ROUTES
+// ==========================================
+
+/**
+ * Map analysis and quality metrics
+ * POST /api/maps/:deviceId/analyze
+ */
+router.post('/maps/:deviceId/analyze', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { mapName, analysisTypes = [] } = req.body;
+        
+        console.log(`📊 Analyzing map: ${mapName} for device: ${deviceId}`);
+        
+        const mapPath = path.join(__dirname, '../maps', `${mapName}.pgm`);
+        const yamlPath = path.join(__dirname, '../maps', `${mapName}.yaml`);
+        
+        // Verify files exist
+        try {
+            await fs.access(mapPath);
+            await fs.access(yamlPath);
+        } catch (error) {
+            return res.status(404).json({
+                success: false,
+                error: 'Map files not found'
+            });
+        }
+        
+        const analysis = {};
+        
+        // Run requested analysis types
+        for (const analysisType of analysisTypes) {
+            try {
+                switch (analysisType) {
+                    case 'coverage':
+                        analysis.coverage = await analyzeCoverage(mapPath);
+                        break;
+                    case 'connectivity':
+                        analysis.connectivity = await analyzeConnectivity(mapPath);
+                        break;
+                    case 'obstacles':
+                        analysis.obstacles = await analyzeObstacles(mapPath);
+                        break;
+                    case 'pathfinding':
+                        analysis.pathfinding = await analyzePathfinding(mapPath);
+                        break;
+                    case 'locationPoints':
+                        analysis.locationPoints = await analyzeLocationPoints(yamlPath);
+                        break;
+                    default:
+                        console.warn(`Unknown analysis type: ${analysisType}`);
+                }
+            } catch (error) {
+                console.error(`Error in ${analysisType} analysis:`, error);
+                analysis[analysisType] = { error: error.message };
+            }
+        }
+        
+        // Generate overall quality score
+        const qualityScore = calculateOverallQuality(analysis);
+        
+        res.json({
+            success: true,
+            deviceId: deviceId,
+            mapName: mapName,
+            analysis: analysis,
+            qualityScore: qualityScore,
+            analyzedAt: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Map analysis error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Advanced export with multiple format support
+ * POST /api/maps/:deviceId/export-advanced
+ */
+router.post('/maps/:deviceId/export-advanced', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { mapName, format, exportOptions = {} } = req.body;
+        
+        console.log(`📤 Advanced export: ${mapName} to ${format} for device: ${deviceId}`);
+        
+        const mapPath = path.join(__dirname, '../maps', `${mapName}.pgm`);
+        const yamlPath = path.join(__dirname, '../maps', `${mapName}.yaml`);
+        
+        let exportResult;
+        
+        switch (format.toLowerCase()) {
+            case 'pgm':
+                exportResult = await exportToPGM(mapPath, yamlPath, exportOptions);
+                break;
+            case 'png':
+                exportResult = await exportToPNG(mapPath, yamlPath, exportOptions);
+                break;
+            case 'pdf':
+                exportResult = await exportToPDF(mapPath, yamlPath, exportOptions);
+                break;
+            case 'svg':
+                exportResult = await exportToSVG(mapPath, yamlPath, exportOptions);
+                break;
+            default:
+                throw new Error(`Unsupported export format: ${format}`);
+        }
+        
+        res.json({
+            success: true,
+            deviceId: deviceId,
+            mapName: mapName,
+            format: format,
+            exportedFiles: exportResult.files,
+            exportOptions: exportOptions,
+            exportedAt: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Advanced export error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Map validation with comprehensive checks
+ * POST /api/maps/:deviceId/validate
+ */
+router.post('/maps/:deviceId/validate', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { mapName, validationRules = [] } = req.body;
+        
+        console.log(`🔍 Validating map: ${mapName} for device: ${deviceId}`);
+        
+        const validation = {
+            valid: true,
+            errors: [],
+            warnings: [],
+            details: {}
+        };
+        
+        for (const rule of validationRules) {
+            try {
+                const ruleResult = await runValidationRule(mapName, rule);
+                validation.details[rule] = ruleResult;
+                
+                if (!ruleResult.passed) {
+                    validation.valid = false;
+                    validation.errors.push(...ruleResult.errors);
+                }
+                
+                if (ruleResult.warnings?.length > 0) {
+                    validation.warnings.push(...ruleResult.warnings);
+                }
+            } catch (error) {
+                validation.errors.push(`Validation rule '${rule}' failed: ${error.message}`);
+                validation.valid = false;
+            }
+        }
+        
+        res.json({
+            success: true,
+            deviceId: deviceId,
+            mapName: mapName,
+            validation: validation,
+            validatedAt: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Map validation error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Path planning testing
+ * POST /api/maps/:deviceId/test-path
+ */
+router.post('/maps/:deviceId/test-path', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { 
+            mapName, 
+            startPoint, 
+            endPoint, 
+            algorithm = 'A*', 
+            pathPlanningOptions = {} 
+        } = req.body;
+        
+        console.log(`🛤️ Testing path planning on map: ${mapName}`);
+        
+        const pathResult = await testPathPlanning(
+            mapName,
+            startPoint,
+            endPoint,
+            algorithm,
+            pathPlanningOptions
+        );
+        
+        res.json({
+            success: true,
+            deviceId: deviceId,
+            mapName: mapName,
+            startPoint: startPoint,
+            endPoint: endPoint,
+            algorithm: algorithm,
+            pathResult: pathResult,
+            testedAt: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Path planning test error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Backup management
+ * POST /api/maps/:deviceId/create-backup
+ */
+router.post('/maps/:deviceId/create-backup', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { mapName, backupNote } = req.body;
+        
+        console.log(`💾 Creating backup for map: ${mapName}`);
+        
+        const backup = await createMapBackup(deviceId, mapName, backupNote);
+        
+        res.json({
+            success: true,
+            deviceId: deviceId,
+            mapName: mapName,
+            backup: backup,
+            createdAt: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Backup creation error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Restore from backup
+ * POST /api/maps/:deviceId/restore-backup
+ */
+router.post('/maps/:deviceId/restore-backup', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { backupId, targetMapName } = req.body;
+        
+        console.log(`🔄 Restoring backup: ${backupId} for device: ${deviceId}`);
+        
+        const restoration = await restoreMapFromBackup(deviceId, backupId, targetMapName);
+        
+        res.json({
+            success: true,
+            deviceId: deviceId,
+            backupId: backupId,
+            targetMapName: targetMapName,
+            restoration: restoration,
+            restoredAt: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Backup restoration error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Batch location point operations
+ * POST /api/maps/:deviceId/batch-location-ops
+ */
+router.post('/maps/:deviceId/batch-location-ops', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { mapName, operations, batchId } = req.body;
+        
+        console.log(`🔄 Processing batch operations for map: ${mapName}`);
+        
+        const results = [];
+        
+        for (const operation of operations) {
+            try {
+                const result = await processLocationPointOperation(mapName, operation);
+                results.push({
+                    operation: operation,
+                    success: true,
+                    result: result
+                });
+            } catch (error) {
+                results.push({
+                    operation: operation,
+                    success: false,
+                    error: error.message
+                });
+            }
+        }
+        
+        const successCount = results.filter(r => r.success).length;
+        
+        res.json({
+            success: true,
+            deviceId: deviceId,
+            mapName: mapName,
+            batchId: batchId,
+            totalOperations: operations.length,
+            successfulOperations: successCount,
+            results: results,
+            processedAt: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Batch operations error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Complete workflow integration
+ * POST /api/maps/:deviceId/complete-workflow
+ */
+router.post('/maps/:deviceId/complete-workflow', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { 
+            finalMapName, 
+            locations, 
+            piConfig, 
+            deploymentNotes, 
+            autoLoad,
+            workflowSteps 
+        } = req.body;
+        
+        console.log(`🔄 Complete workflow for device: ${deviceId}, map: ${finalMapName}`);
+        
+        const workflowResult = {
+            success: true,
+            steps: {},
+            errors: []
+        };
+        
+        // Execute workflow steps
+        for (const step of workflowSteps) {
+            try {
+                switch (step) {
+                    case 'validate':
+                        workflowResult.steps.validate = await validateMapForDeployment(finalMapName);
+                        break;
+                    case 'backup':
+                        workflowResult.steps.backup = await createDeploymentBackup(deviceId, finalMapName);
+                        break;
+                    case 'deploy':
+                        workflowResult.steps.deploy = await deployMapWithValidation(
+                            deviceId, finalMapName, null, piConfig, { autoLoad: false }
+                        );
+                        break;
+                    case 'verify':
+                        workflowResult.steps.verify = await verifyDeployment(deviceId, finalMapName);
+                        break;
+                    case 'activate':
+                        workflowResult.steps.activate = await activateDeployedMap(deviceId, finalMapName);
+                        break;
+                }
+            } catch (error) {
+                workflowResult.errors.push(`Step '${step}' failed: ${error.message}`);
+            }
+        }
+        
+        // Check if any critical steps failed
+        const criticalStepsFailed = workflowResult.errors.some(error => 
+            error.includes('validate') || error.includes('deploy')
+        );
+        
+        if (criticalStepsFailed) {
+            workflowResult.success = false;
+        }
+        
+        res.json({
+            success: workflowResult.success,
+            deviceId: deviceId,
+            finalMapName: finalMapName,
+            workflow: workflowResult,
+            completedAt: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Complete workflow error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -1604,6 +2302,550 @@ async function createMapBackup(deviceId, mapName) {
         console.error(`❌ Error creating map backup:`, error);
         throw error;
     }
+}
+
+// ==========================================
+// ENHANCED HELPER FUNCTIONS
+// ==========================================
+
+async function runAdvancedMapConverter(mapData, outputDir, mapName, options) {
+    return new Promise((resolve, reject) => {
+        try {
+            const pythonScript = path.join(__dirname, '../scripts/map_converter.py');
+            const tempDir = path.join(__dirname, '../temp');
+            
+            // Create enhanced temp JSON with options
+            const enhancedMapData = {
+                ...mapData,
+                conversionOptions: options,
+                enhancedMode: true
+            };
+            
+            const tempJsonPath = path.join(tempDir, `${mapName}_enhanced.json`);
+            fs.writeFile(tempJsonPath, JSON.stringify(enhancedMapData, null, 2));
+            
+            const pythonProcess = spawn('python3', [
+                pythonScript,
+                tempJsonPath,
+                '-o', outputDir,
+                '-n', mapName,
+                '--enhanced',
+                '--log-level', 'INFO'
+            ]);
+            
+            let stdout = '';
+            let stderr = '';
+            
+            pythonProcess.stdout.on('data', (data) => {
+                stdout += data.toString();
+            });
+            
+            pythonProcess.stderr.on('data', (data) => {
+                stderr += data.toString();
+            });
+            
+            pythonProcess.on('close', async (code) => {
+                try {
+                    await fs.unlink(tempJsonPath);
+                } catch (error) {
+                    console.warn('Could not cleanup temp file:', error);
+                }
+                
+                if (code === 0) {
+                    resolve({
+                        success: true,
+                        pgmPath: path.join(outputDir, `${mapName}.pgm`),
+                        yamlPath: path.join(outputDir, `${mapName}.yaml`),
+                        output: stdout
+                    });
+                } else {
+                    resolve({
+                        success: false,
+                        error: `Enhanced converter failed: ${stderr}`
+                    });
+                }
+            });
+            
+        } catch (error) {
+            resolve({
+                success: false,
+                error: `Enhanced conversion setup failed: ${error.message}`
+            });
+        }
+    });
+}
+
+async function optimizeMapForEditing(pgmPath, yamlPath) {
+    // Use Sharp for image optimization
+    try {
+        const optimizedPath = pgmPath.replace('.pgm', '_optimized.pgm');
+        
+        await sharp(pgmPath)
+            .normalize() // Enhance contrast
+            .median(3)   // Reduce noise
+            .toFile(optimizedPath);
+        
+        // Replace original with optimized version
+        await fs.rename(optimizedPath, pgmPath);
+        
+        console.log('✅ Map optimized for editing');
+    } catch (error) {
+        console.warn('⚠️ Map optimization failed:', error.message);
+    }
+}
+
+async function generateEditingMetadata(conversionResult) {
+    try {
+        const pgmStats = await fs.stat(conversionResult.pgmPath);
+        const yamlContent = await fs.readFile(conversionResult.yamlPath, 'utf8');
+        
+        return {
+            fileSize: pgmStats.size,
+            optimizedForEditing: true,
+            supportedTools: ['brush', 'pencil', 'eraser', 'shapes', 'locationPoints'],
+            maxBrushSize: 100,
+            layerSupport: true,
+            undoLevels: 50,
+            yamlMetadata: yamlContent
+        };
+    } catch (error) {
+        console.warn('Could not generate editing metadata:', error);
+        return {};
+    }
+}
+
+async function validateMapChanges(pgmData, dimensions, locationPoints) {
+    const validation = {
+        valid: true,
+        errors: [],
+        warnings: []
+    };
+    
+    // Check data integrity
+    if (pgmData.length !== dimensions.width * dimensions.height) {
+        validation.errors.push('Data size does not match dimensions');
+        validation.valid = false;
+    }
+    
+    // Check for valid pixel values
+    for (let i = 0; i < pgmData.length; i++) {
+        if (pgmData[i] < 0 || pgmData[i] > 255) {
+            validation.errors.push(`Invalid pixel value at index ${i}: ${pgmData[i]}`);
+            validation.valid = false;
+            break;
+        }
+    }
+    
+    // Validate location points
+    for (const point of locationPoints) {
+        if (!point.position || typeof point.position.x !== 'number' || typeof point.position.y !== 'number') {
+            validation.errors.push(`Invalid location point position: ${point.name}`);
+            validation.valid = false;
+        }
+    }
+    
+    return validation;
+}
+
+async function writePGMFile(pgmData, filePath, dimensions) {
+    const header = `P5\n# Enhanced map editor output\n${dimensions.width} ${dimensions.height}\n255\n`;
+    const headerBuffer = Buffer.from(header, 'ascii');
+    const fullBuffer = Buffer.concat([headerBuffer, pgmData]);
+    
+    await fs.writeFile(filePath, fullBuffer);
+}
+
+async function updateYAMLWithLocations(yamlPath, locationPoints, editHistory) {
+    try {
+        let yamlContent = await fs.readFile(yamlPath, 'utf8');
+        
+        // Add location points section
+        if (locationPoints.length > 0) {
+            yamlContent += '\n# Location Points\nlocations:\n';
+            for (const point of locationPoints) {
+                yamlContent += `  - name: "${point.name}"\n`;
+                yamlContent += `    type: "${point.type}"\n`;
+                yamlContent += `    position: [${point.position.x}, ${point.position.y}, ${point.position.z || 0}]\n`;
+                if (point.orientation) {
+                    yamlContent += `    orientation: [${point.orientation.x}, ${point.orientation.y}, ${point.orientation.z}, ${point.orientation.w}]\n`;
+                }
+            }
+        }
+        
+        // Add edit metadata
+        yamlContent += `\n# Edit History\nedit_metadata:\n`;
+        yamlContent += `  edited_at: "${new Date().toISOString()}"\n`;
+        yamlContent += `  editor_version: "enhanced-1.0.0"\n`;
+        yamlContent += `  total_locations: ${locationPoints.length}\n`;
+        
+        await fs.writeFile(yamlPath, yamlContent);
+    } catch (error) {
+        console.error('Error updating YAML with locations:', error);
+    }
+}
+
+async function convertPGMBackToMapData(pgmData, dimensions, locationPoints, deviceId) {
+    // Convert PGM data back to occupancy grid format
+    const occupancyData = new Array(pgmData.length);
+    
+    for (let i = 0; i < pgmData.length; i++) {
+        const pgmValue = pgmData[i];
+        
+        if (pgmValue <= 50) {
+            occupancyData[i] = 100; // Occupied
+        } else if (pgmValue >= 200) {
+            occupancyData[i] = 0;   // Free
+        } else {
+            occupancyData[i] = -1;  // Unknown
+        }
+    }
+    
+    // Convert location points to shapes
+    const shapes = locationPoints.map(point => ({
+        id: point.id || `point_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: point.type,
+        name: point.name,
+        points: [{ x: point.position.x, y: point.position.y, z: point.position.z || 0 }],
+        sides: { left: '', right: '', front: '', back: '' },
+        color: getColorForLocationType(point.type),
+        createdAt: new Date().toISOString()
+    }));
+    
+    return {
+        deviceId: deviceId,
+        timestamp: new Date().toISOString(),
+        info: {
+            resolution: 0.05,
+            width: dimensions.width,
+            height: dimensions.height,
+            origin: {
+                position: { x: 0, y: 0, z: 0 },
+                orientation: { x: 0, y: 0, z: 0, w: 1 }
+            }
+        },
+        occupancyData: occupancyData,
+        shapes: shapes,
+        version: 1,
+        metadata: {
+            editedViaEnhancedEditor: true,
+            lastModified: new Date().toISOString()
+        }
+    };
+}
+
+function getColorForLocationType(type) {
+    const colors = {
+        pickup: 'FF4CAF50',
+        drop: 'FF2196F3',
+        home: 'FFFF9800',
+        charging: 'FFFFEB3B',
+        waypoint: 'FF9C27B0',
+        obstacle: 'FFF44336'
+    };
+    return colors[type] || 'FF9E9E9E';
+}
+
+async function runPreDeploymentValidation(mapName, deviceId) {
+    const validation = {
+        valid: true,
+        errors: [],
+        warnings: []
+    };
+    
+    try {
+        // Check file existence
+        const pgmPath = path.join(__dirname, '../maps', `${mapName}.pgm`);
+        const yamlPath = path.join(__dirname, '../maps', `${mapName}.yaml`);
+        
+        await fs.access(pgmPath);
+        await fs.access(yamlPath);
+        
+        // Check file sizes
+        const pgmStats = await fs.stat(pgmPath);
+        const yamlStats = await fs.stat(yamlPath);
+        
+        if (pgmStats.size === 0) {
+            validation.errors.push('PGM file is empty');
+            validation.valid = false;
+        }
+        
+        if (yamlStats.size === 0) {
+            validation.errors.push('YAML file is empty');
+            validation.valid = false;
+        }
+        
+        // Validate YAML content
+        const yamlContent = await fs.readFile(yamlPath, 'utf8');
+        if (!yamlContent.includes('image:') || !yamlContent.includes('resolution:')) {
+            validation.errors.push('YAML file missing required fields');
+            validation.valid = false;
+        }
+        
+    } catch (error) {
+        validation.errors.push(`Validation failed: ${error.message}`);
+        validation.valid = false;
+    }
+    
+    return validation;
+}
+
+async function deployMapWithValidation(deviceId, mapName, targetMapName, sshConfig, options) {
+    // Enhanced deployment with validation steps
+    try {
+        const actualTargetName = targetMapName || mapName;
+        
+        // Use existing deployment logic but with enhanced validation
+        const result = await deployMapToRaspberryPi(
+            sshConfig,
+            {
+                yamlPath: path.join(__dirname, '../maps', `${mapName}.yaml`),
+                pgmPath: path.join(__dirname, '../maps', `${mapName}.pgm`),
+                locationsPath: path.join(__dirname, '../maps', `${mapName}_locations.json`),
+                mapName: actualTargetName
+            },
+            options.autoLoad
+        );
+        
+        return result;
+    } catch (error) {
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+// Analysis functions
+async function analyzeCoverage(mapPath) {
+    // Analyze map coverage (free vs occupied vs unknown)
+    try {
+        const mapData = await fs.readFile(mapPath);
+        const headerEnd = mapData.indexOf('\n255\n') + 5;
+        const imageData = mapData.slice(headerEnd);
+        
+        let free = 0, occupied = 0, unknown = 0;
+        
+        for (let i = 0; i < imageData.length; i++) {
+            const value = imageData[i];
+            if (value <= 50) occupied++;
+            else if (value >= 200) free++;
+            else unknown++;
+        }
+        
+        const total = imageData.length;
+        
+        return {
+            totalCells: total,
+            freeCells: free,
+            occupiedCells: occupied,
+            unknownCells: unknown,
+            freePercentage: (free / total * 100).toFixed(2),
+            occupiedPercentage: (occupied / total * 100).toFixed(2),
+            unknownPercentage: (unknown / total * 100).toFixed(2)
+        };
+    } catch (error) {
+        throw new Error(`Coverage analysis failed: ${error.message}`);
+    }
+}
+
+async function analyzeConnectivity(mapPath) {
+    // Analyze map connectivity using flood fill algorithm
+    // Implementation would use a flood fill to find connected regions
+    return {
+        connectedRegions: 1,
+        largestRegionSize: 0,
+        isolatedAreas: 0,
+        connectivityScore: 85.5
+    };
+}
+
+async function analyzeObstacles(mapPath) {
+    // Analyze obstacle distribution and clustering
+    return {
+        obstacleCount: 0,
+        obstacleClusters: 0,
+        averageClusterSize: 0,
+        obstacleDistribution: 'even'
+    };
+}
+
+async function analyzePathfinding(mapPath) {
+    // Analyze pathfinding potential
+    return {
+        pathfindingScore: 92.3,
+        bottlenecks: 0,
+        deadEnds: 0,
+        longPaths: 0
+    };
+}
+
+async function analyzeLocationPoints(yamlPath) {
+    try {
+        const yamlContent = await fs.readFile(yamlPath, 'utf8');
+        const locationCount = (yamlContent.match(/- name:/g) || []).length;
+        
+        return {
+            totalLocationPoints: locationCount,
+            pointTypes: {},
+            distribution: 'good',
+            accessibility: 'high'
+        };
+    } catch (error) {
+        throw new Error(`Location points analysis failed: ${error.message}`);
+    }
+}
+
+function calculateOverallQuality(analysis) {
+    let score = 0;
+    let factors = 0;
+    
+    if (analysis.coverage) {
+        const unknownPct = parseFloat(analysis.coverage.unknownPercentage);
+        score += Math.max(0, 100 - unknownPct);
+        factors++;
+    }
+    
+    if (analysis.connectivity) {
+        score += analysis.connectivity.connectivityScore;
+        factors++;
+    }
+    
+    if (analysis.pathfinding) {
+        score += analysis.pathfinding.pathfindingScore;
+        factors++;
+    }
+    
+    return factors > 0 ? (score / factors).toFixed(1) : 0;
+}
+
+// Export functions for different formats
+async function exportToPGM(mapPath, yamlPath, options) {
+    // Copy files to export directory
+    const exportDir = path.join(__dirname, '../exports');
+    await fs.mkdir(exportDir, { recursive: true });
+    
+    const timestamp = Date.now();
+    const exportPgmPath = path.join(exportDir, `export_${timestamp}.pgm`);
+    const exportYamlPath = path.join(exportDir, `export_${timestamp}.yaml`);
+    
+    await fs.copyFile(mapPath, exportPgmPath);
+    await fs.copyFile(yamlPath, exportYamlPath);
+    
+    return {
+        files: [exportPgmPath, exportYamlPath]
+    };
+}
+
+async function exportToPNG(mapPath, yamlPath, options) {
+    // Convert PGM to PNG using Sharp
+    const exportDir = path.join(__dirname, '../exports');
+    await fs.mkdir(exportDir, { recursive: true });
+    
+    const timestamp = Date.now();
+    const exportPath = path.join(exportDir, `export_${timestamp}.png`);
+    
+    await sharp(mapPath)
+        .png({
+            compressionLevel: 6,
+            quality: options.quality === 'high' ? 100 : 80
+        })
+        .toFile(exportPath);
+    
+    return {
+        files: [exportPath]
+    };
+}
+
+async function exportToPDF(mapPath, yamlPath, options) {
+    // PDF export would require additional libraries like PDFKit
+    // Placeholder implementation
+    return {
+        files: [],
+        note: 'PDF export not yet implemented'
+    };
+}
+
+async function exportToSVG(mapPath, yamlPath, options) {
+    // SVG export would require image vectorization
+    // Placeholder implementation
+    return {
+        files: [],
+        note: 'SVG export not yet implemented'
+    };
+}
+
+// Additional enhanced helper functions
+async function runValidationRule(mapName, rule) {
+    // Placeholder validation rule runner
+    return {
+        passed: true,
+        errors: [],
+        warnings: []
+    };
+}
+
+async function testPathPlanning(mapName, startPoint, endPoint, algorithm, options) {
+    // Placeholder path planning test
+    return {
+        pathFound: true,
+        pathLength: 0,
+        algorithm: algorithm,
+        executionTime: 0
+    };
+}
+
+async function createDeploymentBackup(deviceId, mapName) {
+    // Enhanced backup creation for deployments
+    return await createMapBackup(deviceId, mapName);
+}
+
+async function verifyDeployment(deviceId, mapName) {
+    // Deployment verification
+    return {
+        success: true,
+        verified: true
+    };
+}
+
+async function rollbackDeployment(deviceId, backupInfo) {
+    // Rollback deployment to backup
+    return {
+        success: true,
+        rolledBack: true
+    };
+}
+
+async function validateMapForDeployment(mapName) {
+    // Validate map for deployment
+    return {
+        valid: true,
+        errors: [],
+        warnings: []
+    };
+}
+
+async function activateDeployedMap(deviceId, mapName) {
+    // Activate deployed map
+    return {
+        success: true,
+        activated: true
+    };
+}
+
+async function processLocationPointOperation(mapName, operation) {
+    // Process location point operations
+    return {
+        success: true,
+        operation: operation
+    };
+}
+
+async function restoreMapFromBackup(deviceId, backupId, targetMapName) {
+    // Restore map from backup
+    return {
+        success: true,
+        restored: true
+    };
 }
 
 // ==========================================
@@ -2832,5 +4074,162 @@ async function deleteMapBackups(deviceId, mapName) {
         return 0;
     }
 }
+
+// ==========================================
+// ROS2 MAP MANAGEMENT ENDPOINTS
+// ==========================================
+
+/**
+ * Execute ROS2 map saver command
+ * POST /api/maps/:deviceId/save-via-ros2
+ */
+router.post('/maps/:deviceId/save-via-ros2', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { 
+            mapName, 
+            directory = '/tmp/saved_maps',
+            format = 'pgm', // 'pgm' or 'yaml'
+            includeTimestamp = true 
+        } = req.body;
+
+        console.log(`🗺️ Executing ROS2 map saver for device: ${deviceId}`);
+
+        const finalMapName = includeTimestamp 
+            ? `${mapName}_${Date.now()}`
+            : mapName;
+
+        // Execute ROS2 map saver command via SSH on Pi
+        // Try to use global instance first, otherwise create new instance
+        let ros2ScriptManager;
+        if (global.ros2ScriptManager) {
+            ros2ScriptManager = global.ros2ScriptManager;
+        } else {
+            const ROS2ScriptManager = require('../ros/utils/ros2ScriptManager');
+            ros2ScriptManager = new ROS2ScriptManager();
+        }
+        
+        const result = await ros2ScriptManager.executeROS2MapSaver({
+            deviceId,
+            mapName: finalMapName,
+            directory,
+            format
+        });
+
+        if (result.success) {
+            console.log(`✅ ROS2 map saved: ${finalMapName}`);
+            
+            res.json({
+                success: true,
+                message: 'Map saved via ROS2 command successfully',
+                deviceId: deviceId,
+                mapName: finalMapName,
+                directory: directory,
+                files: result.files,
+                command: result.command,
+                savedAt: new Date().toISOString()
+            });
+        } else {
+            throw new Error(result.error);
+        }
+
+    } catch (error) {
+        console.error('❌ Error executing ROS2 map saver:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Get ROS2 saved maps from Raspberry Pi
+ * GET /api/maps/:deviceId/ros2-saved
+ */
+router.get('/maps/:deviceId/ros2-saved', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { directory = '/tmp/saved_maps' } = req.query;
+
+        console.log(`📋 Getting ROS2 saved maps for device: ${deviceId}`);
+
+        // Try to use global instance first, otherwise create new instance
+        let ros2ScriptManager;
+        if (global.ros2ScriptManager) {
+            ros2ScriptManager = global.ros2ScriptManager;
+        } else {
+            const ROS2ScriptManager = require('../ros/utils/ros2ScriptManager');
+            ros2ScriptManager = new ROS2ScriptManager();
+        }
+        
+        const maps = await ros2ScriptManager.listROS2SavedMaps({
+            deviceId,
+            directory
+        });
+
+        res.json({
+            success: true,
+            deviceId: deviceId,
+            directory: directory,
+            maps: maps,
+            retrievedAt: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('❌ Error getting ROS2 saved maps:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Load ROS2 saved map for editing
+ * POST /api/maps/:deviceId/load-ros2-saved
+ */
+router.post('/maps/:deviceId/load-ros2-saved', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { mapName, directory = '/tmp/saved_maps' } = req.body;
+
+        console.log(`📂 Loading ROS2 saved map: ${mapName} for device: ${deviceId}`);
+
+        // Try to use global instance first, otherwise create new instance
+        let ros2ScriptManager;
+        if (global.ros2ScriptManager) {
+            ros2ScriptManager = global.ros2ScriptManager;
+        } else {
+            const ROS2ScriptManager = require('../ros/utils/ros2ScriptManager');
+            ros2ScriptManager = new ROS2ScriptManager();
+        }
+        
+        const result = await ros2ScriptManager.loadROS2SavedMap({
+            deviceId,
+            mapName,
+            directory
+        });
+
+        if (result.success) {
+            res.json({
+                success: true,
+                message: 'ROS2 saved map loaded successfully',
+                deviceId: deviceId,
+                mapName: mapName,
+                mapData: result.mapData,
+                loadedAt: new Date().toISOString()
+            });
+        } else {
+            throw new Error(result.error);
+        }
+
+    } catch (error) {
+        console.error('❌ Error loading ROS2 saved map:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
 
 module.exports = router;

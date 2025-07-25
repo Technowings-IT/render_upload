@@ -1,8 +1,9 @@
-// services/api_service.dart - FIXED with Complete Analytics Implementation
+// services/api_service.dart - Enhanced with Advanced Map Editing Features
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../models/map_data.dart';
 import '../models/odom.dart';
@@ -21,7 +22,6 @@ class ApiService {
 
   // Connection state
   bool _isInitialized = false;
-  Map<String, dynamic>? _serverInfo;
 
   // Analytics tracking
   int _totalRequests = 0;
@@ -779,6 +779,409 @@ class ApiService {
   }
 
 // ==========================================
+// ENHANCED MAP CONVERSION & EDITING METHODS
+// ==========================================
+
+  /// Advanced PGM conversion with optimization options
+  Future<Map<String, dynamic>> convertMapToPGMAdvanced({
+    required String deviceId,
+    String? mapName,
+    String? sourceMapName,
+    bool includeMetadata = true,
+    bool optimizeForEditing = true,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response =
+          await _post('/api/maps/$deviceId/convert-to-pgm-advanced', {
+        'mapName': mapName,
+        'sourceMapName': sourceMapName,
+        'includeMetadata': includeMetadata,
+        'optimizeForEditing': optimizeForEditing,
+        'conversionOptions': {
+          'preserveDetails': true,
+          'enhanceContrast': false,
+          'smoothing': false,
+        },
+      });
+
+      if (response['success'] == true) {
+        print('✅ Advanced PGM conversion completed');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error in advanced PGM conversion: $e');
+      throw ApiException('Advanced PGM conversion failed: $e');
+    }
+  }
+
+  /// Save location points to map
+  Future<Map<String, dynamic>> saveLocationPoints({
+    required String deviceId,
+    required String mapName,
+    required List<Map<String, dynamic>> locationPoints,
+    Map<String, dynamic>? metadata,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _put('/api/maps/$deviceId/edit-pgm/$mapName', {
+        'locations': locationPoints,
+        'metadata': metadata ?? {},
+        'editedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Location points saved: ${locationPoints.length} points');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error saving location points: $e');
+      throw ApiException('Failed to save location points: $e');
+    }
+  }
+
+  /// Apply comprehensive map edits
+  Future<Map<String, dynamic>> applyMapEdits({
+    required String deviceId,
+    required String mapName,
+    required Uint8List editedMapData,
+    required int width,
+    required int height,
+    List<Map<String, dynamic>>? locationPoints,
+    Map<String, dynamic>? editHistory,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      // Convert Uint8List to base64 for JSON transmission
+      final base64Data = base64Encode(editedMapData);
+
+      final response = await _post('/api/maps/$deviceId/apply-edits', {
+        'mapName': mapName,
+        'editedData': base64Data,
+        'dimensions': {
+          'width': width,
+          'height': height,
+        },
+        'locationPoints': locationPoints ?? [],
+        'editHistory': editHistory ?? {},
+        'editedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Map edits applied successfully');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error applying map edits: $e');
+      throw ApiException('Failed to apply map edits: $e');
+    }
+  }
+
+  /// Deploy map with validation and backup
+  Future<Map<String, dynamic>> deployMapWithValidation({
+    required String deviceId,
+    required String mapName,
+    String? targetMapName,
+    String? deploymentNotes,
+    bool autoLoad = true,
+    bool validateBeforeDeploy = true,
+    Map<String, dynamic>? piConfig,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/deploy-validated', {
+        'mapName': mapName,
+        'targetMapName': targetMapName,
+        'deploymentNotes': deploymentNotes,
+        'autoLoad': autoLoad,
+        'validateBeforeDeploy': validateBeforeDeploy,
+        'piConfig': piConfig,
+        'deploymentOptions': {
+          'backupExisting': true,
+          'verifyTransfer': true,
+          'testLoad': validateBeforeDeploy,
+        },
+      });
+
+      if (response['success'] == true) {
+        print('✅ Map deployed with validation');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error in validated deployment: $e');
+      throw ApiException('Validated deployment failed: $e');
+    }
+  }
+
+  /// Create map backup for versioning
+  Future<Map<String, dynamic>> createMapBackup({
+    required String deviceId,
+    required String mapName,
+    String? backupNote,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/create-backup', {
+        'mapName': mapName,
+        'backupNote': backupNote,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Map backup created');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error creating backup: $e');
+      throw ApiException('Backup creation failed: $e');
+    }
+  }
+
+  /// Restore map from backup
+  Future<Map<String, dynamic>> restoreMapFromBackup({
+    required String deviceId,
+    required String backupId,
+    String? targetMapName,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/restore-backup', {
+        'backupId': backupId,
+        'targetMapName': targetMapName,
+        'restoreTimestamp': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Map restored from backup');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error restoring backup: $e');
+      throw ApiException('Backup restoration failed: $e');
+    }
+  }
+
+  /// Advanced export with multiple format support
+  Future<Map<String, dynamic>> exportMapAdvanced({
+    required String deviceId,
+    required String mapName,
+    required String format, // 'pgm', 'png', 'pdf', 'svg'
+    Map<String, dynamic>? exportOptions,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/export-advanced', {
+        'mapName': mapName,
+        'format': format,
+        'exportOptions': exportOptions ??
+            {
+              'includeLocationPoints': true,
+              'includeMetadata': true,
+              'includeGrid': false,
+              'includeScale': true,
+              'quality': 'high',
+            },
+      });
+
+      if (response['success'] == true) {
+        print('✅ Advanced export completed: $format');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error in advanced export: $e');
+      throw ApiException('Advanced export failed: $e');
+    }
+  }
+
+  /// Analyze map for quality and connectivity
+  Future<Map<String, dynamic>> analyzeMap({
+    required String deviceId,
+    required String mapName,
+    List<String>? analysisTypes,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/analyze', {
+        'mapName': mapName,
+        'analysisTypes': analysisTypes ??
+            [
+              'coverage',
+              'connectivity',
+              'obstacles',
+              'pathfinding',
+              'locationPoints',
+            ],
+      });
+
+      if (response['success'] == true) {
+        print('✅ Map analysis completed');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error analyzing map: $e');
+      throw ApiException('Map analysis failed: $e');
+    }
+  }
+
+  /// Validate map quality and navigation safety
+  Future<Map<String, dynamic>> validateMapQuality({
+    required String deviceId,
+    required String mapName,
+    List<String>? validationRules,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/validate', {
+        'mapName': mapName,
+        'validationRules': validationRules ??
+            [
+              'connectivity',
+              'reachability',
+              'obstacleConsistency',
+              'locationPointAccessibility',
+              'navigationSafety',
+            ],
+      });
+
+      if (response['success'] == true) {
+        print('✅ Map validation completed');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error validating map: $e');
+      throw ApiException('Map validation failed: $e');
+    }
+  }
+
+  /// Test path planning between points
+  Future<Map<String, dynamic>> testPathPlanning({
+    required String deviceId,
+    required String mapName,
+    required Map<String, double> startPoint,
+    required Map<String, double> endPoint,
+    String? algorithm,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/test-path', {
+        'mapName': mapName,
+        'startPoint': startPoint,
+        'endPoint': endPoint,
+        'algorithm': algorithm ?? 'A*',
+        'pathPlanningOptions': {
+          'smoothPath': true,
+          'avoidObstacles': true,
+          'optimizeForSpeed': false,
+        },
+      });
+
+      if (response['success'] == true) {
+        print('✅ Path planning test completed');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error testing path planning: $e');
+      throw ApiException('Path planning test failed: $e');
+    }
+  }
+
+  /// Batch location point operations for efficiency
+  Future<Map<String, dynamic>> batchLocationPointOperations({
+    required String deviceId,
+    required String mapName,
+    required List<Map<String, dynamic>> operations,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/maps/$deviceId/batch-location-ops', {
+        'mapName': mapName,
+        'operations': operations,
+        'batchId': DateTime.now().millisecondsSinceEpoch.toString(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Batch operations completed: ${operations.length} operations');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error in batch operations: $e');
+      throw ApiException('Batch operations failed: $e');
+    }
+  }
+
+// ==========================================
+// ENHANCED LOCATION POINT UTILITIES
+// ==========================================
+
+  /// Enhanced create a standardized location marker with advanced properties
+  Map<String, dynamic> createEnhancedLocationMarker({
+    required String name,
+    required String type,
+    required Map<String, double> position,
+    Map<String, double>? orientation,
+    Map<String, dynamic>? properties,
+    String? description,
+    String? category,
+  }) {
+    return {
+      'name': name,
+      'type': type,
+      'position': position,
+      'orientation': orientation ?? {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0},
+      'properties': properties ?? {},
+      'description': description ?? '',
+      'category': category ?? 'general',
+      'createdAt': DateTime.now().toIso8601String(),
+      'id':
+          'loc_${DateTime.now().millisecondsSinceEpoch}_${name.toLowerCase().replaceAll(' ', '_')}',
+    };
+  }
+
+// ==========================================
+// UTILITY METHODS FOR MAP CONVERSION
+// ==========================================
+
+  /// Convert base64 to Uint8List
+  Uint8List convertBase64ToUint8List(String base64String) {
+    try {
+      return base64Decode(base64String);
+    } catch (e) {
+      throw ApiException('Failed to decode base64 data: $e');
+    }
+  }
+
+  /// Convert Uint8List to base64
+  String convertUint8ListToBase64(Uint8List data) {
+    try {
+      return base64Encode(data);
+    } catch (e) {
+      throw ApiException('Failed to encode data to base64: $e');
+    }
+  }
+
+// ==========================================
 // MAP SELECTION FOR NAVIGATION
 // ==========================================
 
@@ -1149,7 +1552,6 @@ class ApiService {
       print('🔧 Testing API connection to: $baseUrl/health');
       final response = await _get('/health');
       print('✅ API connection test successful');
-      _serverInfo = response;
       return response['status'] != null || response['success'] != null;
     } catch (e) {
       print('❌ API connection test failed: $e');
@@ -1644,6 +2046,102 @@ class ApiService {
     } catch (e) {
       print('❌ Error saving map data: $e');
       throw ApiException('Failed to save map data: $e');
+    }
+  }
+
+  /// NEW: Save map via ROS2 map saver command
+  Future<Map<String, dynamic>> saveMapViaROS2({
+    required String deviceId,
+    required String mapName,
+    String? directory,
+    String format = 'pgm',
+    bool includeTimestamp = true,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      print('🚀 Saving map via ROS2 for device: $deviceId');
+
+      final response = await _post('/api/maps/$deviceId/save-via-ros2', {
+        'mapName': mapName,
+        'directory': directory ?? '/tmp/saved_maps',
+        'format': format,
+        'includeTimestamp': includeTimestamp,
+        'executedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ Map saved via ROS2: $mapName');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error saving map via ROS2: $e');
+      throw ApiException('Failed to save map via ROS2: $e');
+    }
+  }
+
+  /// NEW: Get ROS2 saved maps from Raspberry Pi
+  Future<List<Map<String, dynamic>>> getROS2SavedMaps(
+    String deviceId, {
+    String? directory,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      print('📋 Getting ROS2 saved maps for device: $deviceId');
+
+      final queryParams = <String, String>{};
+      if (directory != null) queryParams['directory'] = directory;
+
+      final queryString = queryParams.entries
+          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+
+      final response = await _get(
+        '/api/maps/$deviceId/ros2-saved${queryString.isNotEmpty ? '?$queryString' : ''}',
+      );
+
+      if (response['success'] == true) {
+        final maps = response['maps'] as List?;
+        if (maps != null) {
+          print('✅ Found ${maps.length} ROS2 saved maps');
+          return maps.cast<Map<String, dynamic>>();
+        }
+      }
+
+      return [];
+    } catch (e) {
+      print('❌ Error getting ROS2 saved maps: $e');
+      return [];
+    }
+  }
+
+  /// NEW: Load ROS2 saved map for editing
+  Future<Map<String, dynamic>> loadROS2SavedMap({
+    required String deviceId,
+    required String mapName,
+    String? directory,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      print('📂 Loading ROS2 saved map: $mapName for device: $deviceId');
+
+      final response = await _post('/api/maps/$deviceId/load-ros2-saved', {
+        'mapName': mapName,
+        'directory': directory ?? '/tmp/saved_maps',
+        'loadedAt': DateTime.now().toIso8601String(),
+      });
+
+      if (response['success'] == true) {
+        print('✅ ROS2 saved map loaded: $mapName');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error loading ROS2 saved map: $e');
+      throw ApiException('Failed to load ROS2 saved map: $e');
     }
   }
 
@@ -3015,6 +3513,232 @@ class _CacheEntry {
   _CacheEntry(this.data, this.createdAt, this.ttl);
 
   bool get isExpired => DateTime.now().isAfter(createdAt.add(ttl));
+}
+
+// ==========================================
+// ENHANCED DATA MODELS FOR MAP EDITING
+// ==========================================
+
+/// Enhanced data model for map edit operations
+class MapEditOperation {
+  final String id;
+  final String type; // 'draw', 'erase', 'addPoint', 'removePoint', etc.
+  final Map<String, dynamic> data;
+  final DateTime timestamp;
+
+  MapEditOperation({
+    required this.id,
+    required this.type,
+    required this.data,
+    required this.timestamp,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'type': type,
+      'data': data,
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
+
+  factory MapEditOperation.fromJson(Map<String, dynamic> json) {
+    return MapEditOperation(
+      id: json['id'],
+      type: json['type'],
+      data: json['data'],
+      timestamp: DateTime.parse(json['timestamp']),
+    );
+  }
+}
+
+/// Enhanced data model for location points
+class LocationPointData {
+  final String id;
+  final String name;
+  final String type;
+  final Map<String, double> position;
+  final Map<String, double> orientation;
+  final Map<String, dynamic> properties;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+
+  LocationPointData({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.position,
+    required this.orientation,
+    required this.properties,
+    required this.createdAt,
+    this.updatedAt,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'type': type,
+      'position': position,
+      'orientation': orientation,
+      'properties': properties,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+    };
+  }
+
+  factory LocationPointData.fromJson(Map<String, dynamic> json) {
+    return LocationPointData(
+      id: json['id'],
+      name: json['name'],
+      type: json['type'],
+      position: Map<String, double>.from(json['position']),
+      orientation: Map<String, double>.from(json['orientation']),
+      properties: Map<String, dynamic>.from(json['properties']),
+      createdAt: DateTime.parse(json['createdAt']),
+      updatedAt:
+          json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
+    );
+  }
+}
+
+/// Enhanced data model for map editing sessions
+class MapEditingSession {
+  final String sessionId;
+  final String deviceId;
+  final String mapName;
+  final List<MapEditOperation> operations;
+  final List<LocationPointData> locationPoints;
+  final DateTime startedAt;
+  final DateTime? savedAt;
+  final bool hasUnsavedChanges;
+
+  MapEditingSession({
+    required this.sessionId,
+    required this.deviceId,
+    required this.mapName,
+    required this.operations,
+    required this.locationPoints,
+    required this.startedAt,
+    this.savedAt,
+    required this.hasUnsavedChanges,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sessionId': sessionId,
+      'deviceId': deviceId,
+      'mapName': mapName,
+      'operations': operations.map((op) => op.toJson()).toList(),
+      'locationPoints': locationPoints.map((point) => point.toJson()).toList(),
+      'startedAt': startedAt.toIso8601String(),
+      'savedAt': savedAt?.toIso8601String(),
+      'hasUnsavedChanges': hasUnsavedChanges,
+    };
+  }
+
+  factory MapEditingSession.fromJson(Map<String, dynamic> json) {
+    return MapEditingSession(
+      sessionId: json['sessionId'],
+      deviceId: json['deviceId'],
+      mapName: json['mapName'],
+      operations: (json['operations'] as List)
+          .map((op) => MapEditOperation.fromJson(op))
+          .toList(),
+      locationPoints: (json['locationPoints'] as List)
+          .map((point) => LocationPointData.fromJson(point))
+          .toList(),
+      startedAt: DateTime.parse(json['startedAt']),
+      savedAt: json['savedAt'] != null ? DateTime.parse(json['savedAt']) : null,
+      hasUnsavedChanges: json['hasUnsavedChanges'],
+    );
+  }
+}
+
+/// Enhanced map validation result
+class MapValidationResult {
+  final bool isValid;
+  final List<String> errors;
+  final List<String> warnings;
+  final Map<String, dynamic> metrics;
+  final DateTime validatedAt;
+
+  MapValidationResult({
+    required this.isValid,
+    required this.errors,
+    required this.warnings,
+    required this.metrics,
+    required this.validatedAt,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'isValid': isValid,
+      'errors': errors,
+      'warnings': warnings,
+      'metrics': metrics,
+      'validatedAt': validatedAt.toIso8601String(),
+    };
+  }
+
+  factory MapValidationResult.fromJson(Map<String, dynamic> json) {
+    return MapValidationResult(
+      isValid: json['isValid'],
+      errors: List<String>.from(json['errors']),
+      warnings: List<String>.from(json['warnings']),
+      metrics: Map<String, dynamic>.from(json['metrics']),
+      validatedAt: DateTime.parse(json['validatedAt']),
+    );
+  }
+}
+
+/// Enhanced deployment configuration
+class DeploymentConfig {
+  final String deviceId;
+  final Map<String, dynamic> piConfig;
+  final Map<String, dynamic> networkConfig;
+  final Map<String, dynamic> rosConfig;
+  final Map<String, String> pathMappings;
+  final bool autoBackup;
+  final bool validateBeforeDeploy;
+  final DateTime lastUpdated;
+
+  DeploymentConfig({
+    required this.deviceId,
+    required this.piConfig,
+    required this.networkConfig,
+    required this.rosConfig,
+    required this.pathMappings,
+    required this.autoBackup,
+    required this.validateBeforeDeploy,
+    required this.lastUpdated,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'deviceId': deviceId,
+      'piConfig': piConfig,
+      'networkConfig': networkConfig,
+      'rosConfig': rosConfig,
+      'pathMappings': pathMappings,
+      'autoBackup': autoBackup,
+      'validateBeforeDeploy': validateBeforeDeploy,
+      'lastUpdated': lastUpdated.toIso8601String(),
+    };
+  }
+
+  factory DeploymentConfig.fromJson(Map<String, dynamic> json) {
+    return DeploymentConfig(
+      deviceId: json['deviceId'],
+      piConfig: Map<String, dynamic>.from(json['piConfig']),
+      networkConfig: Map<String, dynamic>.from(json['networkConfig']),
+      rosConfig: Map<String, dynamic>.from(json['rosConfig']),
+      pathMappings: Map<String, String>.from(json['pathMappings']),
+      autoBackup: json['autoBackup'],
+      validateBeforeDeploy: json['validateBeforeDeploy'],
+      lastUpdated: DateTime.parse(json['lastUpdated']),
+    );
+  }
 }
 
 class ApiException implements Exception {

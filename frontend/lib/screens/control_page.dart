@@ -556,21 +556,25 @@ class _ControlPageState extends State<ControlPage>
   }
 
   Future<void> _emergencyStop() async {
+    // Immediate robot stop
     _webSocketService.stopRobot(widget.deviceId);
 
-    if (_mappingActive) {
-      _webSocketService.sendMappingCommand(widget.deviceId, 'stop');
-    }
-
-    await _stopAllScripts();
+    // Execute kill.sh for complete system shutdown
+    _webSocketService.sendScriptCommand(widget.deviceId, 'stop_all_scripts');
 
     setState(() {
       _mappingActive = false;
+      _robotControlActive = false;
       _currentLinear = 0.0;
       _currentAngular = 0.0;
+
+      // Reset all script statuses
+      _scriptStatus.forEach((key, value) {
+        _scriptStatus[key] = 'stopped';
+      });
     });
 
-    _showSnackBar('Emergency stop activated!', Colors.red);
+    _showSnackBar('EMERGENCY STOP! All systems killed via kill.sh', Colors.red);
   }
 
   // ==========================================
@@ -588,32 +592,66 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
-      _showSnackBar('Sending robot control command...', Colors.blue);
+      _showSnackBar(
+          'Starting complete robot system (Robot Control + SLAM + Navigation)...',
+          Colors.blue);
 
-      final success = _webSocketService.sendScriptCommand(
+      // Start Robot Control first
+      final robotSuccess = _webSocketService.sendScriptCommand(
         widget.deviceId,
         'start_robot_control',
       );
 
-      if (success) {
-        _showSnackBar('Robot control command sent. Waiting for confirmation...',
-            Colors.blue);
+      if (robotSuccess) {
+        _showSnackBar('Robot control started, starting SLAM...', Colors.blue);
 
-        // Wait a bit to see if we get status updates
-        await Future.delayed(Duration(seconds: 3));
+        // Wait a bit for robot control to initialize
+        await Future.delayed(Duration(seconds: 2));
 
-        if (_scriptStatus['robot_control'] == 'running') {
-          _showSnackBar('Robot control started successfully!', Colors.green);
+        // Start SLAM
+        final slamSuccess = _webSocketService.sendScriptCommand(
+            widget.deviceId, 'start_slam', options: {
+          'mapName': 'slam_map_${DateTime.now().millisecondsSinceEpoch}'
+        });
+
+        if (slamSuccess) {
+          _showSnackBar('SLAM started, starting navigation...', Colors.blue);
+
+          // Wait a bit for SLAM to initialize
+          await Future.delayed(Duration(seconds: 2));
+
+          // Start navigation
+          final navSuccess = _webSocketService.sendScriptCommand(
+              widget.deviceId, 'start_navigation',
+              options: {'mapPath': 'current_map.yaml'});
+
+          if (navSuccess) {
+            _showSnackBar(
+                'Complete robot system started! Waiting for confirmation...',
+                Colors.blue);
+
+            // Wait for all systems to come online
+            await Future.delayed(Duration(seconds: 5));
+
+            if (_scriptStatus['robot_control'] == 'running' ||
+                _scriptStatus['slam'] == 'running') {
+              _showSnackBar('Robot system started successfully!', Colors.green);
+            } else {
+              _showSnackBar(
+                  'System start commands sent but no confirmation received',
+                  Colors.orange);
+            }
+          } else {
+            _showSnackBar('Failed to start navigation', Colors.red);
+          }
         } else {
-          _showSnackBar(
-              'Robot control command sent but no confirmation received',
-              Colors.orange);
+          _showSnackBar('Failed to start SLAM', Colors.red);
         }
       } else {
-        _showSnackBar('Failed to send robot control command', Colors.red);
+        _showSnackBar('Failed to start robot control', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('Error starting robot control: $e', Colors.red);
+      _showSnackBar('Error starting robot system: $e', Colors.red);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -632,15 +670,27 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
+      _showSnackBar('Starting SLAM mapping system...', Colors.blue);
+
       final success = _webSocketService.sendScriptCommand(
           widget.deviceId, 'start_slam', options: {
-        'mapName': 'new_slam_map_${DateTime.now().millisecondsSinceEpoch}'
+        'mapName': 'slam_map_${DateTime.now().millisecondsSinceEpoch}'
       });
 
       if (success) {
         _showSnackBar(
-            'Starting SLAM mapping (will auto-start robot if needed)...',
+            'SLAM command sent. System will auto-start robot control if needed...',
             Colors.blue);
+
+        // Wait for SLAM to initialize
+        await Future.delayed(Duration(seconds: 5));
+
+        if (_scriptStatus['slam'] == 'running') {
+          _showSnackBar('SLAM mapping started successfully!', Colors.green);
+        } else {
+          _showSnackBar(
+              'SLAM command sent but no confirmation received', Colors.orange);
+        }
       } else {
         _showSnackBar('Failed to send SLAM command', Colors.red);
       }
@@ -664,14 +714,26 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
+      _showSnackBar('Starting navigation system...', Colors.blue);
+
       final success = _webSocketService.sendScriptCommand(
           widget.deviceId, 'start_navigation',
-          options: {'mapPath': 'your_map_name.yaml'});
+          options: {'mapPath': 'current_map.yaml'});
 
       if (success) {
         _showSnackBar(
-            'Starting navigation (will auto-start robot if needed)...',
+            'Navigation command sent. System will auto-start robot control if needed...',
             Colors.blue);
+
+        // Wait for navigation to initialize
+        await Future.delayed(Duration(seconds: 5));
+
+        if (_scriptStatus['navigation'] == 'running') {
+          _showSnackBar('Navigation started successfully!', Colors.green);
+        } else {
+          _showSnackBar('Navigation command sent but no confirmation received',
+              Colors.orange);
+        }
       } else {
         _showSnackBar('Failed to send navigation command', Colors.red);
       }
@@ -695,35 +757,40 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
-      _showSnackBar('Stopping all scripts and processes...', Colors.orange);
+      _showSnackBar(
+          'Executing kill.sh to stop all processes...', Colors.orange);
 
+      // Use the kill.sh script on Raspberry Pi to stop everything
       final success = _webSocketService.sendScriptCommand(
         widget.deviceId,
-        'stop_all_scripts',
+        'stop_all_scripts', // This will execute kill.sh
       );
 
       if (success) {
-        _showSnackBar('Stop all command sent. Waiting for confirmation...',
-            Colors.orange);
+        _showSnackBar(
+            'Kill script executed. Stopping all processes...', Colors.orange);
 
-        // Wait a bit for all processes to stop
-        await Future.delayed(Duration(seconds: 5));
+        // Wait for kill.sh to complete its work
+        await Future.delayed(Duration(seconds: 8));
 
-        // Update UI state
+        // Update UI state to reflect all processes stopped
         setState(() {
           _scriptStatus.forEach((key, value) {
             _scriptStatus[key] = 'stopped';
           });
           _robotControlActive = false;
           _mappingActive = false;
+          _currentLinear = 0.0;
+          _currentAngular = 0.0;
         });
 
-        _showSnackBar('All scripts stopped successfully!', Colors.green);
+        _showSnackBar(
+            'All processes killed successfully via kill.sh!', Colors.green);
       } else {
-        _showSnackBar('Failed to send stop all command', Colors.red);
+        _showSnackBar('Failed to execute kill.sh script', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('Error stopping all scripts: $e', Colors.red);
+      _showSnackBar('Error executing kill script: $e', Colors.red);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -921,7 +988,318 @@ class _ControlPageState extends State<ControlPage>
     }
 
     try {
-      _showMapSavingDialog();
+      // Show save options dialog with ROS2 option
+      _showEnhancedSaveOptionsDialog();
+    } catch (e) {
+      _showSnackBar('Error showing save options: $e', Colors.red);
+    }
+  }
+
+  // NEW: Enhanced save options dialog with ROS2 option
+  void _showEnhancedSaveOptionsDialog() {
+    final TextEditingController nameController = TextEditingController();
+    bool saveViaROS2 = true; // Default to ROS2 save
+    bool includeTrail = _robotTrail.isNotEmpty;
+    bool includePosition = _currentOdometry != null;
+    String selectedDirectory = '/tmp/saved_maps';
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.save_alt, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Enhanced Save Options'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Map Name',
+                    hintText: 'Enter map name (required for ROS2)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.label),
+                  ),
+                  onChanged: (value) {
+                    _customMapName = value.isEmpty ? null : value;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Save method selection
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Save Method:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      RadioListTile<bool>(
+                        title: const Text('ROS2 Map Saver (Recommended)'),
+                        subtitle: const Text(
+                            'Uses ros2 run nav2_map_server map_saver_cli'),
+                        value: true,
+                        groupValue: saveViaROS2,
+                        onChanged: (value) =>
+                            setState(() => saveViaROS2 = value!),
+                        dense: true,
+                      ),
+                      RadioListTile<bool>(
+                        title: const Text('Local JSON Storage'),
+                        subtitle: const Text('Saves to app internal storage'),
+                        value: false,
+                        groupValue: saveViaROS2,
+                        onChanged: (value) =>
+                            setState(() => saveViaROS2 = value!),
+                        dense: true,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // ROS2 specific options
+                if (saveViaROS2) ...[
+                  DropdownButtonFormField<String>(
+                    value: selectedDirectory,
+                    decoration: const InputDecoration(
+                      labelText: 'Save Directory on Pi',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.folder),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                          value: '/tmp/saved_maps',
+                          child: Text('/tmp/saved_maps')),
+                      DropdownMenuItem(
+                          value: '/home/piros/maps',
+                          child: Text('/home/piros/maps')),
+                      DropdownMenuItem(
+                          value: '/opt/ros/maps', child: Text('/opt/ros/maps')),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => selectedDirectory = value!),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // Include options
+                const Text(
+                  'Include in Save:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                CheckboxListTile(
+                  title: const Text('Robot Trail'),
+                  subtitle: Text('${_robotTrail.length} waypoints'),
+                  value: includeTrail,
+                  onChanged: _robotTrail.isNotEmpty
+                      ? (value) => setState(() => includeTrail = value!)
+                      : null,
+                  dense: true,
+                ),
+                CheckboxListTile(
+                  title: const Text('Current Position'),
+                  subtitle: const Text('Robot location marker'),
+                  value: includePosition,
+                  onChanged: _currentOdometry != null
+                      ? (value) => setState(() => includePosition = value!)
+                      : null,
+                  dense: true,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              onPressed: nameController.text.isNotEmpty || !saveViaROS2
+                  ? () {
+                      Navigator.of(context).pop();
+                      if (saveViaROS2) {
+                        _saveMapViaROS2(
+                          mapName: nameController.text,
+                          directory: selectedDirectory,
+                          includeTrail: includeTrail,
+                          includePosition: includePosition,
+                        );
+                      } else {
+                        _saveCompleteMapTraditional();
+                      }
+                    }
+                  : null,
+              icon: Icon(saveViaROS2 ? Icons.rocket_launch : Icons.save),
+              label: Text(saveViaROS2 ? 'Save via ROS2' : 'Save Locally'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: saveViaROS2 ? Colors.green : Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // NEW: Save map via ROS2 command
+  Future<void> _saveMapViaROS2({
+    required String mapName,
+    required String directory,
+    bool includeTrail = false,
+    bool includePosition = false,
+  }) async {
+    try {
+      // Show progress dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              CircularProgressIndicator(strokeWidth: 2),
+              SizedBox(width: 16),
+              Text('Saving via ROS2'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Executing ROS2 map saver command...'),
+              const SizedBox(height: 8),
+              Text(
+                  'Command: ros2 run nav2_map_server map_saver_cli -f $mapName'),
+              Text('Directory: $directory'),
+              const SizedBox(height: 16),
+              const LinearProgressIndicator(),
+            ],
+          ),
+        ),
+      );
+
+      // Execute ROS2 save via API
+      final response = await _apiService.saveMapViaROS2(
+        deviceId: widget.deviceId,
+        mapName: mapName,
+        directory: directory,
+        includeTimestamp: true,
+      );
+
+      // Close progress dialog
+      Navigator.of(context).pop();
+
+      if (response['success'] == true) {
+        _showROS2SaveSuccessDialog(response);
+      } else {
+        _showSnackBar('ROS2 save failed: ${response['error']}', Colors.red);
+      }
+    } catch (e) {
+      // Close progress dialog
+      Navigator.of(context).pop();
+      _showSnackBar('Error saving via ROS2: $e', Colors.red);
+    }
+  }
+
+  // NEW: Show ROS2 save success dialog with map loading option
+  void _showROS2SaveSuccessDialog(Map<String, dynamic> response) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 28),
+            SizedBox(width: 12),
+            Text('ROS2 Save Successful'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Map saved successfully via ROS2 command!',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text('Save Details:'),
+            const SizedBox(height: 8),
+            Text('Device: ${widget.deviceId}'),
+            Text('Map Name: ${response['mapName']}'),
+            Text('Directory: ${response['directory']}'),
+            Text('Command: ${response['command']}'),
+            Text(
+                'Files: ${response['files']?.keys?.join(', ') ?? 'PGM + YAML'}'),
+            Text('Saved At: ${response['savedAt']}'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: const Text(
+                'The map is now saved on the Raspberry Pi and can be loaded for editing or navigation.',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _navigateToMapEditorWithROS2Map(response['mapName']);
+            },
+            icon: const Icon(Icons.edit),
+            label: const Text('Load & Edit'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.purple,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // NEW: Navigate to map editor with ROS2 saved map
+  void _navigateToMapEditorWithROS2Map(String mapName) {
+    Navigator.pushNamed(
+      context,
+      '/map',
+      arguments: {
+        'deviceId': widget.deviceId,
+        'loadROS2Map': true,
+        'ros2MapName': mapName,
+        'editMode': true,
+      },
+    );
+  }
+
+  // Keep existing traditional save method
+  Future<void> _saveCompleteMapTraditional() async {
+    try {
       final completeMapData = await _collectCompleteMapData();
 
       final response = await _apiService.saveCompleteMapData(
@@ -934,16 +1312,12 @@ class _ControlPageState extends State<ControlPage>
         setState(() {
           _currentMapData = completeMapData;
         });
-
-        Navigator.of(context).pop();
         _showSnackBar('Complete map saved successfully!', Colors.green);
         _showMapSaveSuccess(response);
       } else {
-        Navigator.of(context).pop();
         _showSnackBar('Failed to save map: ${response['error']}', Colors.red);
       }
     } catch (e) {
-      Navigator.of(context).pop();
       _showSnackBar('Error saving complete map: $e', Colors.red);
     }
   }
@@ -1021,17 +1395,6 @@ class _ControlPageState extends State<ControlPage>
   // NAVIGATION METHODS
   // ==========================================
 
-  void _openMapEditor() {
-    Navigator.of(context).pushNamed(
-      '/map',
-      arguments: {'deviceId': widget.deviceId},
-    ).then((_) {
-      if (_currentMapData != null) {
-        _loadCurrentMapData();
-      }
-    });
-  }
-
   void _navigateToMapEditor() {
     Navigator.pushNamed(
       context,
@@ -1042,19 +1405,6 @@ class _ControlPageState extends State<ControlPage>
         'editMode': true,
       },
     );
-  }
-
-  Future<void> _loadCurrentMapData() async {
-    try {
-      final response = await _apiService.getMapData(widget.deviceId);
-      if (response['success'] == true && response['mapData'] != null) {
-        setState(() {
-          _currentMapData = MapData.fromJson(response['mapData']);
-        });
-      }
-    } catch (e) {
-      debugPrint('❌ Error loading map data: $e');
-    }
   }
 
   // ==========================================
@@ -1269,7 +1619,6 @@ class _ControlPageState extends State<ControlPage>
       case DeviceType.tablet:
         return _buildTabletLayout();
       case DeviceType.phone:
-      default:
         return _buildPhoneLayout();
     }
   }
@@ -2561,60 +2910,126 @@ class _ControlPageState extends State<ControlPage>
   // ==========================================
 
   Widget _buildMappingControlButtons() {
-    return Row(
+    return Column(
       children: [
-        Expanded(
+        // Main control button - Start Complete System
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
           child: ElevatedButton.icon(
-            onPressed:
-                _robotControlActive ? _stopRobotControl : _startRobotControl,
-            icon: Icon(_robotControlActive ? Icons.pause : Icons.play_arrow),
-            label: Text(_robotControlActive ? 'Stop Robot' : 'Start Robot'),
+            onPressed: !_scriptExecutionInProgress
+                ? (_robotControlActive ||
+                        _mappingActive ||
+                        _scriptStatus['navigation'] == 'running')
+                    ? null // Disable if any system is running
+                    : _startRobotControl // Start complete system
+                : null,
+            icon: Icon(Icons.rocket_launch, size: 24),
+            label: Text(
+              'START COMPLETE SYSTEM\n(Robot → SLAM → NAvigation)',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: _robotControlActive ? Colors.red : Colors.green,
+              backgroundColor: Colors.green,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.all(16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
+
+        // Stop All button with kill.sh
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
           child: ElevatedButton.icon(
-            onPressed: _mappingActive ? _stopSLAM : _startSLAM,
-            icon: Icon(_mappingActive ? Icons.stop : Icons.play_arrow),
-            label: Text(_mappingActive ? 'Stop SLAM' : 'Start SLAM'),
+            onPressed: !_scriptExecutionInProgress
+                ? (_robotControlActive ||
+                        _mappingActive ||
+                        _scriptStatus['navigation'] == 'running')
+                    ? _stopAllScripts // Stop all if any system is running
+                    : null // Disable if nothing is running
+                : null,
+            icon: Icon(Icons.stop_circle, size: 24),
+            label: Text(
+              'STOP ALL (kill.sh)',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: _mappingActive ? Colors.orange : Colors.blue,
+              backgroundColor: Colors.red,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.all(16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: _scriptStatus['navigation'] == 'running'
-                ? _stopNavigation
-                : _startNavigation,
-            icon: Icon(_scriptStatus['navigation'] == 'running'
-                ? Icons.stop
-                : Icons.play_arrow),
-            label: Text(_scriptStatus['navigation'] == 'running'
-                ? 'Stop Nav'
-                : 'Start Nav'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _scriptStatus['navigation'] == 'running'
-                  ? Colors.red
-                  : Colors.indigo,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+
+        // Individual control buttons
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _robotControlActive
+                    ? _stopRobotControl
+                    : _startRobotControl,
+                icon:
+                    Icon(_robotControlActive ? Icons.pause : Icons.play_arrow),
+                label: Text(_robotControlActive ? 'Stop Robot' : 'Start Robot'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      _robotControlActive ? Colors.orange : Colors.blue,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
             ),
-          ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _mappingActive ? _stopSLAM : _startSLAM,
+                icon: Icon(_mappingActive ? Icons.stop : Icons.play_arrow),
+                label: Text(_mappingActive ? 'Stop SLAM' : 'Start SLAM'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      _mappingActive ? Colors.orange : Colors.purple,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _scriptStatus['navigation'] == 'running'
+                    ? _stopNavigation
+                    : _startNavigation,
+                icon: Icon(_scriptStatus['navigation'] == 'running'
+                    ? Icons.stop
+                    : Icons.play_arrow),
+                label: Text(_scriptStatus['navigation'] == 'running'
+                    ? 'Stop Nav'
+                    : 'Start Nav'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _scriptStatus['navigation'] == 'running'
+                      ? Colors.orange
+                      : Colors.indigo,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -2623,38 +3038,6 @@ class _ControlPageState extends State<ControlPage>
   // ==========================================
   // DIALOG METHODS
   // ==========================================
-
-  void _showMapSavingDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            CircularProgressIndicator(strokeWidth: 2),
-            SizedBox(width: 16),
-            Text('Saving Complete Map'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Collecting map data...'),
-            const SizedBox(height: 8),
-            const Text('• Occupancy grid'),
-            Text('• Robot trail (${_robotTrail.length} points)'),
-            const Text('• Current position'),
-            if (_globalCostmap != null) const Text('• Global costmap'),
-            if (_localCostmap != null) const Text('• Local costmap'),
-            const Text('• Session metadata'),
-            const SizedBox(height: 16),
-            const LinearProgressIndicator(),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _showMapSaveSuccess(Map<String, dynamic> response) {
     showDialog(

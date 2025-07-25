@@ -13,12 +13,12 @@ const { initializeWebSocketServer } = require('./websocket/clientConnection');
 const EnhancedMessageHandler = require('./websocket/messageHandler');
 const messageHandler = new EnhancedMessageHandler();
 
-// ADD THIS AFTER YOUR EXISTING IMPORTS
+// FIXED: Import ROS2ScriptManager correctly
 const ROS2ScriptManager = require('./ros/utils/ros2ScriptManager');
 
 const controlRoutes = require('./routes/controlRoutes');
 const mapRoutes = require('./routes/mapRoutes');
-const orderRoutes = require('./routes/orderRoutes'); // ✅ NEW: Order routes
+const orderRoutes = require('./routes/orderRoutes');
 const { router: discoveryRoutes, initializeUDPDiscovery } = require('./routes/discoveryRoutes');
 
 const app = express();
@@ -33,70 +33,79 @@ global.deviceMaps = {};
 global.deviceMappingStates = {};
 global.robotTrails = {};
 
+// FIXED: Initialize ROS2ScriptManager with error handling
+try {
+    global.ros2ScriptManager = new ROS2ScriptManager();
+    console.log('✅ ROS2ScriptManager initialized successfully');
+} catch (error) {
+    console.error('❌ Failed to initialize ROS2ScriptManager:', error);
+    console.error('Stack trace:', error.stack);
+    // Continue without ROS2ScriptManager if it fails
+    global.ros2ScriptManager = null;
+}
 
-global.ros2ScriptManager = new ROS2ScriptManager();
-
-// ADD THIS AFTER YOUR EXISTING SETUP
-// Setup ROS2 Script Manager event handlers
-global.ros2ScriptManager.on('slam_started', (data) => {
-    console.log('🗺️ SLAM started:', data);
-    // Broadcast to WebSocket clients
-    if (global.webSocketInstance) {
-        global.webSocketInstance.broadcastToSubscribers('script_status', {
-            type: 'script_status_update',
-            script: 'slam',
-            status: 'running',
-            message: 'SLAM mapping is now running',
-            data: data,
-            timestamp: new Date().toISOString()
-        });
-    }
-});
-
-global.ros2ScriptManager.on('navigation_started', (data) => {
-    console.log('🚀 Navigation started:', data);
-    if (global.webSocketInstance) {
-        global.webSocketInstance.broadcastToSubscribers('script_status', {
-            type: 'script_status_update',
-            script: 'navigation',
-            status: 'running',
-            message: 'Navigation is now running',
-            data: data,
-            timestamp: new Date().toISOString()
-        });
-    }
-});
-
-global.ros2ScriptManager.on('robot_control_started', () => {
-    console.log('🤖 Robot control started');
-    if (global.webSocketInstance) {
-        global.webSocketInstance.broadcastToSubscribers('script_status', {
-            type: 'script_status_update',
-            script: 'robot_control',
-            status: 'running',
-            message: 'Robot control is now active',
-            timestamp: new Date().toISOString()
-        });
-    }
-});
-
-// Handle process stops
-['slam_stopped', 'navigation_stopped', 'robot_control_stopped'].forEach(event => {
-    global.ros2ScriptManager.on(event, (code) => {
-        const processName = event.replace('_stopped', '');
-        console.log(`🛑 ${processName} stopped with code:`, code);
+// Setup ROS2 Script Manager event handlers (only if initialized successfully)
+if (global.ros2ScriptManager) {
+    global.ros2ScriptManager.on('slam_started', (data) => {
+        console.log('🗺️ SLAM started:', data);
+        // Broadcast to WebSocket clients
         if (global.webSocketInstance) {
             global.webSocketInstance.broadcastToSubscribers('script_status', {
                 type: 'script_status_update',
-                script: processName,
-                status: 'stopped',
-                message: `${processName} has stopped`,
-                exitCode: code,
+                script: 'slam',
+                status: 'running',
+                message: 'SLAM mapping is now running',
+                data: data,
                 timestamp: new Date().toISOString()
             });
         }
     });
-});
+
+    global.ros2ScriptManager.on('navigation_started', (data) => {
+        console.log('🚀 Navigation started:', data);
+        if (global.webSocketInstance) {
+            global.webSocketInstance.broadcastToSubscribers('script_status', {
+                type: 'script_status_update',
+                script: 'navigation',
+                status: 'running',
+                message: 'Navigation is now running',
+                data: data,
+                timestamp: new Date().toISOString()
+            });
+        }
+    });
+
+    global.ros2ScriptManager.on('robot_control_started', () => {
+        console.log('🤖 Robot control started');
+        if (global.webSocketInstance) {
+            global.webSocketInstance.broadcastToSubscribers('script_status', {
+                type: 'script_status_update',
+                script: 'robot_control',
+                status: 'running',
+                message: 'Robot control is now active',
+                timestamp: new Date().toISOString()
+            });
+        }
+    });
+
+    // Handle process stops
+    ['slam_stopped', 'navigation_stopped', 'robot_control_stopped'].forEach(event => {
+        global.ros2ScriptManager.on(event, (code) => {
+            const processName = event.replace('_stopped', '');
+            console.log(`🛑 ${processName} stopped with code:`, code);
+            if (global.webSocketInstance) {
+                global.webSocketInstance.broadcastToSubscribers('script_status', {
+                    type: 'script_status_update',
+                    script: processName,
+                    status: 'stopped',
+                    message: `${processName} has stopped`,
+                    exitCode: code,
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
+    });
+}
 
 
 // FIXED: Enhanced CORS middleware
@@ -147,6 +156,193 @@ app.use('/api', mapRoutes);
 // ✅ NEW: Order management routes
 app.use('/api/orders', orderRoutes);
 
+// NEW: ROS2 Script Management API endpoints
+app.get('/api/ros2/scripts/status', (req, res) => {
+    try {
+        if (!global.ros2ScriptManager) {
+            return res.status(503).json({
+                success: false,
+                error: 'ROS2ScriptManager not available',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        const status = global.ros2ScriptManager.getStatus();
+        res.json({
+            success: true,
+            ...status
+        });
+    } catch (error) {
+        console.error('❌ Error getting script status:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+app.post('/api/ros2/scripts/:scriptType/start', async (req, res) => {
+    try {
+        if (!global.ros2ScriptManager) {
+            return res.status(503).json({
+                success: false,
+                error: 'ROS2ScriptManager not available',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        const { scriptType } = req.params;
+        const options = req.body || {};
+
+        let result;
+        switch (scriptType) {
+            case 'robot_control':
+                result = await global.ros2ScriptManager.startRobotControl();
+                break;
+            case 'slam':
+                result = await global.ros2ScriptManager.startSLAM(options);
+                break;
+            case 'navigation':
+                result = await global.ros2ScriptManager.startNavigation(options.mapPath, options);
+                break;
+            default:
+                return res.status(400).json({
+                    success: false,
+                    error: `Unknown script type: ${scriptType}`,
+                    timestamp: new Date().toISOString()
+                });
+        }
+
+        res.json({
+            success: true,
+            result,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error(`❌ Error starting ${req.params.scriptType}:`, error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+app.post('/api/ros2/scripts/:scriptType/stop', async (req, res) => {
+    try {
+        if (!global.ros2ScriptManager) {
+            return res.status(503).json({
+                success: false,
+                error: 'ROS2ScriptManager not available',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        const { scriptType } = req.params;
+        const result = await global.ros2ScriptManager.stopProcess(scriptType);
+
+        res.json({
+            success: true,
+            result,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error(`❌ Error stopping ${req.params.scriptType}:`, error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+app.post('/api/ros2/scripts/stop-all', async (req, res) => {
+    try {
+        if (!global.ros2ScriptManager) {
+            return res.status(503).json({
+                success: false,
+                error: 'ROS2ScriptManager not available',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        const result = await global.ros2ScriptManager.stopAllScripts();
+
+        res.json({
+            success: true,
+            result,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('❌ Error stopping all scripts:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+app.post('/api/ros2/scripts/emergency-stop', async (req, res) => {
+    try {
+        if (!global.ros2ScriptManager) {
+            return res.status(503).json({
+                success: false,
+                error: 'ROS2ScriptManager not available',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        const result = await global.ros2ScriptManager.emergencyStop();
+
+        res.json({
+            success: true,
+            result,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('❌ Error during emergency stop:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+app.get('/api/ros2/pi/status', async (req, res) => {
+    try {
+        if (!global.ros2ScriptManager) {
+            return res.status(503).json({
+                success: false,
+                error: 'ROS2ScriptManager not available',
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        const status = await global.ros2ScriptManager.checkPiStatus();
+
+        res.json({
+            success: true,
+            piStatus: status,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        console.error('❌ Error checking Pi status:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
 // ✅ ENHANCED: Health check endpoint
 app.get('/health', (req, res) => {
     try {
@@ -170,6 +366,10 @@ app.get('/health', (req, res) => {
                     nodeActive: rosStatus.nodeStatus === 'active',
                     isConnected: rosStatus.isConnected,
                     publishersActive: publisherStats.totalPublishers
+                },
+                ros2ScriptManager: {
+                    available: !!global.ros2ScriptManager,
+                    status: global.ros2ScriptManager ? global.ros2ScriptManager.getStatus() : null
                 },
                 webSocket: {
                     active: true,
@@ -805,6 +1005,12 @@ async function gracefulShutdown(signal) {
         // ✅ NEW: Stop health monitoring first
         console.log('🔍 Stopping ROS health monitor...');
         rosHealthMonitor.cleanup();
+
+        // Cleanup ROS2 Script Manager
+        if (global.ros2ScriptManager) {
+            console.log('🤖 Cleaning up ROS2 Script Manager...');
+            await global.ros2ScriptManager.cleanup();
+        }
 
         // Stop accepting new connections
         server.close(() => {

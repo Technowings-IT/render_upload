@@ -420,7 +420,7 @@ function handleJoystickControl(clientId, message) {
 function handleMappingCommand(clientId, message) {
     try {
         console.log(`🗺️ Mapping command from ${clientId}:`, message);
-        const { deviceId, command } = message;
+        const { deviceId, command, options = {} } = message;
 
         // Validate required fields
         if (!deviceId) {
@@ -492,7 +492,9 @@ function handleMappingCommand(clientId, message) {
                     break;
                 case 'save':
                     if (typeof rosConnection.saveMap === 'function') {
-                        result = rosConnection.saveMap(deviceId);
+                        // Pass options to saveMap function for enhanced map saving
+                        console.log(`💾 Saving map with options:`, options);
+                        result = rosConnection.saveMap(deviceId, options);
                     } else {
                         result = { success: true, simulated: true, command: 'save' };
                     }
