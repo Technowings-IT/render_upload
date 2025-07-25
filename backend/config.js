@@ -124,7 +124,7 @@ const config = {
             'http://127.0.0.1:3000',
             'http://127.0.0.1:8080',
             'http://192.168.0.84:3000', // ✅ FIXED: Your AGV IP
-            'http://192.168.0.59:3000',  // ✅ FIXED: Your backend IP
+            'http://192.168.0.55:3000',  // ✅ FIXED: Your backend IP
             'http://192.168.0.*:*',      // ✅ FIXED: Allow entire subnet
             '*' // ✅ FIXED: Allow all origins for development
         ],

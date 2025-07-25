@@ -126,7 +126,7 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   void _loadSavedConnections() {
     setState(() {
-      _manualBackendIpController.text = '192.168.0.59';
+      _manualBackendIpController.text = '192.168.0.55';
       _manualDeviceIpController.text = '192.168.0.84';
     });
   }
@@ -1049,7 +1049,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                       decoration: InputDecoration(
                         labelText: 'Backend IP Address',
                         prefixIcon: Icon(Icons.computer, color: Colors.purple),
-                        hintText: '192.168.0.59',
+                        hintText: '192.168.0.55',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
