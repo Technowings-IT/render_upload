@@ -1,6 +1,7 @@
 {
   "deviceId": "piros",
   "timestamp": "2025-07-25T17:04:02.886683",
+  "version": 3,
   "info": {
     "resolution": 0.05000000074505806,
     "width": 149,
@@ -43838,7 +43839,7 @@
     0
   ],
   "shapes": [],
-  "version": 3,
   "savedAt": "2025-07-25T11:34:05.542Z",
-  "lastSaved": "2025-07-25T11:34:05.543Z"
+  "lastSaved": "2025-07-25T11:34:05.543Z",
+  "metadata": {}
 }

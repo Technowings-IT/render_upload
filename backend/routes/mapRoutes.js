@@ -24,12 +24,12 @@ const upload = multer({
 // SSH CONFIGURATION - Add to your config.js
 // ==========================================
 const SSH_CONFIG = {
-    host: process.env.RASPBERRY_PI_HOST || '192.168.0.84', // Default Pi IP
+    host: process.env.RASPBERRY_PI_HOST || '192.168.0.89', // Default Pi IP
     port: process.env.RASPBERRY_PI_PORT || 22,
     username: process.env.RASPBERRY_PI_USER || 'piros',
     password: process.env.RASPBERRY_PI_PASSWORD || 'piros',
     // Or use privateKey: require('fs').readFileSync('/path/to/private/key')
-    mapDirectory: process.env.RASPBERRY_PI_MAP_DIR || '/home/piros/ros2_ws/src/nav2_bringup/maps',
+    mapDirectory: process.env.RASPBERRY_PI_MAP_DIR || '/home/piros/fleet-management-system/ros_ws/src/amr/maps',
     rosLaunchScript: process.env.RASPBERRY_PI_ROS_SCRIPT || '/home/piros/scripts/nav2.sh'
 };
 
@@ -452,15 +452,21 @@ target_device: "${deviceId}"
 router.post('/maps/:deviceId/deploy-to-pi', async (req, res) => {
     try {
         const { deviceId } = req.params;
-        const { mapName, piConfig, autoLoad = true } = req.body;
+        const { mapName, piConfig, autoLoad = true, fullNavigation = false } = req.body;
         
         console.log(`🚀 Deploying map to Raspberry Pi: ${mapName}`);
+        console.log(`   Device: ${deviceId}`);
+        console.log(`   Auto-load: ${autoLoad}`);
+        console.log(`   Full navigation: ${fullNavigation}`);
         
         // Use provided SSH config or default
         const sshConfig = {
             ...SSH_CONFIG,
             ...(piConfig || {})
         };
+        
+        console.log(`   Target Pi: ${sshConfig.host}:${sshConfig.port}`);
+        console.log(`   Map directory: ${sshConfig.mapDirectory}`);
         
         const yamlPath = path.join(__dirname, '../maps', `${mapName}.yaml`);
         const pgmPath = path.join(__dirname, '../maps', `${mapName}.pgm`);
@@ -470,10 +476,16 @@ router.post('/maps/:deviceId/deploy-to-pi', async (req, res) => {
         try {
             await fs.access(yamlPath);
             await fs.access(pgmPath);
+            console.log('✅ Map files verified locally');
         } catch (error) {
+            console.error('❌ Map files not found:', error);
             return res.status(404).json({
                 success: false,
-                error: 'Map files not found'
+                error: 'Map files not found',
+                missingFiles: {
+                    yaml: yamlPath,
+                    pgm: pgmPath
+                }
             });
         }
         
@@ -486,7 +498,8 @@ router.post('/maps/:deviceId/deploy-to-pi', async (req, res) => {
                 locationsPath,
                 mapName
             },
-            autoLoad
+            autoLoad,
+            fullNavigation
         );
         
         if (deploymentResult.success) {
@@ -500,6 +513,7 @@ router.post('/maps/:deviceId/deploy-to-pi', async (req, res) => {
                 piHost: sshConfig.host,
                 deployedAt: new Date().toISOString(),
                 autoLoadTriggered: autoLoad,
+                fullNavigationEnabled: fullNavigation,
                 deploymentDetails: deploymentResult
             });
         } else {
@@ -508,6 +522,73 @@ router.post('/maps/:deviceId/deploy-to-pi', async (req, res) => {
         
     } catch (error) {
         console.error('❌ Error deploying map to Raspberry Pi:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Check deployment status on Raspberry Pi
+ * GET /api/maps/:deviceId/deployment-status
+ */
+router.get('/maps/:deviceId/deployment-status', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { piConfig } = req.query;
+        
+        const sshConfig = {
+            ...SSH_CONFIG,
+            ...(piConfig ? JSON.parse(piConfig) : {})
+        };
+        
+        const status = await checkDeploymentStatus(sshConfig);
+        
+        res.json({
+            success: true,
+            deviceId: deviceId,
+            piHost: sshConfig.host,
+            status: status,
+            checkedAt: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error checking deployment status:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Update Pi configuration and test connection
+ * POST /api/maps/pi-config/test
+ */
+router.post('/maps/pi-config/test', async (req, res) => {
+    try {
+        const { piConfig } = req.body;
+        
+        const testConfig = {
+            ...SSH_CONFIG,
+            ...piConfig
+        };
+        
+        console.log(`🔧 Testing Pi connection: ${testConfig.host}:${testConfig.port}`);
+        
+        const testResult = await testPiConnection(testConfig);
+        
+        res.json({
+            success: testResult.success,
+            message: testResult.message,
+            piHost: testConfig.host,
+            testedAt: new Date().toISOString(),
+            connectionDetails: testResult
+        });
+        
+    } catch (error) {
+        console.error('❌ Error testing Pi connection:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -1175,7 +1256,10 @@ async function runPythonMapConverter(mapData, outputDir, mapName) {
 /**
  * Deploy map files to Raspberry Pi via SSH
  */
-async function deployMapToRaspberryPi(sshConfig, files, autoLoad = true) {
+/**
+ * Enhanced map deployment to Raspberry Pi with ROS2 commands
+ */
+async function deployMapToRaspberryPi(sshConfig, files, autoLoad = true, fullNavigation = false) {
     return new Promise((resolve) => {
         const conn = new Client();
         
@@ -1185,6 +1269,7 @@ async function deployMapToRaspberryPi(sshConfig, files, autoLoad = true) {
             try {
                 // Create remote directory if it doesn't exist
                 await executeSSHCommand(conn, `mkdir -p ${sshConfig.mapDirectory}`);
+                console.log('📁 Created/verified map directory');
                 
                 // Transfer YAML file
                 await transferFile(conn, files.yamlPath, `${sshConfig.mapDirectory}/${files.mapName}.yaml`);
@@ -1203,31 +1288,129 @@ async function deployMapToRaspberryPi(sshConfig, files, autoLoad = true) {
                     console.log('⚠️ No locations file to transfer');
                 }
                 
+                // Create deployment script on Pi
+                const deploymentScript = `#!/bin/bash
+# Auto-generated map deployment script
+# Generated at: ${new Date().toISOString()}
+# Map: ${files.mapName}
+
+echo "🗺️ Deploying map: ${files.mapName}"
+
+# Set map directory
+MAP_DIR="${sshConfig.mapDirectory}"
+MAP_NAME="${files.mapName}"
+
+# Verify map files exist
+if [ ! -f "$MAP_DIR/$MAP_NAME.yaml" ]; then
+    echo "❌ Map YAML file not found: $MAP_DIR/$MAP_NAME.yaml"
+    exit 1
+fi
+
+if [ ! -f "$MAP_DIR/$MAP_NAME.pgm" ]; then
+    echo "❌ Map PGM file not found: $MAP_DIR/$MAP_NAME.pgm"
+    exit 1
+fi
+
+echo "✅ Map files verified"
+
+# Stop current navigation if running
+echo "🛑 Stopping current navigation..."
+pkill -f "ros2 launch nav2_bringup" || true
+pkill -f "map_server" || true
+sleep 2
+
+# Source ROS2 environment
+source /opt/ros/humble/setup.bash
+source ~/ros2_ws/install/setup.bash
+
+# Set the map parameter file path
+export MAP_YAML_FILE="$MAP_DIR/$MAP_NAME.yaml"
+
+echo "🚀 Starting map server with: $MAP_YAML_FILE"
+
+# Start map server in background
+ros2 run nav2_map_server map_server --ros-args -p yaml_filename:=$MAP_YAML_FILE &
+MAP_SERVER_PID=$!
+
+# Wait for map server to start
+sleep 3
+
+# Configure nav2 to use the new map
+ros2 lifecycle set /map_server configure
+ros2 lifecycle set /map_server activate
+
+echo "✅ Map server started with PID: $MAP_SERVER_PID"
+
+# Update active map configuration
+echo "{\\"activeMap\\": \\"$MAP_NAME\\", \\"setAt\\": \\"$(date -Iseconds)\\", \\"autoLoad\\": true, \\"mapServerPid\\": $MAP_SERVER_PID}" > "$MAP_DIR/active_map.json"
+
+# Optional: Start full navigation stack
+if [ "$1" = "--full-nav" ]; then
+    echo "🧭 Starting full navigation stack..."
+    ros2 launch nav2_bringup navigation_launch.py map:=$MAP_YAML_FILE &
+    NAV_PID=$!
+    echo "✅ Navigation started with PID: $NAV_PID"
+    echo "{\\"activeMap\\": \\"$MAP_NAME\\", \\"setAt\\": \\"$(date -Iseconds)\\", \\"autoLoad\\": true, \\"mapServerPid\\": $MAP_SERVER_PID, \\"navPid\\": $NAV_PID}" > "$MAP_DIR/active_map.json"
+fi
+
+echo "🎉 Map deployment completed successfully!"
+echo "📍 Active map: $MAP_NAME"
+echo "📁 Map directory: $MAP_DIR"
+echo "🔧 Config file: $MAP_DIR/active_map.json"
+`;
+
+                // Write deployment script to Pi
+                const scriptPath = `${sshConfig.mapDirectory}/deploy_map.sh`;
+                await executeSSHCommand(conn, `cat > ${scriptPath} << 'EOF'\n${deploymentScript}\nEOF`);
+                await executeSSHCommand(conn, `chmod +x ${scriptPath}`);
+                console.log('📜 Deployment script created on Pi');
+                
                 // Create deployment log
                 const deployLog = {
                     mapName: files.mapName,
                     deployedAt: new Date().toISOString(),
                     deployedFrom: 'AGV-Fleet-Backend',
-                    autoLoadEnabled: autoLoad
+                    autoLoadEnabled: autoLoad,
+                    mapFiles: {
+                        yaml: `${sshConfig.mapDirectory}/${files.mapName}.yaml`,
+                        pgm: `${sshConfig.mapDirectory}/${files.mapName}.pgm`,
+                        locations: `${sshConfig.mapDirectory}/${files.mapName}_locations.json`
+                    },
+                    deploymentScript: scriptPath
                 };
                 
                 await executeSSHCommand(conn, 
                     `echo '${JSON.stringify(deployLog, null, 2)}' > ${sshConfig.mapDirectory}/${files.mapName}_deploy.log`
                 );
+                console.log('📋 Deployment log created');
                 
-                // Trigger auto-load if requested
+                // Execute deployment script if autoLoad is enabled
                 if (autoLoad) {
-                    const loadResult = await triggerMapLoadOnPi(conn, sshConfig, files.mapName);
-                    console.log('🔄 Auto-load triggered:', loadResult);
+                    console.log('🔄 Executing map deployment script...');
+                    try {
+                        // Run deployment script with timeout
+                        const deployResult = await executeSSHCommandWithTimeout(conn, 
+                            `cd ${sshConfig.mapDirectory} && ./deploy_map.sh`, 
+                            30000 // 30 second timeout
+                        );
+                        console.log('✅ Map deployment script executed successfully');
+                        console.log('� Script output:', deployResult.substring(0, 500) + '...');
+                    } catch (scriptError) {
+                        console.warn('⚠️ Deployment script failed, but files were transferred:', scriptError.message);
+                        // Continue - files are still deployed even if script fails
+                    }
                 }
                 
                 conn.end();
                 
                 resolve({
                     success: true,
-                    message: 'Map deployed successfully',
-                    filesTransferred: ['yaml', 'pgm', 'locations'],
-                    autoLoadTriggered: autoLoad
+                    message: 'Map deployed successfully to Raspberry Pi',
+                    filesTransferred: ['yaml', 'pgm', 'locations', 'deployment_script', 'deploy_log'],
+                    autoLoadTriggered: autoLoad,
+                    fullNavigationEnabled: fullNavigation,
+                    deploymentScript: scriptPath,
+                    mapDirectory: sshConfig.mapDirectory
                 });
                 
             } catch (error) {
@@ -1284,23 +1467,118 @@ function executeSSHCommand(conn, command) {
 }
 
 /**
- * Transfer file via SSH
+ * Execute command via SSH with timeout
  */
-function transferFile(conn, localPath, remotePath) {
+function executeSSHCommandWithTimeout(conn, command, timeoutMs = 30000) {
     return new Promise((resolve, reject) => {
-        conn.sftp((err, sftp) => {
+        const timer = setTimeout(() => {
+            reject(new Error(`Command timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+
+        conn.exec(command, (err, stream) => {
             if (err) {
+                clearTimeout(timer);
                 reject(err);
                 return;
             }
             
-            sftp.fastPut(localPath, remotePath, (err) => {
-                if (err) {
-                    reject(err);
+            let stdout = '';
+            let stderr = '';
+            
+            stream.on('close', (code) => {
+                clearTimeout(timer);
+                if (code === 0) {
+                    resolve(stdout);
                 } else {
-                    resolve();
+                    reject(new Error(`Command failed with code ${code}: ${stderr}`));
                 }
             });
+            
+            stream.on('data', (data) => {
+                stdout += data.toString();
+            });
+            
+            stream.stderr.on('data', (data) => {
+                stderr += data.toString();
+            });
+        });
+    });
+}
+
+/**
+ * Transfer file via SSH using scp command
+ */
+function transferFile(conn, localPath, remotePath) {
+    return new Promise((resolve, reject) => {
+        // Use scp command for file transfer
+        const scpCommand = `scp "${localPath}" piros@192.168.0.89:"${remotePath}"`;
+        
+        const { spawn } = require('child_process');
+        const scpProcess = spawn('scp', [
+            '-o', 'StrictHostKeyChecking=no',
+            '-o', 'UserKnownHostsFile=/dev/null',
+            localPath,
+            `piros@192.168.0.89:${remotePath}`
+        ]);
+        
+        let stderr = '';
+        
+        scpProcess.stderr.on('data', (data) => {
+            stderr += data.toString();
+        });
+        
+        scpProcess.on('close', (code) => {
+            if (code === 0) {
+                console.log(`✅ SCP transfer successful: ${localPath} -> ${remotePath}`);
+                resolve();
+            } else {
+                reject(new Error(`SCP failed with code ${code}: ${stderr}`));
+            }
+        });
+        
+        scpProcess.on('error', (error) => {
+            reject(new Error(`SCP command failed: ${error.message}`));
+        });
+    });
+}
+
+/**
+ * Transfer file via SSH using rsync command (alternative)
+ */
+function transferFileWithRsync(localPath, remotePath) {
+    return new Promise((resolve, reject) => {
+        const { spawn } = require('child_process');
+        const rsyncProcess = spawn('rsync', [
+            '-avz',
+            '--progress',
+            '-e', 'ssh -o StrictHostKeyChecking=no',
+            localPath,
+            `piros@192.168.0.89:${remotePath}`
+        ]);
+        
+        let stdout = '';
+        let stderr = '';
+        
+        rsyncProcess.stdout.on('data', (data) => {
+            stdout += data.toString();
+            console.log(`📡 Rsync: ${data.toString().trim()}`);
+        });
+        
+        rsyncProcess.stderr.on('data', (data) => {
+            stderr += data.toString();
+        });
+        
+        rsyncProcess.on('close', (code) => {
+            if (code === 0) {
+                console.log(`✅ Rsync transfer successful: ${localPath} -> ${remotePath}`);
+                resolve(stdout);
+            } else {
+                reject(new Error(`Rsync failed with code ${code}: ${stderr}`));
+            }
+        });
+        
+        rsyncProcess.on('error', (error) => {
+            reject(new Error(`Rsync command failed: ${error.message}`));
         });
     });
 }
@@ -4231,5 +4509,148 @@ router.post('/maps/:deviceId/load-ros2-saved', async (req, res) => {
         });
     }
 });
+
+/**
+ * Check deployment status on Raspberry Pi
+ */
+async function checkDeploymentStatus(sshConfig) {
+    return new Promise((resolve) => {
+        const conn = new Client();
+        
+        conn.on('ready', async () => {
+            try {
+                // Check if active map configuration exists
+                const activeMapResult = await executeSSHCommand(conn, 
+                    `cat ${sshConfig.mapDirectory}/active_map.json 2>/dev/null || echo "{}"`
+                );
+                
+                let activeMap = {};
+                try {
+                    activeMap = JSON.parse(activeMapResult.trim() || '{}');
+                } catch (e) {
+                    activeMap = {};
+                }
+                
+                // Check map server process
+                const mapServerCheck = await executeSSHCommand(conn, 
+                    `pgrep -f "map_server" || echo "not_running"`
+                );
+                
+                // Check navigation process
+                const navCheck = await executeSSHCommand(conn, 
+                    `pgrep -f "nav2_bringup" || echo "not_running"`
+                );
+                
+                // List available maps
+                const mapsList = await executeSSHCommand(conn, 
+                    `ls -la ${sshConfig.mapDirectory}/*.yaml 2>/dev/null | wc -l || echo "0"`
+                );
+                
+                // Check ROS2 environment
+                const rosCheck = await executeSSHCommand(conn, 
+                    `source /opt/ros/humble/setup.bash && ros2 topic list 2>/dev/null | grep -c "map" || echo "0"`
+                );
+                
+                conn.end();
+                
+                resolve({
+                    success: true,
+                    activeMap: activeMap,
+                    processes: {
+                        mapServer: mapServerCheck.trim() !== 'not_running',
+                        navigation: navCheck.trim() !== 'not_running'
+                    },
+                    mapCount: parseInt(mapsList.trim()) || 0,
+                    rosTopics: parseInt(rosCheck.trim()) || 0,
+                    mapDirectory: sshConfig.mapDirectory
+                });
+                
+            } catch (error) {
+                conn.end();
+                resolve({
+                    success: false,
+                    error: error.message
+                });
+            }
+        });
+        
+        conn.on('error', (error) => {
+            resolve({
+                success: false,
+                error: `SSH connection failed: ${error.message}`
+            });
+        });
+        
+        conn.connect(sshConfig);
+    });
+}
+
+/**
+ * Test Raspberry Pi connection
+ */
+async function testPiConnection(sshConfig) {
+    return new Promise((resolve) => {
+        const conn = new Client();
+        
+        conn.on('ready', async () => {
+            try {
+                // Test basic commands
+                const hostname = await executeSSHCommand(conn, 'hostname');
+                const uptime = await executeSSHCommand(conn, 'uptime');
+                const diskSpace = await executeSSHCommand(conn, `df -h ${sshConfig.mapDirectory} 2>/dev/null | tail -1 || echo "Directory not accessible"`);
+                
+                // Test ROS2 installation
+                const rosVersion = await executeSSHCommand(conn, 
+                    'source /opt/ros/humble/setup.bash && ros2 --version 2>/dev/null || echo "ROS2 not found"'
+                );
+                
+                // Check map directory
+                const mapDirCheck = await executeSSHCommand(conn, 
+                    `[ -d "${sshConfig.mapDirectory}" ] && echo "exists" || echo "missing"`
+                );
+                
+                // Create map directory if missing
+                if (mapDirCheck.trim() === 'missing') {
+                    await executeSSHCommand(conn, `mkdir -p ${sshConfig.mapDirectory}`);
+                }
+                
+                conn.end();
+                
+                resolve({
+                    success: true,
+                    message: 'Pi connection successful',
+                    systemInfo: {
+                        hostname: hostname.trim(),
+                        uptime: uptime.trim(),
+                        diskSpace: diskSpace.trim(),
+                        rosVersion: rosVersion.trim(),
+                        mapDirectory: {
+                            path: sshConfig.mapDirectory,
+                            exists: mapDirCheck.trim() === 'exists' || mapDirCheck.trim() === 'missing'
+                        }
+                    }
+                });
+                
+            } catch (error) {
+                conn.end();
+                resolve({
+                    success: false,
+                    message: `Connection test failed: ${error.message}`,
+                    error: error.message
+                });
+            }
+        });
+        
+        conn.on('error', (error) => {
+            resolve({
+                success: false,
+                message: `SSH connection failed: ${error.message}`,
+                error: error.message
+            });
+        });
+        
+        conn.connect(sshConfig);
+    });
+}
 
 module.exports = router;

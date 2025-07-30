@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""
-Enhanced JSON to PGM+YAML Map Converter
-Converts JSON map data to ROS2 compatible PGM and YAML format
-Supports multiple input formats and enhanced error handling
-"""
-
 import json
 import numpy as np
 import yaml

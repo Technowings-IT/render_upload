@@ -127,7 +127,7 @@ class _ConnectScreenState extends State<ConnectScreen>
   void _loadSavedConnections() {
     setState(() {
       _manualBackendIpController.text = '192.168.0.55';
-      _manualDeviceIpController.text = '192.168.0.84';
+      _manualDeviceIpController.text = '192.168.0.93';
     });
   }
 
@@ -1241,7 +1241,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                   child: _buildEnhancedTextField(
                     controller: _manualDeviceIpController,
                     label: 'AGV IP Address',
-                    hint: '192.168.0.84',
+                    hint: '192.168.0.89',
                     icon: Icons.smart_toy,
                     color: Colors.orange,
                     keyboardType:

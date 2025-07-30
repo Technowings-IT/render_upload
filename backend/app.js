@@ -19,6 +19,7 @@ const ROS2ScriptManager = require('./ros/utils/ros2ScriptManager');
 const controlRoutes = require('./routes/controlRoutes');
 const mapRoutes = require('./routes/mapRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 const { router: discoveryRoutes, initializeUDPDiscovery } = require('./routes/discoveryRoutes');
 
 const app = express();
@@ -155,6 +156,9 @@ app.use('/api', mapRoutes);
 
 // ✅ NEW: Order management routes
 app.use('/api/orders', orderRoutes);
+
+// ✅ NEW: Analytics routes
+app.use('/api/analytics', analyticsRoutes);
 
 // NEW: ROS2 Script Management API endpoints
 app.get('/api/ros2/scripts/status', (req, res) => {
@@ -902,7 +906,7 @@ async function initializeApplication() {
                         id: 'piros', // Changed to match your device name
                         name: 'Primary AGV',
                         type: 'differential_drive',
-                        ipAddress: '192.168.0.84', // Your AGV's IP
+                        ipAddress: '192.168.0.89', // Your AGV's IP
                         capabilities: config.DEVICE.CAPABILITIES,
                         autoConnected: true
                     };
@@ -948,6 +952,7 @@ async function startServer() {
             console.log(`🔍 Discovery API: http://${serverInfo.ip}:${serverInfo.port}/api/discovery`);
             console.log(`🔧 ROS Debug API: http://${serverInfo.ip}:${serverInfo.port}/api/ros/*`);
             console.log(`📋 Order Management API: http://${serverInfo.ip}:${serverInfo.port}/api/orders/*`); // ✅ NEW
+            console.log(`📊 Analytics API: http://${serverInfo.ip}:${serverInfo.port}/api/analytics`); // ✅ NEW
             console.log(`📡 UDP Discovery: Port ${config.NETWORK.DISCOVERY.PORT}`);
             console.log(`\n📊 System Status:`);
             console.log(`   - Storage: ✅ Ready`);

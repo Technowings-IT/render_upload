@@ -425,14 +425,16 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
             deviceId, 'battery', _selectedTimeRange);
 
         if (response['success'] == true && response['data'] != null) {
-          _batteryHistory[deviceId] =
-              List<Map<String, dynamic>>.from(response['data'].map((item) => {
-                    'timestamp': DateTime.parse(item['timestamp']),
-                    'voltage': item['voltage']?.toDouble() ?? 0.0,
-                    'percentage': item['percentage']?.toDouble() ?? 0.0,
-                    'current': item['current']?.toDouble() ?? 0.0,
-                    'temperature': item['temperature']?.toDouble() ?? 25.0,
-                  }));
+          dynamic dataSource = response['data'];
+          if (dataSource is List) {
+            _batteryHistory[deviceId] = dataSource.map<Map<String, dynamic>>((item) => {
+                      'timestamp': DateTime.parse(item['timestamp']),
+                      'voltage': item['voltage']?.toDouble() ?? 0.0,
+                      'percentage': item['percentage']?.toDouble() ?? 0.0,
+                      'current': item['current']?.toDouble() ?? 0.0,
+                      'temperature': item['temperature']?.toDouble() ?? 25.0,
+                    }).toList();
+          }
         }
       }
     } catch (e) {
@@ -448,17 +450,19 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
             deviceId, 'orders', _selectedTimeRange);
 
         if (response['success'] == true && response['data'] != null) {
-          _orderHistory[deviceId] =
-              List<Map<String, dynamic>>.from(response['data'].map((item) => {
-                    'id': item['id'] ?? 'unknown',
-                    'name': item['name'] ?? 'Unnamed Order',
-                    'createdAt': DateTime.parse(item['createdAt']),
-                    'completedAt': DateTime.parse(item['completedAt']),
-                    'duration': item['duration']?.toDouble() ?? 0.0,
-                    'distance': item['distance']?.toDouble() ?? 0.0,
-                    'waypoints': item['waypoints'] ?? 0,
-                    'status': item['status'] ?? 'completed',
-                  }));
+          dynamic dataSource = response['data'];
+          if (dataSource is List) {
+            _orderHistory[deviceId] = dataSource.map<Map<String, dynamic>>((item) => {
+                      'id': item['id'] ?? 'unknown',
+                      'name': item['name'] ?? 'Unnamed Order',
+                      'createdAt': DateTime.parse(item['createdAt']),
+                      'completedAt': DateTime.parse(item['completedAt']),
+                      'duration': item['duration']?.toDouble() ?? 0.0,
+                      'distance': item['distance']?.toDouble() ?? 0.0,
+                      'waypoints': item['waypoints'] ?? 0,
+                      'status': item['status'] ?? 'completed',
+                    }).toList();
+          }
         }
       }
     } catch (e) {
@@ -490,16 +494,23 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         _selectedTimeRange,
       );
 
-      if (response['success'] == true && response['data'] != null) {
-        _systemEvents =
-            List<Map<String, dynamic>>.from(response['data'].map((item) => {
-                  'timestamp': DateTime.parse(item['timestamp']),
-                  'type': item['type'] ?? 'info',
-                  'message': item['message'] ?? 'Unknown event',
-                  'deviceId': item['deviceId'] ?? 'unknown',
-                  'severity': item['severity'] ?? 'info',
-                }));
-      }
+        if (response['success'] == true && response['data'] != null) {
+          // Handle different response formats
+          dynamic dataSource = response['data'];
+          if (dataSource is Map && dataSource.containsKey('recentEvents')) {
+            dataSource = dataSource['recentEvents'];
+          }
+          
+          if (dataSource is List) {
+            _systemEvents = dataSource.map<Map<String, dynamic>>((item) => {
+                      'timestamp': DateTime.parse(item['timestamp']),
+                      'type': item['type'] ?? 'info',
+                      'message': item['message'] ?? 'Unknown event',
+                      'deviceId': item['deviceId'] ?? 'unknown',
+                      'severity': item['severity'] ?? 'info',
+                    }).toList();
+          }
+        }
     } catch (e) {
       print('❌ Error loading system events: $e');
     }
@@ -513,12 +524,14 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
             deviceId, 'performance', _selectedTimeRange);
 
         if (response['success'] == true && response['data'] != null) {
-          _velocityHistory[deviceId] =
-              List<Map<String, dynamic>>.from(response['data'].map((item) => {
-                    'timestamp': DateTime.parse(item['timestamp']),
-                    'linear': item['linear']?.toDouble() ?? 0.0,
-                    'angular': item['angular']?.toDouble() ?? 0.0,
-                  }));
+          dynamic dataSource = response['data'];
+          if (dataSource is List) {
+            _velocityHistory[deviceId] = dataSource.map<Map<String, dynamic>>((item) => {
+                      'timestamp': DateTime.parse(item['timestamp']),
+                      'linear': item['linear']?.toDouble() ?? 0.0,
+                      'angular': item['angular']?.toDouble() ?? 0.0,
+                    }).toList();
+          }
         }
       }
     } catch (e) {
@@ -756,7 +769,6 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       case DeviceType.tablet:
         return _buildTabletLayout();
       case DeviceType.phone:
-      default:
         return _buildPhoneLayout();
     }
   }
@@ -1174,36 +1186,36 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
             children: [
               MetricItem(
                   label: 'Total Orders',
-                  value: stats['totalOrders'].toString(),
+                  value: (stats['totalOrders'] ?? 0).toString(),
                   icon: Icons.assignment,
                   color: AppColors.info),
               MetricItem(
                   label: 'Completed',
-                  value: stats['completedOrders'].toString(),
+                  value: (stats['completedOrders'] ?? 0).toString(),
                   icon: Icons.check_circle,
                   color: AppColors.success),
               MetricItem(
                   label: 'Avg Time',
                   value:
-                      '${(stats['averageOrderTime'] as double).toStringAsFixed(1)} min',
+                      '${(stats['averageOrderTime'] as double? ?? 0.0).toStringAsFixed(1)} min',
                   icon: Icons.timer,
                   color: AppColors.warning),
               MetricItem(
                   label: 'Uptime',
                   value:
-                      '${(stats['totalUptime'] as double).toStringAsFixed(0)} h',
+                      '${(stats['totalUptime'] as double? ?? 0.0).toStringAsFixed(0)} h',
                   icon: Icons.schedule,
                   color: Colors.purple),
               MetricItem(
                   label: 'Distance',
                   value:
-                      '${(stats['totalDistance'] as double).toStringAsFixed(1)} km',
+                      '${(stats['totalDistance'] as double? ?? 0.0).toStringAsFixed(1)} km',
                   icon: Icons.route,
                   color: Colors.teal),
               MetricItem(
                   label: 'Avg Speed',
                   value:
-                      '${(stats['averageSpeed'] as double).toStringAsFixed(2)} m/s',
+                      '${(stats['averageSpeed'] as double? ?? 0.0).toStringAsFixed(2)} m/s',
                   icon: Icons.speed,
                   color: AppColors.error),
             ],
@@ -1809,18 +1821,17 @@ class EnhancedMetricCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
+            Icon(icon, size: 32, color: color),
+            const SizedBox(height: 12),
             Text(
               title,
-              style:
-                  AppTextStyles.heading3.copyWith(color: Colors.grey.shade600),
+              style: AppTextStyles.body.copyWith(color: Colors.grey.shade600),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               value,
-              style: AppTextStyles.body.copyWith(color: Colors.grey.shade500),
+              style: AppTextStyles.heading3.copyWith(color: color),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1916,7 +1927,7 @@ class EnhancedBatteryChartPainter extends CustomPainter {
 
     for (int i = 0; i < data.length; i++) {
       final x = startX + chartWidth * (i / (data.length - 1));
-      final percentage = data[i]['percentage'] as double;
+      final percentage = (data[i]['percentage'] as double? ?? 0.0);
       final y = startY + chartHeight * (1 - percentage / 100);
 
       if (i == 0) {
@@ -2062,8 +2073,8 @@ class VelocityChartPainter extends CustomPainter {
     for (int i = 0; i < data.length; i++) {
       final x = startX + chartWidth * (i / (data.length - 1));
       final velocity = isLinear
-          ? (data[i]['linear'] as double)
-          : (data[i]['angular'] as double).abs();
+          ? (data[i]['linear'] as double? ?? 0.0)
+          : (data[i]['angular'] as double? ?? 0.0).abs();
       final y = startY + chartHeight * (1 - velocity / maxVelocity);
 
       if (i == 0) {
@@ -2220,7 +2231,7 @@ class NavigationTimelinePainter extends CustomPainter {
 
     final path = Path();
     final maxDistance = data.fold(
-        0.0, (max, nav) => math.max(max, nav['distance_remaining'] as double));
+        0.0, (max, nav) => math.max(max, nav['distance_remaining'] as double? ?? 0.0));
 
     if (maxDistance == 0) return;
 
@@ -2231,7 +2242,7 @@ class NavigationTimelinePainter extends CustomPainter {
 
     for (int i = 0; i < data.length; i++) {
       final x = startX + chartWidth * (i / (data.length - 1));
-      final distance = data[i]['distance_remaining'] as double;
+      final distance = (data[i]['distance_remaining'] as double? ?? 0.0);
       final y = startY + chartHeight * (1 - distance / maxDistance);
 
       if (i == 0) {

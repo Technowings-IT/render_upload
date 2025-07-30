@@ -1,8 +1,7 @@
-// screens/enhanced_map_page.dart - Enhanced Map Page with Full Workflow
+// screens/enhanced_map_page.dart - Enhanced Map Page with PGM Editor Only
 import 'package:flutter/material.dart';
 import '../models/map_data.dart';
 import '../services/api_service.dart';
-import '../widgets/map_canvas.dart';
 import '../widgets/pgm_map_editor.dart';
 import '../services/web_socket_service.dart';
 import '../widgets/ros2_saved_maps_screen.dart';
@@ -52,7 +51,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadingAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
@@ -540,7 +539,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
               tabs: const [
-                Tab(icon: Icon(Icons.edit), text: 'Edit Map'),
                 Tab(icon: Icon(Icons.brush), text: 'PGM Editor'),
                 Tab(icon: Icon(Icons.list), text: 'Locations'),
                 Tab(icon: Icon(Icons.analytics), text: 'Analysis'),
@@ -786,7 +784,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                   unselectedLabelColor: Colors.grey,
                   indicatorColor: Theme.of(context).primaryColor,
                   tabs: const [
-                    Tab(icon: Icon(Icons.edit), text: 'Edit Map'),
                     Tab(icon: Icon(Icons.brush), text: 'PGM Editor'),
                     Tab(icon: Icon(Icons.list), text: 'Locations'),
                     Tab(icon: Icon(Icons.analytics), text: 'Analysis'),
@@ -830,28 +827,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       children: [
         // Status bar
         _buildStatusBar(),
-
-        // Tab bar
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border(
-              bottom: BorderSide(color: Colors.grey.shade300),
-            ),
-          ),
-          child: TabBar(
-            controller: _tabController,
-            labelColor: Theme.of(context).primaryColor,
-            unselectedLabelColor: Colors.grey,
-            indicatorColor: Theme.of(context).primaryColor,
-            tabs: const [
-              Tab(icon: Icon(Icons.edit), text: 'Edit Map'),
-              Tab(icon: Icon(Icons.brush), text: 'PGM Editor'),
-              Tab(icon: Icon(Icons.list), text: 'Locations'),
-              Tab(icon: Icon(Icons.analytics), text: 'Analysis'),
-            ],
-          ),
-        ),
 
         // Content
         Expanded(
@@ -923,11 +898,10 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           ],
         ),
       ),
-      child: EnhancedMapCanvas(
+      child: EnhancedPGMMapEditor(
         mapData: _currentMap,
         onMapChanged: _onMapChanged,
         deviceId: _selectedDeviceId,
-        enableRealTimeUpdates: _isWebSocketConnected,
       ),
     );
   }
@@ -1106,7 +1080,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     return TabBarView(
       controller: _tabController,
       children: [
-        _buildMapEditor(),
         _buildPGMEditor(),
         _buildLocationsView(),
         _buildAnalysisView(),
@@ -1151,31 +1124,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildMapEditor() {
-    if (_currentMap == null) {
-      return const Center(child: Text('No map data available'));
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.grey.shade50,
-            Colors.white,
-          ],
-        ),
-      ),
-      child: EnhancedMapCanvas(
-        mapData: _currentMap,
-        onMapChanged: _onMapChanged,
-        deviceId: _selectedDeviceId,
-        enableRealTimeUpdates: _isWebSocketConnected,
       ),
     );
   }

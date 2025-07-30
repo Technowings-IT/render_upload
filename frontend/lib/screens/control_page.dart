@@ -1,4 +1,4 @@
-// screens/control_page.dart - Fixed Control Page with Map Grid and Joystick Touch Issues
+// screens/control_page.dart - Simplified Mobile Layout with Core Controls Only
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -98,7 +98,7 @@ class _ControlPageState extends State<ControlPage>
   final double _minZoom = 0.5;
   final double _maxZoom = 3.0;
 
-  // 🔧 NEW: Joystick touch control variables
+  // Joystick touch control variables
   bool _joystickTouchActive = false;
   final GlobalKey _joystickKey = GlobalKey();
 
@@ -423,7 +423,7 @@ class _ControlPageState extends State<ControlPage>
   }
 
   // ==========================================
-  // 🔧 NEW: MAP GRID CONTROL METHODS
+  // MAP GRID CONTROL METHODS
   // ==========================================
 
   void _handleMapZoom(double zoomDelta) {
@@ -438,8 +438,158 @@ class _ControlPageState extends State<ControlPage>
     });
   }
 
+  // 🔧 NEW: Zoom Responsive Mapping Canvas for Mobile
+  Widget _buildZoomResponsiveMappingCanvas() {
+    return Stack(
+      children: [
+        // Main map canvas - size adjusts with container
+        Positioned.fill(
+          child: LiveMappingCanvas(
+            mapData: _currentMapData,
+            currentOdometry: _currentOdometry,
+            robotTrail: _showTrail ? _robotTrail : [],
+            mappingActive: _mappingActive,
+            deviceId: widget.deviceId,
+            globalCostmap: _showGlobalCostmap ? _globalCostmap : null,
+            localCostmap: _showLocalCostmap ? _localCostmap : null,
+            showOccupancyGrid: _showOccupancyGrid,
+            costmapOpacity: _costmapOpacity,
+            onMapChanged: (mapData) {
+              setState(() {
+                _currentMapData = mapData;
+              });
+            },
+            onTrailSaved: _saveTrailAsMap,
+          ),
+        ),
+
+        // Map controls overlay - positioned relative to container
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Column(
+            children: [
+              // Zoom in button
+              _buildZoomControlButton(
+                icon: Icons.zoom_in,
+                onPressed: _mapZoomLevel < _maxZoom
+                    ? () => _handleMapZoom(0.1)
+                    : null,
+              ),
+              const SizedBox(height: 4),
+
+              // Zoom out button
+              _buildZoomControlButton(
+                icon: Icons.zoom_out,
+                onPressed: _mapZoomLevel > _minZoom
+                    ? () => _handleMapZoom(-0.1)
+                    : null,
+              ),
+              const SizedBox(height: 4),
+
+              // Reset zoom button
+              _buildZoomControlButton(
+                icon: Icons.center_focus_strong,
+                onPressed: _resetMapView,
+              ),
+            ],
+          ),
+        ),
+
+        // Zoom level indicator - positioned relative to container
+        Positioned(
+          top: 8,
+          left: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.zoom_in,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Zoom: ${(_mapZoomLevel * 100).toInt()}%',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // 🔧 NEW: Map size indicator
+        Positioned(
+          bottom: 8,
+          left: 8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.aspect_ratio,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Size: ${(_mapZoomLevel * 100).toInt()}%',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 🔧 NEW: Helper method for zoom control buttons
+  Widget _buildZoomControlButton({
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: IconButton(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        iconSize: 20,
+      ),
+    );
+  }
+
   // ==========================================
-  // 🔧 NEW: JOYSTICK TOUCH CONTROL METHODS
+  // JOYSTICK TOUCH CONTROL METHODS
   // ==========================================
 
   void _onJoystickTouchStart() {
@@ -1557,7 +1707,6 @@ class _ControlPageState extends State<ControlPage>
               'Msgs: $_messagesReceived',
               Colors.indigo,
             ),
-            // 🔧 NEW: Map zoom indicator
             const SizedBox(width: 20),
             _buildEnhancedStatusItem(
               Icons.zoom_in,
@@ -1619,7 +1768,7 @@ class _ControlPageState extends State<ControlPage>
       case DeviceType.tablet:
         return _buildTabletLayout();
       case DeviceType.phone:
-        return _buildPhoneLayout();
+        return _buildSimplifiedPhoneLayout(); // 🔧 NEW: Simplified mobile layout
     }
   }
 
@@ -1695,14 +1844,25 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  Widget _buildPhoneLayout() {
+  // 🔧 NEW: Simplified Phone Layout - Only 3 Core Components
+  Widget _buildSimplifiedPhoneLayout() {
     final screenHeight = MediaQuery.of(context).size.height;
-    final mapHeight = screenHeight * 0.45;
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // 🔧 NEW: Dynamic map height based on zoom level
+    final baseMapHeight = screenHeight * 0.55;
+    final dynamicMapHeight = baseMapHeight * _mapZoomLevel;
+    final maxMapHeight = screenHeight * 0.75; // Cap maximum height
+    final finalMapHeight = math.min(dynamicMapHeight, maxMapHeight);
+    
+    final joystickSize = math.min(screenWidth * 0.4, 180.0); // Compact joystick
 
     return Column(
       children: [
+        // 1. MAP - Dynamic size based on zoom level
         Container(
-          height: mapHeight,
+          height: finalMapHeight,
+          width: screenWidth - 16, // Full width minus margins
           margin: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
@@ -1716,24 +1876,284 @@ class _ControlPageState extends State<ControlPage>
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: _buildFixedLiveMappingCanvas(),
+            child: _buildZoomResponsiveMappingCanvas(),
           ),
         ),
+
+        // 2. SPEED CONTROLS - Compact version
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: _buildEnhancedControlPanel(isCompact: true),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Column(
+              children: [
+                _buildCompactSpeedControls(),
+                const SizedBox(height: 12),
+                
+                // 3. JOYSTICK - Centered and compact
+                Center(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 15,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: AbsorbPointer(
+                      absorbing: _shouldAbsorbTouchEvents(),
+                      child: Listener(
+                        onPointerDown: (_) => _onJoystickTouchStart(),
+                        onPointerUp: (_) => _onJoystickTouchEnd(),
+                        onPointerCancel: (_) => _onJoystickTouchEnd(),
+                        child: Container(
+                          key: _joystickKey,
+                          child: JoystickWidget(
+                            size: joystickSize,
+                            maxLinearSpeed: _maxLinearSpeed,
+                            maxAngularSpeed: _maxAngularSpeed,
+                            enabled: _controlEnabled && _isConnected,
+                            requireDeadman: _useDeadmanSwitch,
+                            onChanged: _onJoystickChanged,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 8),
+                
+                // Connection status indicator (minimal)
+                if (!_isConnected)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.wifi_off, size: 16, color: Colors.red),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Disconnected - Check Settings',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.red,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ],
     );
   }
 
-  // 🔧 NEW: Fixed Live Mapping Canvas with zoom controls
+  // 🔧 NEW: Compact Speed Controls for Mobile
+  Widget _buildCompactSpeedControls() {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            theme.primaryColor.withOpacity(0.1),
+            theme.primaryColor.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.primaryColor.withOpacity(0.2)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.speed, color: Colors.white, size: 16),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Speed Controls',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _showAdvancedSettings = !_showAdvancedSettings;
+                    });
+                  },
+                  icon: Icon(_showAdvancedSettings
+                      ? Icons.expand_less
+                      : Icons.tune, size: 16),
+                  label: Text(_showAdvancedSettings ? 'Hide' : 'Adjust',
+                      style: const TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildCompactSpeedChip(
+                    'Linear', _maxLinearSpeed, 'm/s', Colors.blue),
+                _buildCompactSpeedChip(
+                    'Angular', _maxAngularSpeed, 'rad/s', Colors.orange),
+              ],
+            ),
+            if (_showAdvancedSettings) ...[
+              const SizedBox(height: 12),
+              _buildCompactSpeedSlider(
+                'Linear',
+                _maxLinearSpeed,
+                0.1,
+                2.0,
+                'm/s',
+                (value) => setState(() => _maxLinearSpeed = value),
+              ),
+              const SizedBox(height: 8),
+              _buildCompactSpeedSlider(
+                'Angular',
+                _maxAngularSpeed,
+                0.1,
+                3.0,
+                'rad/s',
+                (value) => setState(() => _maxAngularSpeed = value),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 🔧 NEW: Compact Speed Chip for Mobile
+  Widget _buildCompactSpeedChip(
+      String label, double value, String unit, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.8), color],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.3),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              label[0],
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '${value.toStringAsFixed(1)} $unit',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🔧 NEW: Compact Speed Slider for Mobile
+  Widget _buildCompactSpeedSlider(
+    String label,
+    double value,
+    double min,
+    double max,
+    String unit,
+    Function(double) onChanged,
+  ) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '${value.toStringAsFixed(1)} $unit',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ],
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 4,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+          ),
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: ((max - min) / 0.1).round(),
+            onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Fixed Live Mapping Canvas with zoom controls (Desktop/Tablet)
   Widget _buildFixedLiveMappingCanvas() {
     return Stack(
       children: [
-        // Main map canvas with fixed grid
+        // Main map canvas with transform scale
         Transform.scale(
           scale: _mapZoomLevel,
           child: LiveMappingCanvas(
@@ -1762,69 +2182,27 @@ class _ControlPageState extends State<ControlPage>
           child: Column(
             children: [
               // Zoom in button
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: IconButton(
-                  onPressed: _mapZoomLevel < _maxZoom
-                      ? () => _handleMapZoom(0.1)
-                      : null,
-                  icon: const Icon(Icons.zoom_in),
-                  iconSize: 20,
-                ),
+              _buildZoomControlButton(
+                icon: Icons.zoom_in,
+                onPressed: _mapZoomLevel < _maxZoom
+                    ? () => _handleMapZoom(0.1)
+                    : null,
               ),
               const SizedBox(height: 4),
 
               // Zoom out button
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: IconButton(
-                  onPressed: _mapZoomLevel > _minZoom
-                      ? () => _handleMapZoom(-0.1)
-                      : null,
-                  icon: const Icon(Icons.zoom_out),
-                  iconSize: 20,
-                ),
+              _buildZoomControlButton(
+                icon: Icons.zoom_out,
+                onPressed: _mapZoomLevel > _minZoom
+                    ? () => _handleMapZoom(-0.1)
+                    : null,
               ),
               const SizedBox(height: 4),
 
               // Reset zoom button
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: IconButton(
-                  onPressed: _resetMapView,
-                  icon: const Icon(Icons.center_focus_strong),
-                  iconSize: 20,
-                ),
+              _buildZoomControlButton(
+                icon: Icons.center_focus_strong,
+                onPressed: _resetMapView,
               ),
             ],
           ),
@@ -1865,6 +2243,7 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
+  // Enhanced Control Panel for Desktop/Tablet (unchanged)
   Widget _buildEnhancedControlPanel({required bool isCompact}) {
     final screenWidth = MediaQuery.of(context).size.width;
     final joystickSize = isCompact
@@ -1876,7 +2255,7 @@ class _ControlPageState extends State<ControlPage>
         _buildGradientSpeedControls(),
         SizedBox(height: isCompact ? 12 : 20),
 
-        // 🔧 NEW: Enhanced joystick with touch absorption
+        // Enhanced joystick with touch absorption
         Center(
           child: Container(
             decoration: BoxDecoration(
@@ -2766,142 +3145,416 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
+  // 🔧 NEW: Comprehensive Settings Tab with All Moved Controls
   Widget _buildSettingsTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          // ROBOT CONTROL SECTION
+          _buildSettingsSection(
             'Robot Control Settings',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Icons.smart_toy,
+            Colors.green,
+            [
+              _buildControlSettings(),
+              const SizedBox(height: 16),
+              _buildVelocityDisplaySection(),
+              const SizedBox(height: 16),
+              _buildControlButtonsSection(),
+            ],
           ),
-          const SizedBox(height: 16),
-          _buildControlSettings(),
+
           const SizedBox(height: 24),
-          const Text(
+
+          // ROBOT & MAPPING CONTROLS SECTION
+          _buildSettingsSection(
+            'Robot & Mapping Controls',
+            Icons.precision_manufacturing,
+            Colors.orange,
+            [
+              if (_isConnected) _buildFullMappingControls(),
+              if (!_isConnected) _buildConnectionRequiredMessage(),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // SAVE MAP DATA SECTION
+          _buildSettingsSection(
+            'Save Map Data',
+            Icons.save_alt,
+            Colors.blue,
+            [
+              _buildFullSaveControls(),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // MAP DISPLAY SECTION
+          _buildSettingsSection(
             'Map Display Settings',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Icons.layers,
+            Colors.purple,
+            [
+              _buildMapSettings(),
+            ],
           ),
-          const SizedBox(height: 16),
-          _buildMapSettings(),
+
           const SizedBox(height: 24),
-          const Text(
-            'Connection Settings',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+
+          // CONNECTION SECTION
+          _buildSettingsSection(
+            'Connection & Statistics',
+            Icons.wifi,
+            Colors.indigo,
+            [
+              _buildConnectionSettings(),
+            ],
           ),
-          const SizedBox(height: 16),
-          _buildConnectionSettings(),
         ],
       ),
     );
   }
 
-  Widget _buildControlSettings() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            SwitchListTile(
-              title: const Text('Use Deadman Switch'),
-              subtitle: const Text('Require continuous press for movement'),
-              value: _useDeadmanSwitch,
-              onChanged: (value) {
-                setState(() {
-                  _useDeadmanSwitch = value;
-                });
-              },
-            ),
-            SwitchListTile(
-              title: const Text('Auto Center Map'),
-              subtitle: const Text('Keep robot centered in view'),
-              value: _autoCenter,
-              onChanged: (value) {
-                setState(() {
-                  _autoCenter = value;
-                });
-              },
-            ),
-            const Divider(),
-            _buildEnhancedSpeedSlider(
-              'Max Linear Speed',
-              _maxLinearSpeed,
-              0.1,
-              2.0,
-              'm/s',
-              (value) => setState(() => _maxLinearSpeed = value),
-            ),
-            const SizedBox(height: 16),
-            _buildEnhancedSpeedSlider(
-              'Max Angular Speed',
-              _maxAngularSpeed,
-              0.1,
-              3.0,
-              'rad/s',
-              (value) => setState(() => _maxAngularSpeed = value),
-            ),
+  // Helper method to build consistent settings sections
+  Widget _buildSettingsSection(
+    String title,
+    IconData icon,
+    Color color,
+    List<Widget> children,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            color.withOpacity(0.05),
+            color.withOpacity(0.1),
           ],
         ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
-    );
-  }
-
-  Widget _buildMapSettings() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _buildCostmapOpacitySlider(),
-            const Divider(),
-            const Text(
-              'Display Options',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            _buildMapOverlaySwitches(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildConnectionSettings() {
-    return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ListTile(
-              leading: Icon(
-                _isConnected ? Icons.wifi : Icons.wifi_off,
-                color: _isConnected ? Colors.green : Colors.red,
-              ),
-              title: Text('Connection Status: $_connectionStatus'),
-              subtitle: Text('Device ID: ${widget.deviceId}'),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
             ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.info),
-              title: const Text('Statistics'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Messages Received: $_messagesReceived'),
-                  if (_lastPositionUpdate != null)
-                    Text(
-                        'Last Position Update: ${_lastPositionUpdate!.toLocal().toString().split('.')[0]}'),
-                  if (_lastMapUpdate != null)
-                    Text(
-                        'Last Map Update: ${_lastMapUpdate!.toLocal().toString().split('.')[0]}'),
-                ],
-              ),
-            ),
+            const SizedBox(height: 16),
+            ...children,
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildControlSettings() {
+    return Column(
+      children: [
+        SwitchListTile(
+          title: const Text('Use Deadman Switch'),
+          subtitle: const Text('Require continuous press for movement'),
+          value: _useDeadmanSwitch,
+          onChanged: (value) {
+            setState(() {
+              _useDeadmanSwitch = value;
+            });
+          },
+        ),
+        SwitchListTile(
+          title: const Text('Auto Center Map'),
+          subtitle: const Text('Keep robot centered in view'),
+          value: _autoCenter,
+          onChanged: (value) {
+            setState(() {
+              _autoCenter = value;
+            });
+          },
+        ),
+        const Divider(),
+        _buildEnhancedSpeedSlider(
+          'Max Linear Speed',
+          _maxLinearSpeed,
+          0.1,
+          2.0,
+          'm/s',
+          (value) => setState(() => _maxLinearSpeed = value),
+        ),
+        const SizedBox(height: 16),
+        _buildEnhancedSpeedSlider(
+          'Max Angular Speed',
+          _maxAngularSpeed,
+          0.1,
+          3.0,
+          'rad/s',
+          (value) => setState(() => _maxAngularSpeed = value),
+        ),
+      ],
+    );
+  }
+
+  // NEW: Velocity Display Section for Settings
+  Widget _buildVelocityDisplaySection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Current Velocity',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 12),
+          _buildEnhancedVelocityDisplay(),
+        ],
+      ),
+    );
+  }
+
+  // NEW: Control Buttons Section for Settings
+  Widget _buildControlButtonsSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Control Actions',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 12),
+          _buildGradientControlButtons(),
+        ],
+      ),
+    );
+  }
+
+  // NEW: Full Mapping Controls for Settings
+  Widget _buildFullMappingControls() {
+    return Column(
+      children: [
+        // Script Status Indicators
+        const Text(
+          'System Status',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _buildScriptStatusChip(
+                'Robot', _scriptStatus['robot_control'] ?? 'stopped'),
+            const SizedBox(width: 8),
+            _buildScriptStatusChip(
+                'SLAM', _scriptStatus['slam'] ?? 'stopped'),
+            const SizedBox(width: 8),
+            _buildScriptStatusChip(
+                'Nav', _scriptStatus['navigation'] ?? 'stopped'),
+          ],
+        ),
+        
+        if (_scriptExecutionInProgress) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: const Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Script operation in progress...',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 16),
+        const Text(
+          'System Control',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 12),
+        
+        // Control Buttons
+        _buildMappingControlButtons(),
+      ],
+    );
+  }
+
+  // NEW: Connection Required Message
+  Widget _buildConnectionRequiredMessage() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.wifi_off, color: Colors.red, size: 24),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Robot control requires an active connection. Please check your connection settings.',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // NEW: Full Save Controls for Settings
+  Widget _buildFullSaveControls() {
+    return Column(
+      children: [
+        // Save status indicators
+        const Text(
+          'Data Available',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _buildSaveStatusChip(
+                'Trail', _isTrailSaveable(), _robotTrail.length),
+            const SizedBox(width: 8),
+            _buildSaveStatusChip('Map', _isMapSaveable(),
+                _currentMapData?.shapes.length ?? 0),
+            const SizedBox(width: 8),
+            _buildSaveStatusChip(
+                'Complete',
+                _isCompleteMappingSaveable(),
+                (_robotTrail.length +
+                    (_currentMapData?.shapes.length ?? 0))),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        const Text(
+          'Save Options',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 12),
+
+        // Save buttons
+        _buildSaveButtons(),
+      ],
+    );
+  }
+
+  Widget _buildMapSettings() {
+    return Column(
+      children: [
+        _buildCostmapOpacitySlider(),
+        const Divider(),
+        const Text(
+          'Display Options',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        _buildMapOverlaySwitches(),
+      ],
+    );
+  }
+
+  Widget _buildConnectionSettings() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          leading: Icon(
+            _isConnected ? Icons.wifi : Icons.wifi_off,
+            color: _isConnected ? Colors.green : Colors.red,
+          ),
+          title: Text('Connection Status: $_connectionStatus'),
+          subtitle: Text('Device ID: ${widget.deviceId}'),
+          contentPadding: EdgeInsets.zero,
+        ),
+        const Divider(),
+        const Text(
+          'Statistics',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Messages Received: $_messagesReceived'),
+              const SizedBox(height: 4),
+              Text('Robot Trail Points: ${_robotTrail.length}'),
+              const SizedBox(height: 4),
+              Text('Map Shapes: ${_currentMapData?.shapes.length ?? 0}'),
+              const SizedBox(height: 4),
+              if (_lastPositionUpdate != null)
+                Text(
+                    'Last Position Update: ${_lastPositionUpdate!.toLocal().toString().split('.')[0]}'),
+              const SizedBox(height: 4),
+              if (_lastMapUpdate != null)
+                Text(
+                    'Last Map Update: ${_lastMapUpdate!.toLocal().toString().split('.')[0]}'),
+              const SizedBox(height: 4),
+              Text('Session Duration: ${_getSessionDuration()}'),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -2924,9 +3577,9 @@ class _ControlPageState extends State<ControlPage>
                     ? null // Disable if any system is running
                     : _startRobotControl // Start complete system
                 : null,
-            icon: Icon(Icons.rocket_launch, size: 24),
-            label: Text(
-              'START COMPLETE SYSTEM\n(Robot → SLAM → NAvigation)',
+            icon: const Icon(Icons.rocket_launch, size: 24),
+            label: const Text(
+              'START COMPLETE SYSTEM\n(Robot → SLAM → Navigation)',
               textAlign: TextAlign.center,
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
@@ -2953,8 +3606,8 @@ class _ControlPageState extends State<ControlPage>
                     ? _stopAllScripts // Stop all if any system is running
                     : null // Disable if nothing is running
                 : null,
-            icon: Icon(Icons.stop_circle, size: 24),
-            label: Text(
+            icon: const Icon(Icons.stop_circle, size: 24),
+            label: const Text(
               'STOP ALL (kill.sh)',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
