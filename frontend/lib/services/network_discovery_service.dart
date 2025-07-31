@@ -25,29 +25,32 @@ class AGVDevice {
   });
 
   @override
-  String toString() => 'AGVDevice($name @ $ipAddress:$port via $discoveryMethod)';
+  String toString() =>
+      'AGVDevice($name @ $ipAddress:$port via $discoveryMethod)';
 }
 
 class NetworkDiscoveryService {
-  static final NetworkDiscoveryService _instance = NetworkDiscoveryService._internal();
+  static final NetworkDiscoveryService _instance =
+      NetworkDiscoveryService._internal();
   factory NetworkDiscoveryService() => _instance;
   NetworkDiscoveryService._internal();
 
   final StreamController<List<AGVDevice>> _discoveredDevicesController =
       StreamController<List<AGVDevice>>.broadcast();
-  
-  Stream<List<AGVDevice>> get discoveredDevices => _discoveredDevicesController.stream;
+
+  Stream<List<AGVDevice>> get discoveredDevices =>
+      _discoveredDevicesController.stream;
 
   List<AGVDevice> _devices = [];
   bool _isDiscovering = false;
 
   // AGV-specific ports to scan
   static const List<int> AGV_PORTS = [3000, 8080, 80, 22, 11311, 9090];
-  
+
   // AGV service identifiers
   static const List<String> AGV_SERVICES = [
     '_http._tcp',
-    '_ros._tcp', 
+    '_ros._tcp',
     '_agv._tcp',
     '_websocket._tcp',
     '_ssh._tcp'
@@ -68,9 +71,9 @@ class NetworkDiscoveryService {
 
     _isDiscovering = true;
     _devices.clear();
-    
+
     print('🔍 Starting AGV device discovery...');
-    
+
     try {
       // Get network info
       final networkInfo = await _getNetworkInfo();
@@ -96,10 +99,7 @@ class NetworkDiscoveryService {
       // 3. Network scan
       if (useNetworkScan) {
         discoveryMethods.add(_discoverViaNetworkScan(
-          networkInfo['subnet']!, 
-          customPorts ?? AGV_PORTS,
-          timeout
-        ));
+            networkInfo['subnet']!, customPorts ?? AGV_PORTS, timeout));
       }
 
       // 4. UDP broadcast
@@ -109,7 +109,7 @@ class NetworkDiscoveryService {
 
       // Run all discovery methods in parallel
       final results = await Future.wait(discoveryMethods, eagerError: false);
-      
+
       // Combine results and remove duplicates
       final allDevices = <AGVDevice>[];
       for (final deviceList in results) {
@@ -117,12 +117,11 @@ class NetworkDiscoveryService {
       }
 
       _devices = _removeDuplicateDevices(allDevices);
-      
+
       print('✅ Discovery complete. Found ${_devices.length} devices');
       _discoveredDevicesController.add(_devices);
-      
-      return _devices;
 
+      return _devices;
     } catch (e) {
       print('❌ Discovery error: $e');
       return [];
@@ -134,17 +133,17 @@ class NetworkDiscoveryService {
   // Method 1: Check known AGV IPs
   Future<List<AGVDevice>> _discoverKnownIPs(List<int> ports) async {
     print('🎯 Checking known AGV IPs...');
-    
+
     // Add your known AGV IPs here
     final knownIPs = [
-      '192.168.0.84',  // Your current AGV
-      '192.168.1.100',   // Common AGV IP
-      '192.168.0.100',   // Common AGV IP
-      '10.0.0.100',      // Common AGV IP
+      '192.168.0.63', // Current backend IP (confirmed working)
+      '192.168.0.84', // Your current AGV
+      '192.168.0.100', // Common AGV IP
+      '10.0.0.100', // Common AGV IP
     ];
 
     final devices = <AGVDevice>[];
-    
+
     for (final ip in knownIPs) {
       for (final port in ports) {
         try {
@@ -167,9 +166,9 @@ class NetworkDiscoveryService {
   // Method 2: mDNS Discovery (Fixed)
   Future<List<AGVDevice>> _discoverViaMDNS(Duration timeout) async {
     print('🔍 Starting mDNS discovery...');
-    
+
     final devices = <AGVDevice>[];
-    
+
     try {
       final MDnsClient client = MDnsClient();
       await client.start();
@@ -191,7 +190,6 @@ class NetworkDiscoveryService {
 
       client.stop();
       print('✅ mDNS discovery completed. Found ${devices.length} devices');
-
     } catch (e) {
       print('❌ mDNS discovery failed: $e');
     }
@@ -199,28 +197,30 @@ class NetworkDiscoveryService {
     return devices;
   }
 
-  Future<void> _lookupMDNSService(MDnsClient client, String service, List<AGVDevice> devices) async {
+  Future<void> _lookupMDNSService(
+      MDnsClient client, String service, List<AGVDevice> devices) async {
     try {
-      await for (final PtrResourceRecord ptr in client.lookup<PtrResourceRecord>(
+      await for (final PtrResourceRecord ptr
+          in client.lookup<PtrResourceRecord>(
         ResourceRecordQuery.serverPointer(service),
       )) {
         final serviceName = ptr.domainName;
-        
+
         // Get SRV record for port and target
-        await for (final SrvResourceRecord srv in client.lookup<SrvResourceRecord>(
+        await for (final SrvResourceRecord srv
+            in client.lookup<SrvResourceRecord>(
           ResourceRecordQuery.service(serviceName),
         )) {
           // Get A record for IP address
-          await for (final IPAddressResourceRecord a in client.lookup<IPAddressResourceRecord>(
+          await for (final IPAddressResourceRecord a
+              in client.lookup<IPAddressResourceRecord>(
             ResourceRecordQuery.addressIPv4(srv.target),
           )) {
             try {
-              final device = await _identifyAGVDevice(
-                a.address.address, 
-                srv.port, 
-                'mdns'
-              );
-              if (device != null && !devices.any((d) => d.ipAddress == device.ipAddress)) {
+              final device =
+                  await _identifyAGVDevice(a.address.address, srv.port, 'mdns');
+              if (device != null &&
+                  !devices.any((d) => d.ipAddress == device.ipAddress)) {
                 devices.add(device);
                 print('✅ Found mDNS AGV: ${device.name}');
               }
@@ -236,15 +236,16 @@ class NetworkDiscoveryService {
   }
 
   // Method 3: Enhanced Network Scan
-  Future<List<AGVDevice>> _discoverViaNetworkScan(String subnet, List<int> ports, Duration timeout) async {
+  Future<List<AGVDevice>> _discoverViaNetworkScan(
+      String subnet, List<int> ports, Duration timeout) async {
     print('🔍 Starting network scan on $subnet.x...');
-    
+
     final devices = <AGVDevice>[];
     final baseIP = subnet.split('.').take(3).join('.');
-    
+
     // Scan common AGV IP ranges
     final scanRanges = [
-      {'start': 70, 'end': 90},   // Common AGV range
+      {'start': 70, 'end': 90}, // Common AGV range
       {'start': 100, 'end': 120}, // Common device range
       {'start': 200, 'end': 210}, // High range
     ];
@@ -254,14 +255,14 @@ class NetworkDiscoveryService {
     for (final range in scanRanges) {
       for (int i = range['start']!; i <= range['end']!; i++) {
         final ip = '$baseIP.$i';
-        
+
         scanTasks.add(_scanIPForAGV(ip, ports, devices));
-        
+
         // Batch processing to avoid overwhelming the network
         if (scanTasks.length >= 10) {
           await Future.wait(scanTasks, eagerError: false);
           scanTasks.clear();
-          
+
           // Small delay between batches
           await Future.delayed(Duration(milliseconds: 100));
         }
@@ -277,12 +278,14 @@ class NetworkDiscoveryService {
     return devices;
   }
 
-  Future<void> _scanIPForAGV(String ip, List<int> ports, List<AGVDevice> devices) async {
+  Future<void> _scanIPForAGV(
+      String ip, List<int> ports, List<AGVDevice> devices) async {
     for (final port in ports) {
       try {
         if (await _isPortOpen(ip, port, timeout: Duration(seconds: 1))) {
           final device = await _identifyAGVDevice(ip, port, 'network_scan');
-          if (device != null && !devices.any((d) => d.ipAddress == device.ipAddress)) {
+          if (device != null &&
+              !devices.any((d) => d.ipAddress == device.ipAddress)) {
             devices.add(device);
             print('✅ Found network AGV: ${device.name} at $ip:$port');
           }
@@ -296,9 +299,9 @@ class NetworkDiscoveryService {
   // Method 4: UDP Broadcast Discovery
   Future<List<AGVDevice>> _discoverViaBroadcast(Duration timeout) async {
     print('🔍 Starting UDP broadcast discovery...');
-    
+
     final devices = <AGVDevice>[];
-    
+
     try {
       final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
       socket.broadcastEnabled = true;
@@ -327,7 +330,7 @@ class NetworkDiscoveryService {
             try {
               final response = utf8.decode(datagram.data);
               final data = json.decode(response);
-              
+
               if (data['type'] == 'agv_response') {
                 final device = AGVDevice(
                   id: data['id'] ?? 'unknown',
@@ -335,10 +338,11 @@ class NetworkDiscoveryService {
                   ipAddress: datagram.address.address,
                   port: data['port'] ?? 3000,
                   discoveryMethod: 'udp_broadcast',
-                  services: List<String>.from(data['services'] ?? ['broadcast']),
+                  services:
+                      List<String>.from(data['services'] ?? ['broadcast']),
                   metadata: data,
                 );
-                
+
                 if (!devices.any((d) => d.ipAddress == device.ipAddress)) {
                   devices.add(device);
                   print('✅ Found broadcast AGV: ${device.name}');
@@ -361,7 +365,6 @@ class NetworkDiscoveryService {
       await responseCompleter.future;
       subscription.cancel();
       socket.close();
-
     } catch (e) {
       print('❌ UDP broadcast discovery failed: $e');
     }
@@ -371,7 +374,8 @@ class NetworkDiscoveryService {
   }
 
   // AGV Device Identification
-  Future<AGVDevice?> _identifyAGVDevice(String ip, int port, String discoveryMethod) async {
+  Future<AGVDevice?> _identifyAGVDevice(
+      String ip, int port, String discoveryMethod) async {
     try {
       // Try to get AGV info via HTTP
       final response = await http.get(
@@ -382,13 +386,12 @@ class NetworkDiscoveryService {
       if (response.statusCode == 200) {
         try {
           final data = json.decode(response.body);
-          
+
           // Check if this looks like an AGV API
-          if (data['success'] == true || 
+          if (data['success'] == true ||
               data.toString().toLowerCase().contains('agv') ||
               data.toString().toLowerCase().contains('fleet') ||
               data.toString().toLowerCase().contains('robot')) {
-            
             return AGVDevice(
               id: data['data']?['deviceId'] ?? 'agv_${ip.replaceAll('.', '_')}',
               name: data['data']?['name'] ?? 'AGV at $ip',
@@ -431,7 +434,6 @@ class NetworkDiscoveryService {
           metadata: {'response_code': response.statusCode},
         );
       }
-
     } catch (e) {
       // Check if port is open but no HTTP service
       if (await _isPortOpen(ip, port, timeout: Duration(seconds: 1))) {
@@ -475,8 +477,8 @@ class NetworkDiscoveryService {
   Future<bool> _isPortOpen(String ip, int port, {Duration? timeout}) async {
     try {
       final socket = await Socket.connect(
-        ip, 
-        port, 
+        ip,
+        port,
         timeout: timeout ?? Duration(seconds: 2),
       );
       socket.destroy();
@@ -489,7 +491,7 @@ class NetworkDiscoveryService {
   List<AGVDevice> _removeDuplicateDevices(List<AGVDevice> devices) {
     final seen = <String>{};
     final unique = <AGVDevice>[];
-    
+
     for (final device in devices) {
       final key = '${device.ipAddress}:${device.port}';
       if (!seen.contains(key)) {
@@ -497,7 +499,7 @@ class NetworkDiscoveryService {
         unique.add(device);
       }
     }
-    
+
     return unique;
   }
 

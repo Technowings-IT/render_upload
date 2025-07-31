@@ -427,13 +427,15 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         if (response['success'] == true && response['data'] != null) {
           dynamic dataSource = response['data'];
           if (dataSource is List) {
-            _batteryHistory[deviceId] = dataSource.map<Map<String, dynamic>>((item) => {
+            _batteryHistory[deviceId] = dataSource
+                .map<Map<String, dynamic>>((item) => {
                       'timestamp': DateTime.parse(item['timestamp']),
                       'voltage': item['voltage']?.toDouble() ?? 0.0,
                       'percentage': item['percentage']?.toDouble() ?? 0.0,
                       'current': item['current']?.toDouble() ?? 0.0,
                       'temperature': item['temperature']?.toDouble() ?? 25.0,
-                    }).toList();
+                    })
+                .toList();
           }
         }
       }
@@ -452,7 +454,8 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         if (response['success'] == true && response['data'] != null) {
           dynamic dataSource = response['data'];
           if (dataSource is List) {
-            _orderHistory[deviceId] = dataSource.map<Map<String, dynamic>>((item) => {
+            _orderHistory[deviceId] = dataSource
+                .map<Map<String, dynamic>>((item) => {
                       'id': item['id'] ?? 'unknown',
                       'name': item['name'] ?? 'Unnamed Order',
                       'createdAt': DateTime.parse(item['createdAt']),
@@ -461,7 +464,8 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
                       'distance': item['distance']?.toDouble() ?? 0.0,
                       'waypoints': item['waypoints'] ?? 0,
                       'status': item['status'] ?? 'completed',
-                    }).toList();
+                    })
+                .toList();
           }
         }
       }
@@ -494,23 +498,25 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         _selectedTimeRange,
       );
 
-        if (response['success'] == true && response['data'] != null) {
-          // Handle different response formats
-          dynamic dataSource = response['data'];
-          if (dataSource is Map && dataSource.containsKey('recentEvents')) {
-            dataSource = dataSource['recentEvents'];
-          }
-          
-          if (dataSource is List) {
-            _systemEvents = dataSource.map<Map<String, dynamic>>((item) => {
-                      'timestamp': DateTime.parse(item['timestamp']),
-                      'type': item['type'] ?? 'info',
-                      'message': item['message'] ?? 'Unknown event',
-                      'deviceId': item['deviceId'] ?? 'unknown',
-                      'severity': item['severity'] ?? 'info',
-                    }).toList();
-          }
+      if (response['success'] == true && response['data'] != null) {
+        // Handle different response formats
+        dynamic dataSource = response['data'];
+        if (dataSource is Map && dataSource.containsKey('recentEvents')) {
+          dataSource = dataSource['recentEvents'];
         }
+
+        if (dataSource is List) {
+          _systemEvents = dataSource
+              .map<Map<String, dynamic>>((item) => {
+                    'timestamp': DateTime.parse(item['timestamp']),
+                    'type': item['type'] ?? 'info',
+                    'message': item['message'] ?? 'Unknown event',
+                    'deviceId': item['deviceId'] ?? 'unknown',
+                    'severity': item['severity'] ?? 'info',
+                  })
+              .toList();
+        }
+      }
     } catch (e) {
       print('❌ Error loading system events: $e');
     }
@@ -526,11 +532,13 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         if (response['success'] == true && response['data'] != null) {
           dynamic dataSource = response['data'];
           if (dataSource is List) {
-            _velocityHistory[deviceId] = dataSource.map<Map<String, dynamic>>((item) => {
+            _velocityHistory[deviceId] = dataSource
+                .map<Map<String, dynamic>>((item) => {
                       'timestamp': DateTime.parse(item['timestamp']),
                       'linear': item['linear']?.toDouble() ?? 0.0,
                       'angular': item['angular']?.toDouble() ?? 0.0,
-                    }).toList();
+                    })
+                .toList();
           }
         }
       }
@@ -1457,6 +1465,34 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
           suffix: '%',
         ),
         RealTimeMetricCard(
+          title: 'Total Distance',
+          value: _getTotalDistance(),
+          icon: Icons.route,
+          color: AppColors.primary,
+          suffix: 'M',
+        ),
+        RealTimeMetricCard(
+          title: 'Est. Time Left',
+          value: _getEstimatedTimeLeft(),
+          icon: Icons.access_time,
+          color: AppColors.warning,
+          suffix: 'MIN',
+        ),
+        RealTimeMetricCard(
+          title: 'Nav Time',
+          value: _getNavigationTime(),
+          icon: Icons.navigation,
+          color: Colors.indigo,
+          suffix: 'MIN',
+        ),
+        RealTimeMetricCard(
+          title: 'Device Recovery',
+          value: _getDeviceRecoveryCount(),
+          icon: Icons.healing,
+          color: Colors.orange,
+          suffix: 'EVENTS',
+        ),
+        RealTimeMetricCard(
           title: 'Active Orders',
           value: _getActiveOrdersCount(),
           icon: Icons.assignment,
@@ -1633,6 +1669,44 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         allHistory.fold(0.0, (sum, nav) => sum + nav['navigation_time']) /
             allHistory.length;
     return '${avgTime.toStringAsFixed(0)}s';
+  }
+
+  String _getEstimatedTimeLeft() {
+    final allHistory =
+        _navigationHistory.values.expand((list) => list).toList();
+    if (allHistory.isEmpty) return '0';
+
+    final avgEstTime = allHistory
+        .map((nav) => nav['estimated_time_remaining'] as double? ?? 0.0)
+        .where((time) => time > 0)
+        .fold(0.0, (sum, time) => sum + time);
+
+    if (allHistory.isEmpty) return '0';
+    return '${(avgEstTime / allHistory.length / 60).toStringAsFixed(0)}'; // Convert to minutes
+  }
+
+  String _getNavigationTime() {
+    final allHistory =
+        _navigationHistory.values.expand((list) => list).toList();
+    if (allHistory.isEmpty) return '0';
+
+    final totalNavTime = allHistory
+        .map((nav) => nav['navigation_time'] as double? ?? 0.0)
+        .fold(0.0, (sum, time) => sum + time);
+
+    return '${(totalNavTime / 60).toStringAsFixed(0)}'; // Convert to minutes
+  }
+
+  String _getDeviceRecoveryCount() {
+    final recoveryEvents = _systemEvents
+        .where((event) =>
+            event['message'].toString().toLowerCase().contains('recovery') ||
+            event['message'].toString().toLowerCase().contains('reconnect') ||
+            event['message'].toString().toLowerCase().contains('error') ||
+            event['type'].toString().toLowerCase().contains('recovery'))
+        .length;
+
+    return recoveryEvents.toString();
   }
 
   String _getTimeRangeLabel() {
@@ -2231,7 +2305,9 @@ class NavigationTimelinePainter extends CustomPainter {
 
     final path = Path();
     final maxDistance = data.fold(
-        0.0, (max, nav) => math.max(max, nav['distance_remaining'] as double? ?? 0.0));
+        0.0,
+        (max, nav) =>
+            math.max(max, nav['distance_remaining'] as double? ?? 0.0));
 
     if (maxDistance == 0) return;
 

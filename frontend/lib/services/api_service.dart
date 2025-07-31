@@ -77,6 +77,7 @@ class ApiService {
       print('📡 Scanning subnet: $subnet.x for AGV backends');
 
       final commonIPs = [
+        '$subnet.63', // Current working backend IP
         '$subnet.79',
         '$subnet.136',
         '$subnet.100',

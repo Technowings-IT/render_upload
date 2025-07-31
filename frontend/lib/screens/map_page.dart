@@ -29,6 +29,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   late StreamSubscription _realTimeSubscription;
   late StreamSubscription _mapEventsSubscription;
   late StreamSubscription _deviceEventsSubscription;
+  late StreamSubscription _connectionStateSubscription;
 
   MapData? _currentMap;
   List<Map<String, dynamic>> _connectedDevices = <Map<String, dynamic>>[];
@@ -84,18 +85,20 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
 
   void _updateDeviceType() {
     final screenWidth = MediaQuery.of(context).size.width;
-    setState(() {
-      if (screenWidth > 1200) {
-        _deviceType = DeviceType.desktop;
-        _showSidebar = true;
-      } else if (screenWidth > 768) {
-        _deviceType = DeviceType.tablet;
-        _showSidebar = true;
-      } else {
-        _deviceType = DeviceType.phone;
-        _showSidebar = false;
-      }
-    });
+    if (mounted) {
+      setState(() {
+        if (screenWidth > 1200) {
+          _deviceType = DeviceType.desktop;
+          _showSidebar = true;
+        } else if (screenWidth > 768) {
+          _deviceType = DeviceType.tablet;
+          _showSidebar = true;
+        } else {
+          _deviceType = DeviceType.phone;
+          _showSidebar = false;
+        }
+      });
+    }
   }
 
   @override
@@ -105,6 +108,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     _realTimeSubscription.cancel();
     _mapEventsSubscription.cancel();
     _deviceEventsSubscription.cancel();
+    _connectionStateSubscription.cancel();
     super.dispose();
   }
 
@@ -118,9 +122,11 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       return;
     }
 
-    setState(() {
-      _isWebSocketConnected = _webSocketService.isConnected;
-    });
+    if (mounted) {
+      setState(() {
+        _isWebSocketConnected = _webSocketService.isConnected;
+      });
+    }
 
     if (!_isWebSocketConnected) {
       final wsUrl = _apiService.getWebSocketUrl();
@@ -129,9 +135,11 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         return;
       }
       final connected = await _webSocketService.connect(wsUrl);
-      setState(() {
-        _isWebSocketConnected = connected;
-      });
+      if (mounted) {
+        setState(() {
+          _isWebSocketConnected = connected;
+        });
+      }
 
       if (!connected) {
         _showWarningSnackBar(
@@ -142,44 +150,51 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
 
   void _subscribeToUpdates() {
     _realTimeSubscription = _webSocketService.realTimeData.listen((data) {
-      if (data['deviceId'] == _selectedDeviceId) {
+      if (mounted && data['deviceId'] == _selectedDeviceId) {
         _handleRealTimeData(data);
       }
     });
 
     _mapEventsSubscription = _webSocketService.mapEvents.listen((data) {
-      if (data['deviceId'] == _selectedDeviceId) {
+      if (mounted && data['deviceId'] == _selectedDeviceId) {
         _handleMapEvent(data);
       }
     });
 
     _deviceEventsSubscription = _webSocketService.deviceEvents.listen((event) {
-      _loadConnectedDevices();
+      if (mounted) {
+        _loadConnectedDevices();
+      }
     });
 
-    _webSocketService.connectionState.listen((connected) {
-      setState(() {
-        _isWebSocketConnected = connected;
-      });
+    _connectionStateSubscription =
+        _webSocketService.connectionState.listen((connected) {
+      if (mounted) {
+        setState(() {
+          _isWebSocketConnected = connected;
+        });
+      }
     });
   }
 
   void _handleRealTimeData(Map<String, dynamic> data) {
-    setState(() {
-      switch (data['type']) {
-        case 'map_update':
-          // Handle real-time map data
-          break;
-        case 'odometry_update':
-        case 'position_update':
-          try {
-            // Handle odometry data
-          } catch (e) {
-            print('❌ Error parsing odometry data: $e');
-          }
-          break;
-      }
-    });
+    if (mounted) {
+      setState(() {
+        switch (data['type']) {
+          case 'map_update':
+            // Handle real-time map data
+            break;
+          case 'odometry_update':
+          case 'position_update':
+            try {
+              // Handle odometry data
+            } catch (e) {
+              print('❌ Error parsing odometry data: $e');
+            }
+            break;
+        }
+      });
+    }
   }
 
   void _handleMapEvent(Map<String, dynamic> data) {
@@ -197,20 +212,22 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   void _loadConnectedDevices() async {
     try {
       final devices = await _apiService.getDevices();
-      setState(() {
-        _connectedDevices = devices;
+      if (mounted) {
+        setState(() {
+          _connectedDevices = devices;
 
-        // Validate that selected device still exists in the list
-        if (_selectedDeviceId != null) {
-          final deviceExists = devices
-              .any((device) => device['id']?.toString() == _selectedDeviceId);
-          if (!deviceExists) {
-            _selectedDeviceId = null;
-            _currentMap = null;
-            _hasUnsavedChanges = false;
+          // Validate that selected device still exists in the list
+          if (_selectedDeviceId != null) {
+            final deviceExists = devices
+                .any((device) => device['id']?.toString() == _selectedDeviceId);
+            if (!deviceExists) {
+              _selectedDeviceId = null;
+              _currentMap = null;
+              _hasUnsavedChanges = false;
+            }
           }
-        }
-      });
+        });
+      }
     } catch (e) {
       print('❌ Error loading devices: $e');
       if (e is ApiException) {
@@ -223,9 +240,11 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       } else {
         _showErrorSnackBar('Failed to load devices: $e');
       }
-      setState(() {
-        _connectedDevices = <Map<String, dynamic>>[];
-      });
+      if (mounted) {
+        setState(() {
+          _connectedDevices = <Map<String, dynamic>>[];
+        });
+      }
     }
   }
 
@@ -272,11 +291,13 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   void _loadMapForDevice(String deviceId) async {
     print('🔄 Loading map for device: $deviceId');
 
-    setState(() {
-      _isLoading = true;
-      _error = null;
-      _rawApiResponse = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+        _rawApiResponse = null;
+      });
+    }
     _loadingAnimationController.repeat();
 
     try {
@@ -289,12 +310,14 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       if (response['success'] == true && response['mapData'] != null) {
         try {
           final mapData = MapData.fromJson(response['mapData']);
-          setState(() {
-            _currentMap = mapData;
-            _hasUnsavedChanges = false;
-            _loadSource = response['source'] ?? 'api';
-            _error = null;
-          });
+          if (mounted) {
+            setState(() {
+              _currentMap = mapData;
+              _hasUnsavedChanges = false;
+              _loadSource = response['source'] ?? 'api';
+              _error = null;
+            });
+          }
 
           _showInfoSnackBar(
               'Map loaded successfully with ${mapData.shapes.length} locations from ${_loadSource}');
@@ -305,55 +328,69 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           print(
               '📋 Raw map data structure: ${response['mapData']?.keys?.toList() ?? 'null'}');
 
-          setState(() {
-            _currentMap = _createEmptyMap(deviceId);
-            _hasUnsavedChanges = false;
-            _error = 'Failed to parse map data: $parseError';
-            _loadSource = 'empty_fallback';
-          });
+          if (mounted) {
+            setState(() {
+              _currentMap = _createEmptyMap(deviceId);
+              _hasUnsavedChanges = false;
+              _error = 'Failed to parse map data: $parseError';
+              _loadSource = 'empty_fallback';
+            });
+          }
           _showWarningSnackBar('Map data corrupted. Created new empty map.');
         }
       } else {
-        setState(() {
-          _currentMap = _createEmptyMap(deviceId);
-          _hasUnsavedChanges = false;
-          _error = response['error'] ?? 'No map data available';
-          _loadSource = 'empty_created';
-        });
+        if (mounted) {
+          setState(() {
+            _currentMap = _createEmptyMap(deviceId);
+            _hasUnsavedChanges = false;
+            _error = response['error'] ?? 'No map data available';
+            _loadSource = 'empty_created';
+          });
+        }
         _showInfoSnackBar('No existing map found. Created new empty map.');
       }
     } catch (e) {
       print('❌ Error loading map: $e');
-      setState(() {
-        _error = 'Failed to load map data: $e';
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load map data: $e';
+        });
+      }
 
       if (e is ApiException) {
         if (e.isNotFound) {
-          setState(() {
-            _currentMap = _createEmptyMap(deviceId);
-            _hasUnsavedChanges = false;
-            _loadSource = 'empty_not_found';
-          });
+          if (mounted) {
+            setState(() {
+              _currentMap = _createEmptyMap(deviceId);
+              _hasUnsavedChanges = false;
+              _loadSource = 'empty_not_found';
+            });
+          }
           _showInfoSnackBar('No map found for device. Created new empty map.');
         } else {
           _showErrorSnackBar('Failed to load map: ${e.message}');
+          if (mounted) {
+            setState(() {
+              _currentMap = _createEmptyMap(deviceId);
+              _loadSource = 'empty_error';
+            });
+          }
+        }
+      } else {
+        _showErrorSnackBar('Failed to load map: $e');
+        if (mounted) {
           setState(() {
             _currentMap = _createEmptyMap(deviceId);
             _loadSource = 'empty_error';
           });
         }
-      } else {
-        _showErrorSnackBar('Failed to load map: $e');
-        setState(() {
-          _currentMap = _createEmptyMap(deviceId);
-          _loadSource = 'empty_error';
-        });
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
       _loadingAnimationController.stop();
     }
   }

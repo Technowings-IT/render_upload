@@ -255,7 +255,11 @@ async function getPerformanceAnalytics(deviceId, timeRange) {
             averageSpeed: parseFloat((velocityData.linear?.x || 0).toFixed(2)),
             maxSpeed: parseFloat((Math.random() * 2).toFixed(2)), // Mock data
             totalDistance: parseFloat((Math.random() * 1000).toFixed(2)), // Mock data in meters
-            pathEfficiency: parseFloat((85 + Math.random() * 10).toFixed(2)) // Mock efficiency percentage
+            pathEfficiency: parseFloat((85 + Math.random() * 10).toFixed(2)), // Mock efficiency percentage
+            estimatedTimeRemaining: parseFloat((Math.random() * 300 + 60).toFixed(0)), // Mock estimated time in seconds
+            navigationTime: parseFloat((Math.random() * 1800 + 300).toFixed(0)), // Mock navigation time in seconds
+            recoveryCount: Math.floor(Math.random() * 5), // Mock recovery events count
+            currentNavigationStatus: ['navigating', 'idle', 'paused'][Math.floor(Math.random() * 3)]
         },
         localization: {
             accuracy: parseFloat((95 + Math.random() * 5).toFixed(2)), // Mock accuracy percentage

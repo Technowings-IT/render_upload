@@ -1,0 +1,110 @@
+✅ Configuration validated successfully
+📡 Server will listen on: 0.0.0.0:3000
+🔌 WebSocket ping interval: 25000ms
+⏱️ Connection timeout: 180000ms
+🚗 Max speeds: 1m/s linear, 1.5rad/s angular
+✅ ROS2ScriptManager initialized successfully
+🚀 Initializing AGV Fleet Management System...
+📂 Initializing storage manager...
+📱 Loaded 1 devices
+📋 Loaded 0 orders for 0 devices
+⚠️ Invalid map data for device Piros, skipping
+⚠️ Invalid map data for device Piros_complete_map_Piros_1753246952266, skipping
+⚠️ Invalid map data for device Piros_index, skipping
+⚠️ Invalid map data for device piros, skipping
+⚠️ Invalid map data for device piros_complete_map_piros_1751435635469, skipping
+⚠️ Invalid map data for device piros_complete_map_piros_1751435680718, skipping
+⚠️ Invalid map data for device piros_complete_map_piros_1751438225636, skipping
+⚠️ Invalid map data for device piros_complete_map_piros_1751456549331, skipping
+⚠️ Invalid map data for device piros_complete_map_piros_1751456819374, skipping
+⚠️ Invalid map data for device piros_complete_map_piros_1751456889142, skipping
+⚠️ Invalid map data for device piros_complete_map_piros_1753166252034, skipping
+⚠️ Invalid map data for device piros_index, skipping
+🗺️ Loaded maps for 0 devices
+📂 All persistent data loaded
+✅ Storage Manager initialized
+✅ Storage manager initialized
+🤖 Initializing ROS2 connection...
+🔄 Initializing ROS2 connection (attempt 1/3)...
+✅ ROS2 context initialized
+✅ ROS2 node created: agv_fleet_backend_node
+✅ Publishers initialized with ROS node
+📤 Created publisher for topic: /cmd_vel_joystick (geometry_msgs/msg/Twist)
+📤 Created publisher for topic: /target_pose (geometry_msgs/msg/PoseStamped)
+✅ Essential publishers created
+✅ Subscribers initialized with ROS node for device: piros
+✅ ROS2 node spinning started
+📥 Subscribing to essential AGV topics for device: piros...
+🎯 Priority 1: Position tracking...
+📥 ✅ Created subscriber for topic: /amcl_pose [geometry_msgs/msg/PoseWithCovarianceStamped]
+✅ Successfully subscribed to AMCL topic: /amcl_pose
+🎯 Priority 2: Costmaps...
+📥 ✅ Created subscriber for topic: /global_costmap/costmap [nav_msgs/msg/OccupancyGrid]
+✅ Successfully subscribed to global costmap: /global_costmap/costmap
+📥 ✅ Created subscriber for topic: /local_costmap/costmap [nav_msgs/msg/OccupancyGrid]
+✅ Successfully subscribed to local costmap: /local_costmap/costmap
+🎯 Priority 3: Control feedback...
+📥 ✅ Created subscriber for topic: /cmd_vel [geometry_msgs/msg/Twist]
+✅ Successfully subscribed to velocity feedback: /cmd_vel [geometry_msgs/msg/Twist]
+🎯 Priority 4: Map...
+📥 ✅ Created subscriber for topic: /map [nav_msgs/msg/OccupancyGrid]
+✅ Successfully subscribed to map: /map
+🎯 Priority 5: Navigation progress (optional)...
+🧭 Attempting to subscribe to navigation feedback...
+📥 ✅ Created subscriber for topic: /goal_pose [geometry_msgs/msg/PoseStamped]
+✅ Successfully subscribed to navigation feedback: /goal_pose [geometry_msgs/msg/PoseStamped]
+📊 Attempting to subscribe to navigation status...
+📥 ✅ Created subscriber for topic: /move_base/status [actionlib_msgs/msg/GoalStatusArray]
+✅ Successfully subscribed to navigation status: /move_base/status [actionlib_msgs/msg/GoalStatusArray]
+🎯 Priority 6: Battery...
+📥 ✅ Created subscriber for topic: /battery_state [sensor_msgs/msg/BatteryState]
+✅ Successfully subscribed to battery: /battery_state
+✅ All topic subscriptions attempted for device: piros
+💡 Missing topics are normal - they depend on what ROS2 packages you have installed
+✅ ROS2 connection fully initialized
+✅ ROS2 connection established
+🔍 Starting ROS health monitor...
+✅ ROS health monitoring started (interval: 30000ms)
+🔍 ROS health monitor initialized
+✅ ROS health monitor started
+🔍 Testing ROS2 connectivity...
+📊 ROS2 connectivity: 0 required topics found
+🔌 Initializing WebSocket server...
+✅ WebSocket server initialized with enhanced stability
+✅ WebSocket server initialized
+📡 Initializing UDP discovery...
+✅ UDP discovery server started
+✅ AGV Fleet Management System initialized successfully
+💥 Uncaught Exception: Error: listen EADDRINUSE: address already in use 0.0.0.0:3000
+    at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+    at listenInCluster (node:net:1997:12)
+    at node:net:2206:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+
+📴 Received UNCAUGHT_EXCEPTION, starting graceful shutdown...
+🔍 Stopping ROS health monitor...
+🛑 ROS health monitoring stopped
+🧹 ROS health monitor cleaned up
+🤖 Cleaning up ROS2 Script Manager...
+🤖 ROS2Manager: Cleaning up ROS2 Script Manager...
+🤖 ROS2Manager: Cleaned up 0 temporary files
+🔄 Shutting down ROS2 connection...
+🧹 Cleaning up subscribers...
+✅ Subscribers cleanup complete
+⚠️ Error destroying publisher /cmd_vel_joystick: info.publisher.destroy is not a function
+⚠️ Error destroying publisher /target_pose: info.publisher.destroy is not a function
+🧹 Publishers cleaned up
+🗑️ ROS node destroyed and spinning state reset
+✅ ROS2 context shutdown
+✅ ROS2 connection shutdown complete
+🤖 ROS2 connection closed
+🔌 HTTP server closed
+🧹 Storage Manager cleanup completed
+💾 Storage manager cleaned up
+✅ Graceful shutdown completed

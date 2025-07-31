@@ -145,7 +145,7 @@ class _ControlPageState extends State<ControlPage>
 
     if (!_webSocketService.isConnected) {
       _webSocketService.connect(
-        'ws://192.168.0.55:3000',
+        'ws://192.168.0.63:3000',
         deviceId: widget.deviceId,
         deviceInfo: {
           'type': 'mobile_controller',
@@ -472,9 +472,8 @@ class _ControlPageState extends State<ControlPage>
               // Zoom in button
               _buildZoomControlButton(
                 icon: Icons.zoom_in,
-                onPressed: _mapZoomLevel < _maxZoom
-                    ? () => _handleMapZoom(0.1)
-                    : null,
+                onPressed:
+                    _mapZoomLevel < _maxZoom ? () => _handleMapZoom(0.1) : null,
               ),
               const SizedBox(height: 4),
 
@@ -1608,6 +1607,7 @@ class _ControlPageState extends State<ControlPage>
       floatingActionButton: FloatingActionButton(
         onPressed: _emergencyStop,
         backgroundColor: Colors.red,
+        heroTag: "emergency_stop",
         tooltip: 'Emergency Stop',
         child: const Icon(Icons.stop, color: Colors.white),
       ),
@@ -1848,13 +1848,13 @@ class _ControlPageState extends State<ControlPage>
   Widget _buildSimplifiedPhoneLayout() {
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
-    
+
     // 🔧 NEW: Dynamic map height based on zoom level
     final baseMapHeight = screenHeight * 0.55;
     final dynamicMapHeight = baseMapHeight * _mapZoomLevel;
     final maxMapHeight = screenHeight * 0.75; // Cap maximum height
     final finalMapHeight = math.min(dynamicMapHeight, maxMapHeight);
-    
+
     final joystickSize = math.min(screenWidth * 0.4, 180.0); // Compact joystick
 
     return Column(
@@ -1888,7 +1888,7 @@ class _ControlPageState extends State<ControlPage>
               children: [
                 _buildCompactSpeedControls(),
                 const SizedBox(height: 12),
-                
+
                 // 3. JOYSTICK - Centered and compact
                 Center(
                   child: Container(
@@ -1923,13 +1923,14 @@ class _ControlPageState extends State<ControlPage>
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 8),
-                
+
                 // Connection status indicator (minimal)
                 if (!_isConnected)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.red.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(16),
@@ -1999,9 +2000,9 @@ class _ControlPageState extends State<ControlPage>
                       _showAdvancedSettings = !_showAdvancedSettings;
                     });
                   },
-                  icon: Icon(_showAdvancedSettings
-                      ? Icons.expand_less
-                      : Icons.tune, size: 16),
+                  icon: Icon(
+                      _showAdvancedSettings ? Icons.expand_less : Icons.tune,
+                      size: 16),
                   label: Text(_showAdvancedSettings ? 'Hide' : 'Adjust',
                       style: const TextStyle(fontSize: 12)),
                 ),
@@ -2184,9 +2185,8 @@ class _ControlPageState extends State<ControlPage>
               // Zoom in button
               _buildZoomControlButton(
                 icon: Icons.zoom_in,
-                onPressed: _mapZoomLevel < _maxZoom
-                    ? () => _handleMapZoom(0.1)
-                    : null,
+                onPressed:
+                    _mapZoomLevel < _maxZoom ? () => _handleMapZoom(0.1) : null,
               ),
               const SizedBox(height: 4),
 
@@ -3376,14 +3376,13 @@ class _ControlPageState extends State<ControlPage>
             _buildScriptStatusChip(
                 'Robot', _scriptStatus['robot_control'] ?? 'stopped'),
             const SizedBox(width: 8),
-            _buildScriptStatusChip(
-                'SLAM', _scriptStatus['slam'] ?? 'stopped'),
+            _buildScriptStatusChip('SLAM', _scriptStatus['slam'] ?? 'stopped'),
             const SizedBox(width: 8),
             _buildScriptStatusChip(
                 'Nav', _scriptStatus['navigation'] ?? 'stopped'),
           ],
         ),
-        
+
         if (_scriptExecutionInProgress) ...[
           const SizedBox(height: 12),
           Container(
@@ -3419,7 +3418,7 @@ class _ControlPageState extends State<ControlPage>
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         const SizedBox(height: 12),
-        
+
         // Control Buttons
         _buildMappingControlButtons(),
       ],
@@ -3468,14 +3467,11 @@ class _ControlPageState extends State<ControlPage>
             _buildSaveStatusChip(
                 'Trail', _isTrailSaveable(), _robotTrail.length),
             const SizedBox(width: 8),
-            _buildSaveStatusChip('Map', _isMapSaveable(),
-                _currentMapData?.shapes.length ?? 0),
-            const SizedBox(width: 8),
             _buildSaveStatusChip(
-                'Complete',
-                _isCompleteMappingSaveable(),
-                (_robotTrail.length +
-                    (_currentMapData?.shapes.length ?? 0))),
+                'Map', _isMapSaveable(), _currentMapData?.shapes.length ?? 0),
+            const SizedBox(width: 8),
+            _buildSaveStatusChip('Complete', _isCompleteMappingSaveable(),
+                (_robotTrail.length + (_currentMapData?.shapes.length ?? 0))),
           ],
         ),
         const SizedBox(height: 16),

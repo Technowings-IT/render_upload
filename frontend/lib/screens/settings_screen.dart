@@ -192,8 +192,8 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   void _performReset() {
     setState(() {
-      _serverUrlController.text = 'http://192.168.0.55:3000';
-      _websocketUrlController.text = 'ws://192.168.0.55:3000';
+      _serverUrlController.text = 'http://192.168.0.63:3000';
+      _websocketUrlController.text = 'ws://192.168.0.63:3000';
       _maxLinearSpeed = 1.0;
       _maxAngularSpeed = 2.0;
       _batteryLowThreshold = 20.0;

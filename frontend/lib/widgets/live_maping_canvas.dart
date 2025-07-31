@@ -1,6 +1,5 @@
 // widgets/enhanced_live_mapping_canvas.dart - FIXED Map Display with ROS Colors
 import 'package:flutter/material.dart';
-import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'dart:async';
 import '../models/map_data.dart';
@@ -96,19 +95,25 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     print('🗺️ === MAP DEBUG INFO ===');
     print('🗺️ mapData: ${widget.mapData != null ? "Available" : "NULL"}');
     if (widget.mapData != null) {
-      print('🗺️ Map size: ${widget.mapData!.info.width}x${widget.mapData!.info.height}');
+      print(
+          '🗺️ Map size: ${widget.mapData!.info.width}x${widget.mapData!.info.height}');
       print('🗺️ Map resolution: ${widget.mapData!.info.resolution}m/px');
-      print('🗺️ Map origin: (${widget.mapData!.info.origin.x}, ${widget.mapData!.info.origin.y})');
-      print('🗺️ Occupancy data length: ${widget.mapData!.occupancyData.length}');
-      print('🗺️ Expected length: ${widget.mapData!.info.width * widget.mapData!.info.height}');
+      print(
+          '🗺️ Map origin: (${widget.mapData!.info.origin.x}, ${widget.mapData!.info.origin.y})');
+      print(
+          '🗺️ Occupancy data length: ${widget.mapData!.occupancyData.length}');
+      print(
+          '🗺️ Expected length: ${widget.mapData!.info.width * widget.mapData!.info.height}');
     }
-    
-    print('🏠 globalCostmap: ${widget.globalCostmap != null ? "Available" : "NULL"}');
+
+    print(
+        '🏠 globalCostmap: ${widget.globalCostmap != null ? "Available" : "NULL"}');
     if (widget.globalCostmap != null) {
       print('🏠 Global costmap: ${widget.globalCostmap!['info']}');
     }
-    
-    print('🏠 localCostmap: ${widget.localCostmap != null ? "Available" : "NULL"}');
+
+    print(
+        '🏠 localCostmap: ${widget.localCostmap != null ? "Available" : "NULL"}');
     if (widget.localCostmap != null) {
       print('🏠 Local costmap: ${widget.localCostmap!['info']}');
     }
@@ -164,7 +169,8 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     if (!mounted) return false;
 
     final size = MediaQuery.of(context).size;
-    final robotScreenPos = _mapToScreenCoordinates(Offset(robotPos.x, robotPos.y));
+    final robotScreenPos =
+        _mapToScreenCoordinates(Offset(robotPos.x, robotPos.y));
 
     final margin = math.min(size.width, size.height) * 0.15;
     return robotScreenPos.dx < margin ||
@@ -203,7 +209,8 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     _transformationController.value = targetTransform;
     _lastAutoCenter = DateTime.now();
 
-    print('🎯 Immediate center on robot: (${robotPos.x.toStringAsFixed(2)}, ${robotPos.y.toStringAsFixed(2)})');
+    print(
+        '🎯 Immediate center on robot: (${robotPos.x.toStringAsFixed(2)}, ${robotPos.y.toStringAsFixed(2)})');
   }
 
   void _centerOnRobotSmooth() {
@@ -239,12 +246,14 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     _centeringAnimationController.forward();
     _lastAutoCenter = DateTime.now();
 
-    print('🎯 Smooth center on robot: (${robotPos.x.toStringAsFixed(2)}, ${robotPos.y.toStringAsFixed(2)})');
+    print(
+        '🎯 Smooth center on robot: (${robotPos.x.toStringAsFixed(2)}, ${robotPos.y.toStringAsFixed(2)})');
   }
 
   Offset _mapToScreenCoordinates(Offset mapPoint) {
     final transform = _transformationController.value;
-    final worldPoint = Offset(mapPoint.dx * _gridSpacing, -mapPoint.dy * _gridSpacing);
+    final worldPoint =
+        Offset(mapPoint.dx * _gridSpacing, -mapPoint.dy * _gridSpacing);
     return MatrixUtils.transformPoint(transform, worldPoint);
   }
 
@@ -357,7 +366,8 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                   borderRadius: BorderRadius.circular(25),
                   boxShadow: [
                     BoxShadow(
-                      color: (_autoCenter ? Colors.blue : Colors.grey).withOpacity(0.3),
+                      color: (_autoCenter ? Colors.blue : Colors.grey)
+                          .withOpacity(0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
@@ -367,11 +377,13 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                   mini: true,
                   backgroundColor: Colors.transparent,
                   elevation: 0,
+                  heroTag: "auto_center",
                   onPressed: () {
                     setState(() {
                       _autoCenter = !_autoCenter;
                     });
-                    if (_autoCenter && widget.currentOdometry?.position != null) {
+                    if (_autoCenter &&
+                        widget.currentOdometry?.position != null) {
                       _centerOnRobotSmooth();
                     }
                   },
@@ -419,12 +431,14 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                   mini: true,
                   backgroundColor: Colors.transparent,
                   elevation: 0,
+                  heroTag: "center_now",
                   onPressed: () {
                     if (widget.currentOdometry?.position != null) {
                       _centerOnRobotImmediate();
                     }
                   },
-                  child: const Icon(Icons.center_focus_strong, color: Colors.white),
+                  child: const Icon(Icons.center_focus_strong,
+                      color: Colors.white),
                   tooltip: 'Center Now',
                 ),
               ),
@@ -483,7 +497,10 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                   borderRadius: BorderRadius.circular(25),
                   boxShadow: [
                     BoxShadow(
-                      color: (_scale > _movementThreshold ? Colors.green : Colors.red).withOpacity(0.3),
+                      color: (_scale > _movementThreshold
+                              ? Colors.green
+                              : Colors.red)
+                          .withOpacity(0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
@@ -493,12 +510,15 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                   mini: true,
                   backgroundColor: Colors.transparent,
                   elevation: 0,
+                  heroTag: "movement_status",
                   onPressed: null,
                   child: Icon(
                     _scale > _movementThreshold ? Icons.pan_tool : Icons.lock,
                     color: Colors.white,
                   ),
-                  tooltip: _scale > _movementThreshold ? 'Movement: Enabled' : 'Movement: Locked',
+                  tooltip: _scale > _movementThreshold
+                      ? 'Movement: Enabled'
+                      : 'Movement: Locked',
                 ),
               ),
 
@@ -523,6 +543,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                   mini: true,
                   backgroundColor: Colors.transparent,
                   elevation: 0,
+                  heroTag: "reset_view",
                   onPressed: _resetView,
                   child: const Icon(Icons.refresh, color: Colors.white),
                   tooltip: 'Reset View',
@@ -546,7 +567,8 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                 ],
               ),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+              border:
+                  Border.all(color: Colors.white.withOpacity(0.2), width: 1),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.3),
@@ -565,11 +587,15 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: widget.mappingActive ? Colors.green : Colors.blue,
+                        color:
+                            widget.mappingActive ? Colors.green : Colors.blue,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: (widget.mappingActive ? Colors.green : Colors.blue).withOpacity(0.5),
+                            color: (widget.mappingActive
+                                    ? Colors.green
+                                    : Colors.blue)
+                                .withOpacity(0.5),
                             blurRadius: 4,
                             spreadRadius: 1,
                           ),
@@ -588,17 +614,21 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                   ],
                 ),
                 const SizedBox(height: 8),
-
                 _buildStatusRow('Auto Center', _autoCenter ? 'ON' : 'OFF',
                     _autoCenter ? Colors.green : Colors.grey),
-                _buildStatusRow('Movement', _scale > _movementThreshold ? 'ENABLED' : 'LOCKED',
+                _buildStatusRow(
+                    'Movement',
+                    _scale > _movementThreshold ? 'ENABLED' : 'LOCKED',
                     _scale > _movementThreshold ? Colors.green : Colors.red),
                 if (_isUserPanning)
                   _buildStatusRow('User Input', 'ACTIVE', Colors.orange),
-
-                _buildStatusRow('Trail', '${widget.robotTrail.length} points', Colors.orange),
+                _buildStatusRow('Trail', '${widget.robotTrail.length} points',
+                    Colors.orange),
                 if (widget.mapData != null)
-                  _buildStatusRow('Map', '${widget.mapData!.info.width}×${widget.mapData!.info.height}', Colors.cyan),
+                  _buildStatusRow(
+                      'Map',
+                      '${widget.mapData!.info.width}×${widget.mapData!.info.height}',
+                      Colors.cyan),
                 if (widget.globalCostmap != null)
                   _buildStatusRow(
                     'Global',
@@ -611,7 +641,8 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                     '${widget.localCostmap!['info']?['width'] ?? 'N/A'}×${widget.localCostmap!['info']?['height'] ?? 'N/A'}',
                     Colors.red,
                   ),
-                _buildStatusRow('Scale', '${_scale.toStringAsFixed(1)}×', Colors.grey),
+                _buildStatusRow(
+                    'Scale', '${_scale.toStringAsFixed(1)}×', Colors.grey),
                 if (widget.currentOdometry?.position != null)
                   _buildStatusRow(
                     'Position',
@@ -783,9 +814,6 @@ class ROSStyleLiveMapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final centerX = size.width / 2;
-    final centerY = size.height / 2;
-    
     // Draw subtle grid background
     _drawSubtleGrid(canvas, size);
 
@@ -855,7 +883,8 @@ class ROSStyleLiveMapPainter extends CustomPainter {
     final centerY = size.height / 2;
 
     canvas.drawLine(Offset(0, centerY), Offset(size.width, centerY), axisPaint);
-    canvas.drawLine(Offset(centerX, 0), Offset(centerX, size.height), axisPaint);
+    canvas.drawLine(
+        Offset(centerX, 0), Offset(centerX, size.height), axisPaint);
   }
 
   // ✅ FIXED: ROS-style occupancy grid with NO cell skipping
@@ -873,12 +902,12 @@ class ROSStyleLiveMapPainter extends CustomPainter {
 
     // ✅ ROS standard colors
     final rosColors = {
-      'free': Color(0xFF00FFFF),        // Cyan for free space (value 0)
-      'unknown': Color(0xFF808080),     // Grey for unknown space (value -1)  
-      'occupied': Color(0xFFFF00FF),    // Magenta for occupied space (value 100)
-      'lowProb': Color(0xFF40E0D0),     // Turquoise for low probability
-      'medProb': Color(0xFF9370DB),     // Medium violet for medium probability
-      'highProb': Color(0xFFDA70D6),    // Orchid for high probability
+      'free': Color(0xFF00FFFF), // Cyan for free space (value 0)
+      'unknown': Color(0xFF808080), // Grey for unknown space (value -1)
+      'occupied': Color(0xFFFF00FF), // Magenta for occupied space (value 100)
+      'lowProb': Color(0xFF40E0D0), // Turquoise for low probability
+      'medProb': Color(0xFF9370DB), // Medium violet for medium probability
+      'highProb': Color(0xFFDA70D6), // Orchid for high probability
     };
 
     int renderedCells = 0;
@@ -890,9 +919,9 @@ class ROSStyleLiveMapPainter extends CustomPainter {
         if (index >= mapData.occupancyData.length) continue;
 
         final value = mapData.occupancyData[index];
-        
+
         Color cellColor;
-        
+
         // ✅ ROS-style color mapping
         if (value == -1) {
           cellColor = rosColors['unknown']!; // Grey for unknown
@@ -902,13 +931,16 @@ class ROSStyleLiveMapPainter extends CustomPainter {
           cellColor = rosColors['occupied']!; // Magenta for occupied
         } else if (value < 30) {
           // Low probability occupied (turquoise blend)
-          cellColor = Color.lerp(rosColors['free']!, rosColors['lowProb']!, value / 30.0)!;
+          cellColor = Color.lerp(
+              rosColors['free']!, rosColors['lowProb']!, value / 30.0)!;
         } else if (value < 70) {
           // Medium probability occupied (violet blend)
-          cellColor = Color.lerp(rosColors['lowProb']!, rosColors['medProb']!, (value - 30) / 40.0)!;
+          cellColor = Color.lerp(rosColors['lowProb']!, rosColors['medProb']!,
+              (value - 30) / 40.0)!;
         } else {
           // High probability occupied (magenta blend)
-          cellColor = Color.lerp(rosColors['medProb']!, rosColors['occupied']!, (value - 70) / 30.0)!;
+          cellColor = Color.lerp(rosColors['medProb']!, rosColors['occupied']!,
+              (value - 70) / 30.0)!;
         }
 
         final paint = Paint()
@@ -916,8 +948,10 @@ class ROSStyleLiveMapPainter extends CustomPainter {
           ..style = PaintingStyle.fill;
 
         // ✅ Keep original coordinate system
-        final screenX = size.width / 2 + (origin.x + x * resolution) * _gridSpacing;
-        final screenY = size.height / 2 - (origin.y + y * resolution) * _gridSpacing;
+        final screenX =
+            size.width / 2 + (origin.x + x * resolution) * _gridSpacing;
+        final screenY =
+            size.height / 2 - (origin.y + y * resolution) * _gridSpacing;
 
         canvas.drawRect(
           Rect.fromLTWH(screenX, screenY, cellSize, cellSize),
@@ -927,12 +961,13 @@ class ROSStyleLiveMapPainter extends CustomPainter {
         renderedCells++;
       }
     }
-    
+
     print('🗺️ Rendered $renderedCells ROS-style occupancy cells');
   }
 
   // ✅ FIXED: ROS-style costmap with proper overlay colors
-  void _drawROSStyleCostmap(Canvas canvas, Size size, Map<String, dynamic> costmap, Color baseColor, String type) {
+  void _drawROSStyleCostmap(Canvas canvas, Size size,
+      Map<String, dynamic> costmap, Color baseColor, String type) {
     final info = costmap['info'];
     final data = costmap['data'] as List?;
 
@@ -954,23 +989,24 @@ class ROSStyleLiveMapPainter extends CustomPainter {
     final originX = origin['position']?['x'] as double? ?? 0.0;
     final originY = origin['position']?['y'] as double? ?? 0.0;
 
-    print('🏠 Rendering ROS-style $type costmap: ${width}x$height, resolution: $resolution, origin: ($originX, $originY)');
+    print(
+        '🏠 Rendering ROS-style $type costmap: ${width}x$height, resolution: $resolution, origin: ($originX, $originY)');
 
     final cellSize = resolution * _gridSpacing;
 
     // ✅ ROS-style costmap colors
     final rosCostmapColors = {
       'global': {
-        'low': Color(0x3300FF00),                      // Light green
-        'medium': Color(0x66FFFF00),                   // Yellow
-        'inscribed': Color(0x99FF8000),                // Orange
-        'lethal': Color(0xFFFF0000),                   // Red
+        'low': Color(0x3300FF00), // Light green
+        'medium': Color(0x66FFFF00), // Yellow
+        'inscribed': Color(0x99FF8000), // Orange
+        'lethal': Color(0xFFFF0000), // Red
       },
       'local': {
-        'low': Color(0x330080FF),                      // Light blue
-        'medium': Color(0x668000FF),                   // Purple
-        'inscribed': Color(0x99FF0080),                // Pink
-        'lethal': Color(0xFFFF0000),                   // Red
+        'low': Color(0x330080FF), // Light blue
+        'medium': Color(0x668000FF), // Purple
+        'inscribed': Color(0x99FF0080), // Pink
+        'lethal': Color(0xFFFF0000), // Red
       }
     };
 
@@ -988,7 +1024,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
         if (value == 0) continue; // Skip free space (transparent)
 
         Color cellColor;
-        
+
         // ✅ ROS costmap color mapping
         if (value >= 100) {
           cellColor = colors['lethal']!; // Lethal obstacle (red)
@@ -1008,18 +1044,20 @@ class ROSStyleLiveMapPainter extends CustomPainter {
           ..style = PaintingStyle.fill;
 
         // ✅ Keep original coordinate system
-        final screenX = size.width / 2 + (originX + x * resolution) * _gridSpacing;
-        final screenY = size.height / 2 - (originY + y * resolution) * _gridSpacing;
+        final screenX =
+            size.width / 2 + (originX + x * resolution) * _gridSpacing;
+        final screenY =
+            size.height / 2 - (originY + y * resolution) * _gridSpacing;
 
         canvas.drawRect(
           Rect.fromLTWH(screenX, screenY, cellSize, cellSize),
           paint,
         );
-        
+
         renderedCells++;
       }
     }
-    
+
     print('🏠 Rendered $renderedCells ROS-style $type costmap cells');
   }
 

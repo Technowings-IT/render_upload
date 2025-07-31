@@ -126,38 +126,46 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   void _loadSavedConnections() {
     setState(() {
-      _manualBackendIpController.text = '192.168.0.55';
-      _manualDeviceIpController.text = '192.168.0.93';
+      _manualBackendIpController.text = '192.168.0.63';
+      _manualDeviceIpController.text = '192.168.0.63';
     });
   }
 
   void _startAutoDiscovery() async {
-    setState(() {
-      _connectionStatus = 'Searching for AGV Fleet Backend...';
-    });
+    if (mounted) {
+      setState(() {
+        _connectionStatus = 'Searching for AGV Fleet Backend...';
+      });
+    }
 
     try {
       final backendIP = await _detectBackendIP();
 
       if (backendIP != null) {
-        setState(() {
-          _detectedBackendIP = backendIP;
-          _connectionStatus = 'Found backend at $backendIP';
-        });
+        if (mounted) {
+          setState(() {
+            _detectedBackendIP = backendIP;
+            _connectionStatus = 'Found backend at $backendIP';
+          });
+        }
 
         await _connectToDetectedBackend(backendIP);
       } else {
-        setState(() {
-          _connectionStatus =
-              'No AGV backend found - manual connection available';
-        });
+        if (mounted) {
+          setState(() {
+            _connectionStatus =
+                'No AGV backend found - manual connection available';
+          });
+        }
       }
 
       await _discoverAGVDevices();
     } catch (e) {
-      setState(() {
-        _connectionStatus = 'Auto-discovery failed: $e';
-      });
+      if (mounted) {
+        setState(() {
+          _connectionStatus = 'Auto-discovery failed: $e';
+        });
+      }
     }
   }
 
@@ -267,10 +275,12 @@ class _ConnectScreenState extends State<ConnectScreen>
       });
 
       if (wsConnected) {
-        setState(() {
-          _connectionStatus = 'Connected to AGV Fleet Backend';
-          _isWebSocketConnected = true;
-        });
+        if (mounted) {
+          setState(() {
+            _connectionStatus = 'Connected to AGV Fleet Backend';
+            _isWebSocketConnected = true;
+          });
+        }
 
         _showSuccessSnackBar('Auto-connected to AGV backend at $ip');
       } else {
@@ -278,16 +288,20 @@ class _ConnectScreenState extends State<ConnectScreen>
       }
     } catch (e) {
       print('❌ Error connecting to detected backend: $e');
-      setState(() {
-        _connectionStatus = 'Connection failed: $e';
-      });
+      if (mounted) {
+        setState(() {
+          _connectionStatus = 'Connection failed: $e';
+        });
+      }
     }
   }
 
   Future<void> _discoverAGVDevices() async {
-    setState(() {
-      _isDiscovering = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isDiscovering = true;
+      });
+    }
 
     try {
       final devices = await _discoveryService.discoverDevices(
@@ -297,17 +311,21 @@ class _ConnectScreenState extends State<ConnectScreen>
         useBroadcast: false,
       );
 
-      setState(() {
-        _discoveredDevices = devices;
-      });
+      if (mounted) {
+        setState(() {
+          _discoveredDevices = devices;
+        });
+      }
 
       print('🔍 Discovered ${devices.length} AGV devices');
     } catch (e) {
       print('❌ Device discovery failed: $e');
     } finally {
-      setState(() {
-        _isDiscovering = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isDiscovering = false;
+        });
+      }
     }
   }
 
@@ -1049,7 +1067,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                       decoration: InputDecoration(
                         labelText: 'Backend IP Address',
                         prefixIcon: Icon(Icons.computer, color: Colors.purple),
-                        hintText: '192.168.0.55',
+                        hintText: '192.168.0.63',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -1241,7 +1259,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                   child: _buildEnhancedTextField(
                     controller: _manualDeviceIpController,
                     label: 'AGV IP Address',
-                    hint: '192.168.0.89',
+                    hint: '192.168.0.93',
                     icon: Icons.smart_toy,
                     color: Colors.orange,
                     keyboardType:

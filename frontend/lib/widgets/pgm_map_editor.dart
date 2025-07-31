@@ -1909,9 +1909,21 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
       await _saveMap();
 
       if (widget.deviceId != null) {
+        // First export the map to backend to ensure files exist
+        final mapName = 'edited_map_${DateTime.now().millisecondsSinceEpoch}';
+        final exportResponse = await _apiService.exportMapToPGM(
+          deviceId: widget.deviceId!,
+          mapName: mapName,
+        );
+
+        if (exportResponse['success'] != true) {
+          throw Exception('Failed to export map to backend');
+        }
+
+        // Now deploy the exported map
         final response = await _apiService.deployMapToRaspberryPi(
           deviceId: widget.deviceId!,
-          mapName: 'edited_map_${DateTime.now().millisecondsSinceEpoch}',
+          mapName: mapName,
           autoLoad: true,
         );
 

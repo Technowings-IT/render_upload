@@ -1128,7 +1128,7 @@ router.post('/devices/:deviceId/scripts/start-robot', validateDevice, async (req
         console.log(`🤖 Starting robot control for device: ${req.deviceId}`);
         
         // Get ROS2 script manager instance
-        const scriptManager = global.ros2ScriptManager || require('../ros/utils/ros2ScriptManager');
+        const scriptManager = global.ros2ScriptManager || new (require('../ros/utils/ros2ScriptManager'))();
         
         const result = await scriptManager.startRobotControl();
         
@@ -1176,7 +1176,7 @@ router.post('/devices/:deviceId/scripts/start-slam', validateDevice, async (req,
         const { mapName, useSimTime } = req.body;
         console.log(`🗺️ Starting SLAM for device: ${req.deviceId}`);
         
-        const scriptManager = global.ros2ScriptManager || require('../ros/utils/ros2ScriptManager');
+        const scriptManager = global.ros2ScriptManager || new (require('../ros/utils/ros2ScriptManager'))();
         
         const options = {
             mapName: mapName || `map_${req.deviceId}_${Date.now()}`,
@@ -1230,7 +1230,7 @@ router.post('/devices/:deviceId/scripts/stop/:scriptType', validateDevice, async
         const { scriptType } = req.params;
         console.log(`🛑 Stopping ${scriptType} for device: ${req.deviceId}`);
         
-        const scriptManager = global.ros2ScriptManager || require('../ros/utils/ros2ScriptManager');
+        const scriptManager = global.ros2ScriptManager || new (require('../ros/utils/ros2ScriptManager'))();
         
         let result;
         if (scriptType === 'all') {
@@ -1269,7 +1269,7 @@ router.post('/devices/:deviceId/scripts/stop/:scriptType', validateDevice, async
 // Get script status
 router.get('/devices/:deviceId/scripts/status', validateDevice, async (req, res) => {
     try {
-        const scriptManager = global.ros2ScriptManager || require('../ros/utils/ros2ScriptManager');
+        const scriptManager = global.ros2ScriptManager || new (require('../ros/utils/ros2ScriptManager'))();
         const status = scriptManager.getDetailedStatus();
         
         res.json({

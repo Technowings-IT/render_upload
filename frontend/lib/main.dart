@@ -18,7 +18,8 @@ import 'services/api_service.dart';
 // Configuration constants - Update these for your setup
 class AppConfig {
   // Your AGV backend server configuration
-  static const String DEFAULT_SERVER_IP = '192.168.0.93'; // Your AGV IP
+  static const String DEFAULT_SERVER_IP =
+      '192.168.0.63'; // Updated to actual machine IP
   static const int DEFAULT_SERVER_PORT = 3000; // Backend port
   static const int AGV_SSH_PORT = 22; // AGV SSH port (mentioned by user)
 
@@ -48,7 +49,21 @@ void main() async {
   await themeService.loadTheme();
 
   // Initialize API service with configuration
+  print('🔧 Initializing API Service with URL: ${AppConfig.serverUrl}');
   ApiService().initialize(AppConfig.serverUrl);
+
+  // Force WebSocket service to use correct URL
+  print(
+      '🔧 Initializing WebSocket Service with URL: ${AppConfig.websocketUrl}');
+
+  // Test backend connection
+  try {
+    final connectionTest = await ApiService().testConnection();
+    print(
+        '🔗 Backend connection test: ${connectionTest ? "✅ SUCCESS" : "❌ FAILED"}');
+  } catch (e) {
+    print('❌ Backend connection error: $e');
+  }
 
   runApp(
     ChangeNotifierProvider.value(
@@ -240,7 +255,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
             _isInitializing = false;
             _connectionStatus = 'Connection failed';
           });
-          _showConnectionError();
+          // _showConnectionError(); // Commented out to remove annoying popup
         }
       }
     }
@@ -279,63 +294,6 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
     _webSocketService.errors.listen((error) {
       _showErrorSnackBar('WebSocket Error: $error');
     });
-  }
-
-  void _showConnectionError() {
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.wifi_off, color: Colors.red),
-              SizedBox(width: 8),
-              Text('Connection Error'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Unable to connect to the AGV fleet server.'),
-              SizedBox(height: 16),
-              Text('Configuration:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              Text('• Server: ${AppConfig.serverUrl}'),
-              Text('• AGV IP: ${AppConfig.DEFAULT_SERVER_IP}'),
-              Text('• AGV SSH Port: ${AppConfig.AGV_SSH_PORT}'),
-              SizedBox(height: 16),
-              Text('Please check:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              Text('• AGV backend server is running'),
-              Text('• Network connectivity to AGV'),
-              Text('• Firewall settings'),
-              Text('• IP address configuration'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _connectWithRetry(); // Retry
-              },
-              child: Text('Retry'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // Continue in offline mode
-                setState(() {
-                  _connectionStatus = 'Offline mode';
-                });
-              },
-              child: Text('Continue Offline'),
-            ),
-          ],
-        ),
-      );
-    }
   }
 
   void _showWebSocketWarning() {
