@@ -10,6 +10,7 @@ import 'profile_screen.dart';
 import 'map_page.dart'; // Your existing map page
 import 'control_page.dart';
 import '../widgets/order_creation_dialog.dart';
+import '../widgets/interactive_map_order_creator.dart';
 
 // ✅ ADD this extension for string capitalization
 extension StringCapitalization on String {
@@ -83,15 +84,20 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   void _initializeDashboard() async {
     try {
+      // Load devices first
+      await _loadDevices();
+
+      // Then load saved maps cache
+      await _loadAllSavedMaps();
+
+      // Then try to load live maps (with fallback to saved maps)
+      await _loadMapsForAllDevices();
+
+      // Finally load orders and stats
       await Future.wait([
-        _loadDevices(),
-        _loadMapsForAllDevices(),
         _loadOrdersForAllDevices(),
         _loadSystemStats(),
       ]);
-      
-      // Load saved maps after devices are loaded
-      await _loadAllSavedMaps();
     } catch (e) {
       print('❌ Error initializing dashboard: $e');
       _showErrorSnackBar('Failed to load dashboard data: $e');
@@ -179,18 +185,110 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Future<void> _loadMapsForAllDevices() async {
-    for (final device in _connectedDevices) {
-      try {
-        final response = await _apiService.getMapData(device['id']);
-        if (response['success'] == true && response['mapData'] != null) {
-          final mapData = MapData.fromJson(response['mapData']);
-          setState(() {
-            _availableMaps[device['id']] = mapData;
-          });
+    try {
+      print('🔍 Loading maps for all devices...');
+      print('🔗 API Service initialized: ${_apiService.toString()}');
+      print('🔗 Connected devices count: ${_connectedDevices.length}');
+
+      for (final device in _connectedDevices) {
+        try {
+          print(
+              '🗺️ Attempting to load map for device: ${device['name']}(${device['id']})');
+
+          // First try to get live map data
+          final response = await _apiService.getMapData(device['id']);
+          print('📥 API Response success: ${response['success']}');
+          print('📥 API Response keys: ${response.keys.join(', ')}');
+
+          if (response['success'] == true && response['mapData'] != null) {
+            print('✅ Creating MapData object from response...');
+            final mapData = MapData.fromJson(response['mapData']);
+            setState(() {
+              _availableMaps[device['id']] = mapData;
+              // Also store by device name for compatibility
+              if (device['name'] != null && device['name'] != device['id']) {
+                _availableMaps[device['name']] = mapData;
+              }
+            });
+            print(
+                '✅ Live map loaded and stored for: ${device['id']} and ${device['name']}');
+          } else {
+            print(
+                '⚠️ No live map data found for ${device['id']}, checking saved maps...');
+            // If no live map, try to create from saved maps
+            await _loadMapFromSavedMaps(device);
+          }
+        } catch (e, stackTrace) {
+          print('❌ Error loading map for ${device['id']}: $e');
+          print('📍 Stack trace: $stackTrace');
+          // Try fallback to saved maps
+          await _loadMapFromSavedMaps(device);
         }
-      } catch (e) {
-        print('❌ Error loading map for ${device['id']}: $e');
       }
+      print('🔍 Final available maps: ${_availableMaps.keys.join(', ')}');
+    } catch (e, stackTrace) {
+      print('❌ FATAL Error in _loadMapsForAllDevices: $e');
+      print('📍 FATAL Stack trace: $stackTrace');
+    }
+  }
+
+  /// Load map from saved maps data as fallback
+  Future<void> _loadMapFromSavedMaps(Map<String, dynamic> device) async {
+    try {
+      final deviceId = device['id'];
+      print('🔄 Attempting to load from saved maps for: $deviceId');
+
+      // Try to get saved maps for this device
+      final savedMaps = await _apiService.getSavedMaps(
+        deviceId,
+        includePreview: true,
+        sortBy: 'savedAt',
+        descending: true,
+      );
+
+      if (savedMaps.isNotEmpty) {
+        print('📋 Found ${savedMaps.length} saved maps for $deviceId');
+
+        // Use the most recent saved map to create a MapData object
+        final mostRecentMap = savedMaps.first;
+
+        // Create a basic MapData object from saved map metadata
+        final mockMapData = {
+          'name': mostRecentMap['name'] ?? 'saved_map',
+          'deviceId': deviceId,
+          'timestamp':
+              mostRecentMap['savedAt'] ?? DateTime.now().toIso8601String(),
+          'width': 100, // Default values since we don't have actual map data
+          'height': 100,
+          'resolution': 0.05,
+          'origin': {'x': 0.0, 'y': 0.0, 'orientation': 0.0},
+          'shapes': mostRecentMap['shapes'] ?? [],
+          'metadata': {
+            'type': 'saved_map',
+            'source': 'saved_maps_cache',
+            'savedMapsCount': savedMaps.length,
+            ...?mostRecentMap['metadata'],
+          },
+        };
+
+        final mapData = MapData.fromJson(mockMapData);
+        setState(() {
+          _availableMaps[deviceId] = mapData;
+          // Also store by device name for compatibility
+          if (device['name'] != null && device['name'] != deviceId) {
+            _availableMaps[device['name']] = mapData;
+          }
+        });
+
+        print(
+            '✅ Saved map converted to MapData for: $deviceId and ${device['name']}');
+        print(
+            '📊 Map contains ${savedMaps.length} saved maps, using: ${mostRecentMap['name']}');
+      } else {
+        print('⚠️ No saved maps found for device: $deviceId');
+      }
+    } catch (e) {
+      print('❌ Error loading from saved maps for ${device['id']}: $e');
     }
   }
 
@@ -253,7 +351,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               descending: true,
             );
           } catch (apiError) {
-            print('⚠️ getSavedMaps not available for ${device['id']}, using empty list');
+            print(
+                '⚠️ getSavedMaps not available for ${device['id']}, using empty list');
             savedMaps = [];
           }
 
@@ -380,7 +479,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             Text('Maps saved from the Control page will appear here'),
             SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: () => _navigateToControl(_connectedDevices.isNotEmpty ? _connectedDevices.first : {'id': 'default'}),
+              onPressed: () => _navigateToControl(_connectedDevices.isNotEmpty
+                  ? _connectedDevices.first
+                  : {'id': 'default'}),
               icon: Icon(Icons.control_camera),
               label: Text('Go to Live Control'),
               style: ElevatedButton.styleFrom(
@@ -568,7 +669,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => EnhancedMapPage(), // Use your existing MapPage
+            builder: (context) =>
+                EnhancedMapPage(), // Use your existing MapPage
             settings: RouteSettings(
               arguments: {
                 'deviceId': deviceId,
@@ -749,7 +851,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         );
       } catch (e) {
         // Fallback: simulate cloning by showing success
-        response = {'success': true, 'message': 'Map cloning feature coming soon'};
+        response = {
+          'success': true,
+          'message': 'Map cloning feature coming soon'
+        };
       }
 
       Navigator.of(context).pop(); // Close loading dialog
@@ -815,7 +920,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         );
       } catch (e) {
         // Fallback: simulate deletion by showing success
-        response = {'success': true, 'message': 'Map deletion feature coming soon'};
+        response = {
+          'success': true,
+          'message': 'Map deletion feature coming soon'
+        };
       }
 
       Navigator.of(context).pop(); // Close loading dialog
@@ -934,6 +1042,16 @@ class _DashboardScreenState extends State<DashboardScreen>
       return;
     }
 
+    print('🎯 Opening order creation dialog...');
+    print(
+        '🔗 Available devices: ${_connectedDevices.map((d) => '${d['name']}(${d['id']})').join(', ')}');
+    print('🗺️ Available maps: ${_availableMaps.keys.join(', ')}');
+    print('💾 Saved maps cache: ${_savedMapsCache.keys.join(', ')}');
+    for (final deviceId in _savedMapsCache.keys) {
+      print(
+          '  - $deviceId: ${_savedMapsCache[deviceId]?.length ?? 0} saved maps');
+    }
+
     showDialog(
       context: context,
       builder: (context) => OrderCreationDialog(
@@ -946,9 +1064,113 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  /// 🆕 NEW: Show order creation options
+  void _showOrderCreationOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Create Order',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 20),
+
+            // Interactive Map Creator Option
+            ListTile(
+              leading: Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.map, color: Colors.blue),
+              ),
+              title: Text('Interactive Map Creator'),
+              subtitle: Text('Visually place waypoints on the map'),
+              trailing: Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                Navigator.pop(context);
+                _showInteractiveMapOrderCreator();
+              },
+            ),
+
+            Divider(),
+
+            // Quick Dialog Option
+            ListTile(
+              leading: Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.list_alt, color: Colors.green),
+              ),
+              title: Text('Quick Order Dialog'),
+              subtitle: Text('Create order from existing map stations'),
+              trailing: Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                Navigator.pop(context);
+                _showCreateOrderDialog();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 🆕 NEW: Launch Interactive Map Order Creator
+  void _showInteractiveMapOrderCreator() {
+    if (_connectedDevices.isEmpty) {
+      _showErrorSnackBar('No devices available. Connect a device first.');
+      return;
+    }
+
+    // Find the first device with a map
+    String? selectedDeviceId;
+    MapData? selectedMapData;
+
+    for (final device in _connectedDevices) {
+      final deviceId = device['id'] as String;
+      if (_availableMaps.containsKey(deviceId)) {
+        selectedDeviceId = deviceId;
+        selectedMapData = _availableMaps[deviceId];
+        break;
+      }
+    }
+
+    if (selectedDeviceId == null || selectedMapData == null) {
+      _showErrorSnackBar('No map data available. Create a map first.');
+      return;
+    }
+
+    print('🎯 Opening Interactive Map Order Creator...');
+    print('🤖 Selected device: $selectedDeviceId');
+    print('🗺️ Map data available: ${selectedMapData.shapes.length} shapes');
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => InteractiveMapOrderCreator(
+          deviceId: selectedDeviceId!,
+          mapData: selectedMapData!,
+          onOrderCreated: (orderData) {
+            print('✅ Order created via interactive map: ${orderData['name']}');
+            _createOrder(orderData);
+          },
+        ),
+      ),
+    );
+  }
+
   void _showCreateOrderForDevice(String deviceId) {
     if (!_availableMaps.containsKey(deviceId)) {
-      _showErrorSnackBar('No map available for this device. Create a map with stations first.');
+      _showErrorSnackBar(
+          'No map available for this device. Create a map with stations first.');
       return;
     }
 
@@ -957,6 +1179,58 @@ class _DashboardScreenState extends State<DashboardScreen>
       orElse: () => {'id': deviceId, 'name': deviceId},
     );
 
+    // Show choice dialog: Traditional or Interactive
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Create Order'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Choose order creation method:'),
+            SizedBox(height: 16),
+
+            // Traditional method
+            Card(
+              child: ListTile(
+                leading: Icon(Icons.list, color: Colors.blue),
+                title: Text('Station-Based Order'),
+                subtitle: Text('Select from pre-defined stations'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showTraditionalOrderCreation(deviceId, device);
+                },
+              ),
+            ),
+
+            SizedBox(height: 8),
+
+            // Interactive method
+            Card(
+              child: ListTile(
+                leading: Icon(Icons.touch_app, color: Colors.green),
+                title: Text('Interactive Map Order'),
+                subtitle: Text('Click on map to add coordinates'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showInteractiveOrderCreation(deviceId);
+                },
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTraditionalOrderCreation(
+      String deviceId, Map<String, dynamic> device) {
     showDialog(
       context: context,
       builder: (context) => OrderCreationDialog(
@@ -966,6 +1240,27 @@ class _DashboardScreenState extends State<DashboardScreen>
         onOrderCreated: (order) {
           _createOrder(order);
         },
+      ),
+    );
+  }
+
+  void _showInteractiveOrderCreation(String deviceId) {
+    if (!_availableMaps.containsKey(deviceId)) {
+      _showErrorSnackBar('No map available for this device.');
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => InteractiveMapOrderCreator(
+          deviceId: deviceId,
+          mapData: _availableMaps[deviceId]!,
+          onOrderCreated: (order) {
+            _createOrder(order);
+            Navigator.of(context).pop(); // Go back to dashboard
+          },
+        ),
       ),
     );
   }
@@ -1149,13 +1444,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     setState(() {
       _isRefreshing = true;
     });
-    
+
     _refreshAnimationController.repeat();
-    
+
     try {
       await Future.wait([
         _loadDevices(),
-        _loadMapsForAllDevices(), 
+        _loadMapsForAllDevices(),
         _loadOrdersForAllDevices(),
         _loadSystemStats(),
         _loadAllSavedMaps(),
@@ -1187,45 +1482,69 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Color _getOrderStatusColor(String status) {
     switch (status) {
-      case 'pending': return Colors.orange;
-      case 'active': return Colors.blue;
-      case 'completed': return Colors.green;
-      case 'paused': return Colors.grey;
-      case 'failed': return Colors.red;
-      case 'cancelled': return Colors.red.shade300;
-      default: return Colors.grey;
+      case 'pending':
+        return Colors.orange;
+      case 'active':
+        return Colors.blue;
+      case 'completed':
+        return Colors.green;
+      case 'paused':
+        return Colors.grey;
+      case 'failed':
+        return Colors.red;
+      case 'cancelled':
+        return Colors.red.shade300;
+      default:
+        return Colors.grey;
     }
   }
 
   IconData _getOrderStatusIcon(String status) {
     switch (status) {
-      case 'pending': return Icons.pending;
-      case 'active': return Icons.play_circle;
-      case 'completed': return Icons.check_circle;
-      case 'paused': return Icons.pause_circle;
-      case 'failed': return Icons.error;
-      case 'cancelled': return Icons.cancel;
-      default: return Icons.help;
+      case 'pending':
+        return Icons.pending;
+      case 'active':
+        return Icons.play_circle;
+      case 'completed':
+        return Icons.check_circle;
+      case 'paused':
+        return Icons.pause_circle;
+      case 'failed':
+        return Icons.error;
+      case 'cancelled':
+        return Icons.cancel;
+      default:
+        return Icons.help;
     }
   }
 
   Color _getStationTypeColor(String type) {
     switch (type) {
-      case 'pickup': return Colors.green;
-      case 'drop': return Colors.blue;
-      case 'charging': return Colors.orange;
-      case 'waypoint': return Colors.purple;
-      default: return Colors.grey;
+      case 'pickup':
+        return Colors.green;
+      case 'drop':
+        return Colors.blue;
+      case 'charging':
+        return Colors.orange;
+      case 'waypoint':
+        return Colors.purple;
+      default:
+        return Colors.grey;
     }
   }
 
   IconData _getStationTypeIcon(String type) {
     switch (type) {
-      case 'pickup': return Icons.outbox;
-      case 'drop': return Icons.inbox;
-      case 'charging': return Icons.battery_charging_full;
-      case 'waypoint': return Icons.place;
-      default: return Icons.location_on;
+      case 'pickup':
+        return Icons.outbox;
+      case 'drop':
+        return Icons.inbox;
+      case 'charging':
+        return Icons.battery_charging_full;
+      case 'waypoint':
+        return Icons.place;
+      default:
+        return Icons.location_on;
     }
   }
 
@@ -1347,7 +1666,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     switch (_currentTabIndex) {
       case 2: // Orders tab
         return FloatingActionButton.extended(
-          onPressed: _showCreateOrderDialog,
+          onPressed: () => _showOrderCreationOptions(),
           icon: Icon(Icons.add),
           label: Text('Create Order'),
           backgroundColor: Colors.green,
@@ -2654,7 +2973,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             ...activeOrders.map((order) {
               final device = _connectedDevices.firstWhere(
                   (d) => d['id'] == order['deviceId'],
-                  orElse: () => {'name': order['deviceId'], 'id': order['deviceId']});
+                  orElse: () =>
+                      {'name': order['deviceId'], 'id': order['deviceId']});
               return Container(
                 margin: EdgeInsets.symmetric(vertical: 4),
                 padding: EdgeInsets.all(12),
@@ -2686,7 +3006,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 fontWeight: FontWeight.bold, fontSize: 14),
                           ),
                           Text(
-                            'Device: ${device != null ? device['name'] : order['deviceId']}',
+                            'Device: ${device['name'] ?? order['deviceId']}',
                             style: TextStyle(
                                 color: Colors.grey[700], fontSize: 12),
                           ),

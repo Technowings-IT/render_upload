@@ -19,6 +19,7 @@ const ROS2ScriptManager = require('./ros/utils/ros2ScriptManager');
 const controlRoutes = require('./routes/controlRoutes');
 const mapRoutes = require('./routes/mapRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const enhancedOrderExecutionRoutes = require('./routes/enhanced_order_execution');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const { router: discoveryRoutes, initializeUDPDiscovery } = require('./routes/discoveryRoutes');
 
@@ -156,6 +157,9 @@ app.use('/api', mapRoutes);
 
 // ✅ NEW: Order management routes
 app.use('/api/orders', orderRoutes);
+
+// ✅ NEW: Enhanced order execution routes with target_pose integration
+app.use('/api/enhanced-orders', enhancedOrderExecutionRoutes);
 
 // ✅ NEW: Analytics routes
 app.use('/api/analytics', analyticsRoutes);

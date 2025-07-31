@@ -2152,11 +2152,86 @@ class ApiService {
 
     try {
       print('🗺️ Loading map data for device: $deviceId');
+      print('🔗 Base URL: $_baseUrl');
 
       // Try multiple endpoints to get map data
       Map<String, dynamic> response;
 
-      // Method 1: Try the control endpoint first (your existing API)
+      // Method 1: Try getting saved maps first (most reliable)
+      try {
+        final savedMapsUrl = '/api/maps/$deviceId/saved';
+        print('🔗 Trying saved maps: $_baseUrl$savedMapsUrl');
+
+        response = await _get(savedMapsUrl, useCache: false);
+        print(
+            '📥 Saved maps response: ${response.toString().substring(0, 200)}...');
+
+        if (response['success'] == true &&
+            response['maps'] != null &&
+            response['maps'].isNotEmpty) {
+          print(
+              '✅ Found ${response['maps'].length} saved maps for device: $deviceId');
+
+          // Use the most recent map
+          final maps = response['maps'] as List;
+          if (maps.isNotEmpty) {
+            final latestMap = maps.first; // Maps should be sorted by date
+            print('✅ Using latest map: ${latestMap['name'] ?? 'unnamed'}');
+
+            // Load the actual map file content
+            try {
+              final mapName = latestMap['name'];
+              final loadCompleteUrl =
+                  '/api/maps/$deviceId/load-complete?mapName=$mapName';
+              print('🔗 Loading complete map: $_baseUrl$loadCompleteUrl');
+
+              final mapContentResponse =
+                  await _get(loadCompleteUrl, useCache: false);
+              if (mapContentResponse['success'] == true &&
+                  mapContentResponse['mapData'] != null) {
+                print('✅ Loaded complete map data for: ${latestMap['name']}');
+                return _normalizeMapResponse(mapContentResponse);
+              }
+            } catch (loadError) {
+              print('⚠️ Failed to load complete map data: $loadError');
+            }
+
+            // Fallback: Create minimal map data from saved map metadata
+            print('🔄 Creating fallback map data from metadata');
+            final mapData = {
+              'success': true,
+              'mapData': {
+                'deviceId': deviceId,
+                'timestamp':
+                    latestMap['savedAt'] ?? DateTime.now().toIso8601String(),
+                'info': {
+                  'resolution': latestMap['metadata']?['mapDimensions']
+                          ?['resolution'] ??
+                      0.05,
+                  'width':
+                      latestMap['metadata']?['mapDimensions']?['width'] ?? 800,
+                  'height':
+                      latestMap['metadata']?['mapDimensions']?['height'] ?? 600,
+                  'origin': {
+                    'position': {'x': 0.0, 'y': 0.0, 'z': 0.0},
+                    'orientation': {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+                  }
+                },
+                'occupancyData': [], // Empty for now, but map exists
+                'shapes': [], // Will be loaded when needed
+                'version': 1
+              }
+            };
+            return _normalizeMapResponse(mapData);
+          }
+        } else {
+          print('⚠️ No saved maps found or invalid response structure');
+        }
+      } catch (e) {
+        print('❌ Saved maps endpoint failed: $e');
+      }
+
+      // Method 2: Try the control endpoint (your existing API)
       try {
         response =
             await _get('/api/control/devices/$deviceId/maps', useCache: false);
@@ -2524,6 +2599,165 @@ class ApiService {
     } catch (e) {
       print('❌ Error creating order: $e');
       throw ApiException('Failed to create order: $e');
+    }
+  }
+
+  /// ✅ NEW: Execute order with enhanced target_pose integration
+  Future<Map<String, dynamic>> executeOrderEnhanced({
+    required String deviceId,
+    required String orderId,
+    bool immediateStart = true,
+    String executionMode = 'sequential',
+  }) async {
+    _ensureInitialized();
+    try {
+      final response = await _post(
+          '/api/enhanced-orders/devices/$deviceId/orders/$orderId/execute', {
+        'immediateStart': immediateStart,
+        'executionMode': executionMode,
+      });
+      if (response['success'] == true) {
+        print(
+            '✅ Enhanced order execution started: $orderId for device: $deviceId');
+      }
+      return response;
+    } catch (e) {
+      print('❌ Error executing enhanced order: $e');
+      throw ApiException('Failed to execute enhanced order: $e');
+    }
+  }
+
+  /// ✅ NEW: Pause order execution
+  Future<Map<String, dynamic>> pauseOrderExecution({
+    required String deviceId,
+    required String orderId,
+  }) async {
+    _ensureInitialized();
+    try {
+      final response = await _post(
+          '/api/enhanced-orders/devices/$deviceId/orders/$orderId/pause', {});
+      if (response['success'] == true) {
+        print('✅ Order execution paused: $orderId');
+      }
+      return response;
+    } catch (e) {
+      print('❌ Error pausing order execution: $e');
+      throw ApiException('Failed to pause order execution: $e');
+    }
+  }
+
+  /// ✅ NEW: Resume order execution
+  Future<Map<String, dynamic>> resumeOrderExecution({
+    required String deviceId,
+    required String orderId,
+  }) async {
+    _ensureInitialized();
+    try {
+      final response = await _post(
+          '/api/enhanced-orders/devices/$deviceId/orders/$orderId/resume', {});
+      if (response['success'] == true) {
+        print('✅ Order execution resumed: $orderId');
+      }
+      return response;
+    } catch (e) {
+      print('❌ Error resuming order execution: $e');
+      throw ApiException('Failed to resume order execution: $e');
+    }
+  }
+
+  /// ✅ NEW: Cancel order execution
+  Future<Map<String, dynamic>> cancelOrderExecution({
+    required String deviceId,
+    required String orderId,
+    String? reason,
+  }) async {
+    _ensureInitialized();
+    try {
+      final response = await _post(
+          '/api/enhanced-orders/devices/$deviceId/orders/$orderId/cancel', {
+        'reason': reason ?? 'User cancelled',
+      });
+      if (response['success'] == true) {
+        print('✅ Order execution cancelled: $orderId');
+      }
+      return response;
+    } catch (e) {
+      print('❌ Error cancelling order execution: $e');
+      throw ApiException('Failed to cancel order execution: $e');
+    }
+  }
+
+  /// ✅ NEW: Get execution status
+  Future<Map<String, dynamic>> getOrderExecutionStatus({
+    required String deviceId,
+    required String orderId,
+  }) async {
+    _ensureInitialized();
+    try {
+      final response = await _get(
+          '/api/enhanced-orders/devices/$deviceId/orders/$orderId/status');
+      if (response['success'] == true) {
+        return response;
+      }
+      throw ApiException(
+          'Failed to get execution status: ${response['error']}');
+    } catch (e) {
+      print('❌ Error getting execution status: $e');
+      throw ApiException('Failed to get execution status: $e');
+    }
+  }
+
+  /// ✅ NEW: Get active executions
+  Future<Map<String, dynamic>> getActiveOrderExecutions(
+      {String? deviceId}) async {
+    _ensureInitialized();
+    try {
+      String url = '/api/enhanced-orders/active-executions';
+      if (deviceId != null) {
+        url += '?deviceId=$deviceId';
+      }
+      final response = await _get(url);
+      if (response['success'] == true) {
+        return response;
+      }
+      throw ApiException(
+          'Failed to get active executions: ${response['error']}');
+    } catch (e) {
+      print('❌ Error getting active executions: $e');
+      throw ApiException('Failed to get active executions: $e');
+    }
+  }
+
+  /// ✅ NEW: Get execution history
+  Future<Map<String, dynamic>> getOrderExecutionHistory({
+    String? deviceId,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    _ensureInitialized();
+    try {
+      final queryParams = <String, String>{
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      };
+      if (deviceId != null) {
+        queryParams['deviceId'] = deviceId;
+      }
+
+      final queryString = queryParams.entries
+          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+
+      final response =
+          await _get('/api/enhanced-orders/execution-history?$queryString');
+      if (response['success'] == true) {
+        return response;
+      }
+      throw ApiException(
+          'Failed to get execution history: ${response['error']}');
+    } catch (e) {
+      print('❌ Error getting execution history: $e');
+      throw ApiException('Failed to get execution history: $e');
     }
   }
 

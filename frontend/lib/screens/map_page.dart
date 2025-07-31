@@ -2474,7 +2474,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     });
 
     if (connected) {
-      _showInfoSnackBar('WebSocket reconnected');
+      // Note: Removed reconnection popup to reduce UI clutter
       if (_selectedDeviceId != null) {
         _webSocketService.subscribe('real_time_data',
             deviceId: _selectedDeviceId);

@@ -190,8 +190,8 @@ router.post('/:deviceId', async (req, res) => {
                 completedWaypoints: 0,
                 percentage: 0
             },
-            createdAt: new Date().toIso8601String(),
-            updatedAt: new Date().toIso8601String(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
             startedAt: null,
             completedAt: null,
             estimatedDuration: null,
@@ -301,7 +301,7 @@ router.put('/:deviceId/:orderId/status', async (req, res) => {
         
         // Update order
         order.status = status;
-        order.updatedAt = new Date().toIso8601String();
+        order.updatedAt = new Date().toISOString();
         
         if (currentWaypoint !== undefined) {
             order.currentWaypoint = parseInt(currentWaypoint);
@@ -313,7 +313,7 @@ router.put('/:deviceId/:orderId/status', async (req, res) => {
                 if (index < parseInt(currentWaypoint)) {
                     wp.completed = true;
                     if (!wp.completedAt) {
-                        wp.completedAt = new Date().toIso8601String();
+                        wp.completedAt = new Date().toISOString();
                     }
                 }
             });
@@ -323,12 +323,12 @@ router.put('/:deviceId/:orderId/status', async (req, res) => {
         switch (status) {
             case 'active':
                 if (previousStatus === 'pending') {
-                    order.startedAt = new Date().toIso8601String();
+                    order.startedAt = new Date().toISOString();
                 }
                 break;
                 
             case 'completed':
-                order.completedAt = new Date().toIso8601String();
+                order.completedAt = new Date().toISOString();
                 order.progress.completedWaypoints = order.waypoints.length;
                 order.progress.percentage = 100;
                 
@@ -336,7 +336,7 @@ router.put('/:deviceId/:orderId/status', async (req, res) => {
                 order.waypoints.forEach(wp => {
                     wp.completed = true;
                     if (!wp.completedAt) {
-                        wp.completedAt = new Date().toIso8601String();
+                        wp.completedAt = new Date().toISOString();
                     }
                 });
                 
@@ -411,10 +411,10 @@ router.post('/:deviceId/:orderId/execute', async (req, res) => {
         
         // Update order status
         order.status = 'active';
-        order.updatedAt = new Date().toIso8601String();
+        order.updatedAt = new Date().toISOString();
         
         if (!order.startedAt) {
-            order.startedAt = new Date().toIso8601String();
+            order.startedAt = new Date().toISOString();
         }
         
         orders[orderIndex] = order;
@@ -476,7 +476,7 @@ router.post('/:deviceId/:orderId/pause', async (req, res) => {
         }
         
         order.status = 'paused';
-        order.updatedAt = new Date().toIso8601String();
+        order.updatedAt = new Date().toISOString();
         
         orders[orderIndex] = order;
         await saveOrders(orders);

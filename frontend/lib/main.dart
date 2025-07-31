@@ -283,11 +283,11 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
             connected ? 'Fully connected' : 'WebSocket disconnected';
       });
 
-      if (!connected) {
-        _showConnectionLostSnackBar();
-      } else {
-        _showSuccessSnackBar('WebSocket reconnected');
-      }
+      // Removed annoying connection lost popup
+      // if (!connected) {
+      //   _showConnectionLostSnackBar();
+      // }
+      // Note: Removed reconnection popup to reduce UI clutter
     });
 
     // Listen to WebSocket errors
@@ -301,30 +301,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
         'WebSocket failed. Real-time features will be limited.');
   }
 
-  void _showConnectionLostSnackBar() {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              ),
-              SizedBox(width: 12),
-              Text('Connection lost. Attempting to reconnect...'),
-            ],
-          ),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 4),
-        ),
-      );
-    }
-  }
+  // REMOVED: _showConnectionLostSnackBar() - no longer needed as popup was annoying
 
   void _showErrorSnackBar(String message) {
     if (mounted) {
