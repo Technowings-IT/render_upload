@@ -647,10 +647,11 @@ function subscribeToVelocityFeedback() {
 // }
 
 /**
- * Subscribe to battery state
+ * Subscribe to battery state - ENHANCED to handle both BatteryState and Float32MultiArray
  */
 function subscribeToBattery() {
-    const callback = (batteryMsg) => {
+    // Callback for BatteryState messages (sensor_msgs/msg/BatteryState)
+    const batteryStateCallback = (batteryMsg) => {
         try {
             const batteryData = {
                 voltage: batteryMsg.voltage || 0,
@@ -663,6 +664,7 @@ function subscribeToBattery() {
                 power_supply_health: batteryMsg.power_supply_health || 0,
                 power_supply_technology: batteryMsg.power_supply_technology || 0,
                 present: batteryMsg.present || false,
+                charging: batteryMsg.power_supply_status === 1, // Charging if status is 1
                 timestamp: new Date().toISOString()
             };
 
@@ -677,27 +679,101 @@ function subscribeToBattery() {
 
             // Log every 10 seconds
             if (Date.now() % 10000 < 100) {
-                console.log(`🔋 [${currentDeviceId}] Battery: ${batteryData.percentage?.toFixed(1) || 'N/A'}% (${batteryData.voltage?.toFixed(1) || 'N/A'}V)`);
+                console.log(`🔋 [${currentDeviceId}] Battery: ${batteryData.percentage?.toFixed(1) || 'N/A'}% (${batteryData.voltage?.toFixed(1) || 'N/A'}V) ${batteryData.charging ? '⚡' : ''}`);
             }
 
         } catch (error) {
-            console.error('❌ Error processing battery data:', error);
+            console.error('❌ Error processing battery state data:', error);
         }
     };
 
-    const batteryTopics = [
-        '/battery_state',
-        '/power/battery_state',
-        '/robot/battery'
+    // Callback for Float32MultiArray messages (std_msgs/msg/Float32MultiArray)
+    const arrayCallback = (arrayMsg) => {
+        try {
+            const dataArray = arrayMsg.data || [];
+            
+            // Interpret Float32MultiArray based on common battery data formats
+            let batteryData = {
+                timestamp: new Date().toISOString()
+            };
+
+            if (dataArray.length >= 1) {
+                // Assume first element is percentage
+                batteryData.percentage = dataArray[0];
+            }
+            
+            if (dataArray.length >= 2) {
+                // Assume second element is voltage
+                batteryData.voltage = dataArray[1];
+            }
+            
+            if (dataArray.length >= 3) {
+                // Assume third element is current
+                batteryData.current = dataArray[2];
+            }
+            
+            if (dataArray.length >= 4) {
+                // Assume fourth element is charging status (0 = not charging, 1 = charging)
+                batteryData.charging = dataArray[3] > 0;
+                batteryData.power_supply_status = dataArray[3] > 0 ? 1 : 2; // 1 = charging, 2 = discharging
+            }
+            
+            if (dataArray.length >= 5) {
+                // Assume fifth element is temperature (if available)
+                batteryData.temperature = dataArray[4];
+            }
+
+            // Set defaults for missing values
+            batteryData.voltage = batteryData.voltage || 0;
+            batteryData.current = batteryData.current || 0;
+            batteryData.percentage = batteryData.percentage || 0;
+            batteryData.charging = batteryData.charging || false;
+            batteryData.present = true;
+
+            // Store raw array data for debugging
+            batteryData.raw_data = dataArray;
+
+            updateGlobalLiveData('battery', batteryData);
+
+            broadcastToSubscribers('real_time_data', {
+                type: 'battery_update',
+                data: batteryData,
+                deviceId: currentDeviceId,
+                timestamp: new Date().toISOString()
+            });
+
+            // Log every 10 seconds
+            if (Date.now() % 10000 < 100) {
+                console.log(`🔋 [${currentDeviceId}] Battery Array: ${batteryData.percentage?.toFixed(1) || 'N/A'}% (${batteryData.voltage?.toFixed(1) || 'N/A'}V) ${batteryData.charging ? '⚡' : ''} [${dataArray.map(v => v.toFixed(2)).join(', ')}]`);
+            }
+
+        } catch (error) {
+            console.error('❌ Error processing battery array data:', error);
+        }
+    };
+
+    // Try different battery topics with appropriate message types
+    const batteryTopicsWithTypes = [
+        // Standard BatteryState topics
+        { topic: '/battery_status', type: 'std_msgs/msg/Float32MultiArray', callback: batteryStateCallback },
+        { topic: '/power/battery_status', type: 'std_msgs/msg/Float32MultiArray', callback: batteryStateCallback },
+        { topic: '/robot/battery', type: 'std_msgs/msg/Float32MultiArray', callback: batteryStateCallback },
+
+        // Float32MultiArray topics (common for custom battery implementations)
+        { topic: '/battery_status', type: 'std_msgs/msg/Float32MultiArray', callback: arrayCallback },
+        { topic: '/battery_data', type: 'std_msgs/msg/Float32MultiArray', callback: arrayCallback },
+        { topic: '/battery', type: 'std_msgs/msg/Float32MultiArray', callback: arrayCallback },
+        { topic: '/power/battery_array', type: 'std_msgs/msg/Float32MultiArray', callback: arrayCallback },
+        { topic: '/robot/battery_array', type: 'std_msgs/msg/Float32MultiArray', callback: arrayCallback }
     ];
 
-    for (const topicName of batteryTopics) {
+    for (const { topic, type, callback } of batteryTopicsWithTypes) {
         try {
-            getOrCreateSubscriber(topicName, 'sensor_msgs/msg/BatteryState', callback);
-            console.log(`✅ Successfully subscribed to battery: ${topicName}`);
+            getOrCreateSubscriber(topic, type, callback);
+            console.log(`✅ Successfully subscribed to battery: ${topic} [${type}]`);
             return;
         } catch (error) {
-            console.warn(`⚠️ Failed to subscribe to ${topicName}, trying next...`);
+            console.warn(`⚠️ Failed to subscribe to ${topic} with ${type}, trying next...`);
         }
     }
 

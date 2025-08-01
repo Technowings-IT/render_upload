@@ -406,6 +406,16 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         _loadPerformanceData(),
       ]);
 
+      // Update device stats with cross-referenced data
+      _updateDeviceStatsWithCrossData();
+
+      print('📊 Final analytics data summary:');
+      print('  - Devices: ${_connectedDevices.length}');
+      print('  - Battery history entries: ${_batteryHistory.keys.length}');
+      print('  - Order history entries: ${_orderHistory.keys.length}');
+      print('  - Device stats entries: ${_deviceStats.keys.length}');
+      print('  - System events: ${_systemEvents.length}');
+
       _chartAnimationController.forward();
     } catch (e) {
       print('❌ Error loading analytics data: $e');
@@ -417,6 +427,47 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     });
   }
 
+  void _updateDeviceStatsWithCrossData() {
+    for (final device in _connectedDevices) {
+      final deviceId = device['id'];
+      final stats = _deviceStats[deviceId] ?? <String, dynamic>{};
+
+      // Update with battery data
+      final batteryData = _batteryHistory[deviceId];
+      if (batteryData != null && batteryData.isNotEmpty) {
+        final currentBattery =
+            batteryData.last['percentage']?.toDouble() ?? 0.0;
+        final avgBattery = batteryData.fold(0.0,
+                (sum, data) => sum + (data['percentage']?.toDouble() ?? 0.0)) /
+            batteryData.length;
+
+        stats['currentBattery'] = currentBattery;
+        stats['averageBattery'] = avgBattery;
+      }
+
+      // Update with order data
+      final orderData = _orderHistory[deviceId];
+      if (orderData != null) {
+        stats['totalOrders'] = orderData.length;
+        stats['completedOrders'] =
+            orderData.where((order) => order['status'] == 'completed').length;
+
+        if (orderData.isNotEmpty) {
+          final avgTime = orderData.fold(
+                  0.0,
+                  (sum, order) =>
+                      sum + (order['duration']?.toDouble() ?? 0.0)) /
+              orderData.length;
+          stats['averageOrderTime'] = avgTime;
+        }
+      }
+
+      _deviceStats[deviceId] = stats;
+    }
+
+    print('✅ Device stats updated with cross-referenced data');
+  }
+
   Future<void> _loadBatteryData() async {
     try {
       for (final device in _connectedDevices) {
@@ -424,9 +475,44 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         final response = await _apiService.getAnalyticsData(
             deviceId, 'battery', _selectedTimeRange);
 
+        print('🔋 Battery data response for $deviceId: ${response.toString()}');
+
         if (response['success'] == true && response['data'] != null) {
-          dynamic dataSource = response['data'];
-          if (dataSource is List) {
+          final dataSource = response['data'];
+
+          // Handle the structured response format
+          if (dataSource is Map) {
+            List<Map<String, dynamic>> historyData = [];
+
+            // Check for history array
+            if (dataSource['history'] != null &&
+                dataSource['history'] is List) {
+              historyData = (dataSource['history'] as List)
+                  .map<Map<String, dynamic>>((item) => {
+                        'timestamp': DateTime.parse(item['timestamp']),
+                        'voltage': item['voltage']?.toDouble() ?? 0.0,
+                        'percentage': item['percentage']?.toDouble() ?? 0.0,
+                        'current': item['current']?.toDouble() ?? 0.0,
+                        'temperature': item['temperature']?.toDouble() ?? 25.0,
+                      })
+                  .toList();
+            }
+
+            // Add current data point if available
+            if (dataSource['current'] != null) {
+              final currentData = dataSource['current'];
+              historyData.add({
+                'timestamp': DateTime.parse(currentData['timestamp']),
+                'voltage': currentData['voltage']?.toDouble() ?? 0.0,
+                'percentage': currentData['percentage']?.toDouble() ?? 0.0,
+                'current': currentData['current']?.toDouble() ?? 0.0,
+                'temperature': currentData['temperature']?.toDouble() ?? 25.0,
+              });
+            }
+
+            _batteryHistory[deviceId] = historyData;
+          } else if (dataSource is List) {
+            // Handle direct list format (fallback)
             _batteryHistory[deviceId] = dataSource
                 .map<Map<String, dynamic>>((item) => {
                       'timestamp': DateTime.parse(item['timestamp']),
@@ -437,6 +523,9 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
                     })
                 .toList();
           }
+
+          print(
+              '✅ Battery history loaded for $deviceId: ${_batteryHistory[deviceId]?.length ?? 0} data points');
         }
       }
     } catch (e) {
@@ -451,9 +540,59 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         final response = await _apiService.getAnalyticsData(
             deviceId, 'orders', _selectedTimeRange);
 
+        print('📋 Order data response for $deviceId: ${response.toString()}');
+
         if (response['success'] == true && response['data'] != null) {
-          dynamic dataSource = response['data'];
-          if (dataSource is List) {
+          final dataSource = response['data'];
+
+          // Handle the structured response format
+          if (dataSource is Map) {
+            List<Map<String, dynamic>> orderData = [];
+
+            // Check for ordersByHour array or similar structure
+            if (dataSource['ordersByHour'] != null &&
+                dataSource['ordersByHour'] is List) {
+              orderData = (dataSource['ordersByHour'] as List)
+                  .where((item) =>
+                      item['orders'] != null &&
+                      (item['orders'] as List).isNotEmpty)
+                  .expand((hourData) => hourData['orders'] as List)
+                  .map<Map<String, dynamic>>((item) => {
+                        'id': item['id'] ?? 'unknown',
+                        'name': item['name'] ?? 'Unnamed Order',
+                        'createdAt': DateTime.parse(
+                            item['createdAt'] ?? item['timestamp']),
+                        'completedAt': DateTime.parse(
+                            item['completedAt'] ?? item['timestamp']),
+                        'duration': item['duration']?.toDouble() ?? 0.0,
+                        'distance': item['distance']?.toDouble() ?? 0.0,
+                        'waypoints': item['waypoints'] ?? 0,
+                        'status': item['status'] ?? 'completed',
+                      })
+                  .toList();
+            }
+
+            // Check for direct orders array
+            if (dataSource['orders'] != null && dataSource['orders'] is List) {
+              orderData = (dataSource['orders'] as List)
+                  .map<Map<String, dynamic>>((item) => {
+                        'id': item['id'] ?? 'unknown',
+                        'name': item['name'] ?? 'Unnamed Order',
+                        'createdAt': DateTime.parse(
+                            item['createdAt'] ?? item['timestamp']),
+                        'completedAt': DateTime.parse(
+                            item['completedAt'] ?? item['timestamp']),
+                        'duration': item['duration']?.toDouble() ?? 0.0,
+                        'distance': item['distance']?.toDouble() ?? 0.0,
+                        'waypoints': item['waypoints'] ?? 0,
+                        'status': item['status'] ?? 'completed',
+                      })
+                  .toList();
+            }
+
+            _orderHistory[deviceId] = orderData;
+          } else if (dataSource is List) {
+            // Handle direct list format (fallback)
             _orderHistory[deviceId] = dataSource
                 .map<Map<String, dynamic>>((item) => {
                       'id': item['id'] ?? 'unknown',
@@ -467,6 +606,9 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
                     })
                 .toList();
           }
+
+          print(
+              '✅ Order history loaded for $deviceId: ${_orderHistory[deviceId]?.length ?? 0} orders');
         }
       }
     } catch (e) {
@@ -481,8 +623,42 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         final response = await _apiService.getAnalyticsData(
             deviceId, 'stats', _selectedTimeRange);
 
+        print('📊 Stats data response for $deviceId: ${response.toString()}');
+
         if (response['success'] == true && response['data'] != null) {
-          _deviceStats[deviceId] = Map<String, dynamic>.from(response['data']);
+          final dataSource = response['data'];
+
+          // Parse the stats data structure
+          Map<String, dynamic> statsData = {};
+
+          if (dataSource is Map) {
+            // Extract relevant stats from the structured response
+            final current = dataSource['current'];
+            if (current != null) {
+              statsData = {
+                'totalOrders': 0, // Will be updated from order data
+                'completedOrders': 0, // Will be updated from order data
+                'averageOrderTime': 0.0, // Will be calculated
+                'totalUptime': 0.0, // Could be calculated from timestamps
+                'totalDistance': current['totalDistance']?.toDouble() ?? 0.0,
+                'currentBattery': 0.0, // Will be updated from battery data
+                'averageBattery': 0.0, // Will be calculated
+                'errorCount': 0, // Will be updated from events
+                'averageSpeed': current['averageSpeed']?.toDouble() ?? 0.0,
+                'currentPosition': current['position'],
+                'maxSpeed': current['maxSpeed']?.toDouble() ?? 0.0,
+                'pathEfficiency': current['pathEfficiency']?.toDouble() ?? 0.0,
+              };
+            }
+
+            // Copy all original data
+            statsData.addAll(Map<String, dynamic>.from(dataSource));
+          } else {
+            statsData = Map<String, dynamic>.from(dataSource);
+          }
+
+          _deviceStats[deviceId] = statsData;
+          print('✅ Device stats loaded for $deviceId');
         }
       }
     } catch (e) {
@@ -529,9 +705,50 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         final response = await _apiService.getAnalyticsData(
             deviceId, 'performance', _selectedTimeRange);
 
+        print(
+            '⚡ Performance data response for $deviceId: ${response.toString()}');
+
         if (response['success'] == true && response['data'] != null) {
-          dynamic dataSource = response['data'];
-          if (dataSource is List) {
+          final dataSource = response['data'];
+
+          // Handle the structured response format
+          if (dataSource is Map) {
+            List<Map<String, dynamic>> velocityData = [];
+
+            // Check for navigation data with speed history
+            if (dataSource['navigation'] != null) {
+              final navData = dataSource['navigation'];
+
+              // Generate velocity data points from current navigation data
+              if (navData['averageSpeed'] != null ||
+                  navData['maxSpeed'] != null) {
+                final now = DateTime.now();
+                for (int i = 0; i < 10; i++) {
+                  velocityData.add({
+                    'timestamp': now.subtract(Duration(minutes: i * 6)),
+                    'linear': (navData['averageSpeed']?.toDouble() ?? 0.0) *
+                        (0.8 + math.Random().nextDouble() * 0.4),
+                    'angular': (math.Random().nextDouble() - 0.5) * 0.5,
+                  });
+                }
+              }
+            }
+
+            // Check for direct velocity history
+            if (dataSource['velocityHistory'] != null &&
+                dataSource['velocityHistory'] is List) {
+              velocityData = (dataSource['velocityHistory'] as List)
+                  .map<Map<String, dynamic>>((item) => {
+                        'timestamp': DateTime.parse(item['timestamp']),
+                        'linear': item['linear']?.toDouble() ?? 0.0,
+                        'angular': item['angular']?.toDouble() ?? 0.0,
+                      })
+                  .toList();
+            }
+
+            _velocityHistory[deviceId] = velocityData;
+          } else if (dataSource is List) {
+            // Handle direct list format (fallback)
             _velocityHistory[deviceId] = dataSource
                 .map<Map<String, dynamic>>((item) => {
                       'timestamp': DateTime.parse(item['timestamp']),
@@ -540,6 +757,9 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
                     })
                 .toList();
           }
+
+          print(
+              '✅ Performance data loaded for $deviceId: ${_velocityHistory[deviceId]?.length ?? 0} data points');
         }
       }
     } catch (e) {
@@ -1566,9 +1786,20 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     if (_selectedDeviceId == 'all') {
       final total = _deviceStats.values.fold(0.0,
           (sum, stats) => sum + (stats['totalDistance'] as double? ?? 0.0));
-      return '${total.toStringAsFixed(1)} km';
+      // Convert meters to kilometers if value is large, otherwise keep as meters
+      if (total >= 1000) {
+        return '${(total / 1000).toStringAsFixed(1)} km';
+      } else {
+        return '${total.toStringAsFixed(0)} m';
+      }
     } else {
-      return '${_deviceStats[_selectedDeviceId]?['totalDistance']?.toStringAsFixed(1) ?? '0'} km';
+      final distance =
+          _deviceStats[_selectedDeviceId]?['totalDistance']?.toDouble() ?? 0.0;
+      if (distance >= 1000) {
+        return '${(distance / 1000).toStringAsFixed(1)} km';
+      } else {
+        return '${distance.toStringAsFixed(0)} m';
+      }
     }
   }
 
@@ -1580,9 +1811,21 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
           .toList();
       if (times.isEmpty) return '0 min';
       final average = times.fold(0.0, (sum, time) => sum + time) / times.length;
+      // Convert seconds to minutes if the value seems to be in seconds
+      if (average > 300) {
+        // More than 5 minutes likely means it's in seconds
+        return '${(average / 60).toStringAsFixed(1)} min';
+      }
       return '${average.toStringAsFixed(1)} min';
     } else {
-      return '${_deviceStats[_selectedDeviceId]?['averageOrderTime']?.toStringAsFixed(1) ?? '0'} min';
+      final time =
+          _deviceStats[_selectedDeviceId]?['averageOrderTime']?.toDouble() ??
+              0.0;
+      if (time > 300) {
+        // More than 5 minutes likely means it's in seconds
+        return '${(time / 60).toStringAsFixed(1)} min';
+      }
+      return '${time.toStringAsFixed(1)} min';
     }
   }
 

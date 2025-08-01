@@ -2,7 +2,7 @@
   {
     "id": "piros",
     "name": "amr",
-    "ipAddress": "192.168.0.89",
+    "ipAddress": "192.168.0.93",
     "type": "differential_drive",
     "capabilities": [
       "mapping",
@@ -11,7 +11,7 @@
     ],
     "status": "disconnected",
     "connectedAt": "2025-07-29T10:56:33.909Z",
-    "lastSeen": "2025-07-29T10:57:55.895Z",
-    "lastStartup": "2025-07-31T05:46:19.311Z"
+    "lastSeen": "2025-08-01T10:03:16.290Z",
+    "lastStartup": "2025-08-01T11:01:04.362Z"
   }
 ]

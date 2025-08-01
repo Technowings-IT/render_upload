@@ -63,7 +63,7 @@
           "completedAt": null
         }
       ],
-      "status": "active",
+      "status": "pending",
       "priority": 10,
       "currentWaypoint": 0,
       "progress": {
@@ -80,7 +80,8 @@
       "metadata": {
         "createdBy": "dashboard",
         "version": "1.0"
-      }
+      },
+      "resetAt": "2025-08-01T04:11:14.796Z"
     }
   ]
 }

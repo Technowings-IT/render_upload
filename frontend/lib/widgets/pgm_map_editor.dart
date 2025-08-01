@@ -123,6 +123,20 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
   }
 
   @override
+  void didUpdateWidget(EnhancedPGMMapEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // If the map data changed, reload and re-center
+    if (widget.mapData != oldWidget.mapData) {
+      if (widget.mapData != null) {
+        _loadMapData();
+      } else {
+        _createNewMap();
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _mapImage?.dispose();
     super.dispose();
@@ -272,6 +286,11 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
           _mapImage?.dispose();
           _mapImage = image;
           _error = null;
+        });
+
+        // Auto-center and fit the map when it loads
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _fitToScreen();
         });
       }
     } catch (e) {
@@ -609,6 +628,7 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
             _buildToolbarButton(Icons.zoom_in, 'Zoom In', _zoomIn),
             _buildToolbarButton(Icons.zoom_out, 'Zoom Out', _zoomOut),
             _buildToolbarButton(Icons.center_focus_strong, 'Fit', _fitToScreen),
+            _buildToolbarButton(Icons.my_location, 'Center', _centerMap),
 
             const Spacer(),
 
@@ -1802,12 +1822,46 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
     if (renderBox == null) return;
 
     final size = renderBox.size;
-    final scaleX = size.width / _mapImage!.width;
-    final scaleY = size.height / _mapImage!.height;
+
+    // Add some padding to prevent the map from touching the edges
+    final padding = 40.0;
+    final availableWidth = size.width - padding * 2;
+    final availableHeight = size.height - padding * 2;
+
+    final scaleX = availableWidth / _mapImage!.width;
+    final scaleY = availableHeight / _mapImage!.height;
 
     setState(() {
       _scale = math.min(scaleX, scaleY).clamp(_minScale, _maxScale);
-      _panOffset = Offset.zero;
+
+      // Center the map in the viewport
+      final scaledMapWidth = _mapImage!.width * _scale;
+      final scaledMapHeight = _mapImage!.height * _scale;
+
+      final centerX = (size.width - scaledMapWidth) / 2;
+      final centerY = (size.height - scaledMapHeight) / 2;
+
+      _panOffset = Offset(centerX, centerY);
+    });
+  }
+
+  void _centerMap() {
+    if (_mapImage == null) return;
+
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final size = renderBox.size;
+
+    setState(() {
+      // Center the map in the viewport without changing scale
+      final scaledMapWidth = _mapImage!.width * _scale;
+      final scaledMapHeight = _mapImage!.height * _scale;
+
+      final centerX = (size.width - scaledMapWidth) / 2;
+      final centerY = (size.height - scaledMapHeight) / 2;
+
+      _panOffset = Offset(centerX, centerY);
     });
   }
 
