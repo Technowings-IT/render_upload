@@ -722,37 +722,57 @@ class _InteractiveMapOrderCreatorState extends State<InteractiveMapOrderCreator>
     );
   }
 
-  void _addWaypoint(Map<String, double> coordinates, String name) {
-    final waypoint = {
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'name': name.isNotEmpty
-          ? name
-          : '${_selectedWaypointType.toUpperCase()} ${_waypoints.length + 1}',
-      'type': _selectedWaypointType,
-      'coordinates': coordinates,
-      'orientation': 0.0, // Default orientation
-      'metadata': {
-        'createdAt': DateTime.now().toIso8601String(),
-        'color':
-            '#${_getWaypointTypeColor(_selectedWaypointType).value.toRadixString(16).padLeft(8, '0')}',
-      },
-    };
-
-    setState(() {
-      _waypoints.add(waypoint);
-    });
-
-    _waypointAnimationController.forward().then((_) {
-      _waypointAnimationController.reset();
-    });
-
+void _addWaypoint(Map<String, double> coordinates, String name) {
+  // Enhanced coordinate validation
+  if (!_isValidMapCoordinate(coordinates['x']!, coordinates['y']!)) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${waypoint['name']} added successfully'),
-        duration: Duration(seconds: 2),
+        content: Text('Warning: Coordinates (${coordinates['x']!.toStringAsFixed(3)}, ${coordinates['y']!.toStringAsFixed(3)}) may be outside valid map bounds'),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 4),
       ),
     );
   }
+  
+  final waypoint = {
+    'id': DateTime.now().millisecondsSinceEpoch.toString(),
+    'name': name.isNotEmpty
+        ? name
+        : '${_selectedWaypointType.toUpperCase()} ${_waypoints.length + 1}',
+    'type': _selectedWaypointType,
+    'coordinates': coordinates,
+    'orientation': 0.0, // Default orientation in radians for ROS
+    'metadata': {
+      'createdAt': DateTime.now().toIso8601String(),
+      'color': '#${_getWaypointTypeColor(_selectedWaypointType).value.toRadixString(16).padLeft(8, '0')}',
+      'mapResolution': widget.mapData.info.resolution,
+      'coordinateFrame': 'map', // ROS coordinate frame
+      'validationStatus': _isValidMapCoordinate(coordinates['x']!, coordinates['y']!) ? 'valid' : 'warning',
+    },
+  };
+
+  setState(() {
+    _waypoints.add(waypoint);
+  });
+
+  _waypointAnimationController.forward().then((_) {
+    _waypointAnimationController.reset();
+  });
+
+  print('✅ Waypoint added: ${waypoint['name']}');
+  print('📍 ROS coordinates: (${coordinates['x']!.toStringAsFixed(3)}, ${coordinates['y']!.toStringAsFixed(3)})');
+  print('🎯 Type: ${_selectedWaypointType}');
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text('${waypoint['name']} added at (${coordinates['x']!.toStringAsFixed(3)}, ${coordinates['y']!.toStringAsFixed(3)})'),
+      duration: Duration(seconds: 3),
+      backgroundColor: _isValidMapCoordinate(coordinates['x']!, coordinates['y']!) 
+          ? Colors.green 
+          : Colors.orange,
+    ),
+  );
+}
 
   void _editWaypoint(int index) {
     final waypoint = _waypoints[index];
@@ -874,72 +894,98 @@ class _InteractiveMapOrderCreatorState extends State<InteractiveMapOrderCreator>
   // ORDER CREATION & EXECUTION
   // ==========================================
 
-  Future<void> _createOrder() async {
-    setState(() {
-      _isCreatingOrder = true;
-    });
+Future<void> _createOrder() async {
+  setState(() {
+    _isCreatingOrder = true;
+  });
 
-    try {
-      // Safely parse priority
-      int priority = 0;
-      final priorityText = _priorityController.text.trim();
-      if (priorityText.isNotEmpty) {
-        priority = int.tryParse(priorityText) ?? 0;
+  try {
+    int priority = 0;
+    final priorityText = _priorityController.text.trim();
+    if (priorityText.isNotEmpty) {
+      priority = int.tryParse(priorityText) ?? 0;
+    }
+
+    // Validate all waypoints before creating order
+    for (int i = 0; i < _waypoints.length; i++) {
+      final wp = _waypoints[i];
+      final coords = wp['coordinates'] as Map<String, dynamic>;
+      if (!_isValidMapCoordinate(coords['x'] as double, coords['y'] as double)) {
+        throw Exception('Waypoint ${i + 1} (${wp['name']}) has invalid coordinates');
       }
+    }
 
-      final orderData = {
-        'deviceId': widget.deviceId,
-        'name': _orderNameController.text.trim(),
-        'priority': priority,
-        'waypoints': _waypoints
-            .map((wp) => {
-                  'name': wp['name'],
-                  'type': wp['type'],
-                  'position': {
-                    'x': wp['coordinates']['x'],
-                    'y': wp['coordinates']['y'],
-                    'z': 0.0,
-                  },
-                  'orientation': wp['orientation'] ?? 0.0,
-                  'metadata': wp['metadata'],
-                })
-            .toList(),
-      };
+    final orderData = {
+      'deviceId': widget.deviceId,
+      'name': _orderNameController.text.trim(),
+      'priority': priority,
+      'description': 'Created from interactive map with ${_waypoints.length} waypoints. Map resolution: ${widget.mapData.info.resolution}m/pixel',
+      'waypoints': _waypoints.map((wp) => {
+        'name': wp['name'],
+        'type': wp['type'],
+        'position': {
+          'x': wp['coordinates']['x'], // Already in ROS world coordinates (meters)
+          'y': wp['coordinates']['y'], // Already in ROS world coordinates (meters)
+          'z': 0.0, // Assuming 2D navigation
+        },
+        'orientation': wp['orientation'] ?? 0.0, // Radians for ROS
+        'metadata': {
+          ...wp['metadata'],
+          'coordinateSystem': 'map', // ROS coordinate frame
+          'createdFromMap': widget.mapData.info.width.toString() + 'x' + widget.mapData.info.height.toString(),
+          'mapOrigin': {
+            'x': widget.mapData.info.origin.x,
+            'y': widget.mapData.info.origin.y,
+          },
+          'mapResolution': widget.mapData.info.resolution,
+        },
+      }).toList(),
+    };
 
-      final response = await _apiService.createOrder(
-        deviceId: widget.deviceId,
-        name: orderData['name'] as String,
-        waypoints: orderData['waypoints'] as List<Map<String, dynamic>>,
-        priority: orderData['priority'] as int,
-      );
+    print('🚀 Creating order with ROS-compatible coordinates:');
+    for (int i = 0; i < orderData['waypoints'].length; i++) {
+      final wp = (orderData['waypoints'] as List)[i];
+      final pos = wp['position'];
+      print('  ${i + 1}. ${wp['name']} (${wp['type']}): (${pos['x']}, ${pos['y']}) meters');
+    }
 
-      if (response['success'] == true) {
-        widget.onOrderCreated(orderData);
+    final response = await _apiService.createOrder(
+      deviceId: widget.deviceId,
+      name: orderData['name'] as String,
+      waypoints: orderData['waypoints'] as List<Map<String, dynamic>>,
+      priority: orderData['priority'] as int,
+      description: orderData['description'] as String,
+    );
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Order created successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+    if (response['success'] == true) {
+      widget.onOrderCreated(orderData);
 
-        Navigator.of(context).pop();
-      } else {
-        throw Exception(response['error'] ?? 'Failed to create order');
-      }
-    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to create order: $e'),
-          backgroundColor: Colors.red,
+          content: Text('✅ Order created successfully with ${_waypoints.length} waypoints!\nReady for execution with 3-second intervals.'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 4),
         ),
       );
-    } finally {
-      setState(() {
-        _isCreatingOrder = false;
-      });
+
+      Navigator.of(context).pop();
+    } else {
+      throw Exception(response['error'] ?? 'Failed to create order');
     }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('❌ Failed to create order: $e'),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 5),
+      ),
+    );
+  } finally {
+    setState(() {
+      _isCreatingOrder = false;
+    });
   }
+}
 
   void _previewOrderExecution() {
     if (_waypoints.isEmpty) return;
@@ -996,41 +1042,129 @@ class _InteractiveMapOrderCreatorState extends State<InteractiveMapOrderCreator>
       SnackBar(content: Text('Order template save feature coming soon!')),
     );
   }
+// Add this method to convert world coordinates back to screen for displaying waypoints
+Offset _worldToScreenCoordinates(double worldX, double worldY) {
+  try {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    final canvasSize = renderBox?.size ?? Size(800, 600);
+    final canvasWidth = canvasSize.width;
+    final canvasHeight = canvasSize.height;
+    
+    final mapWidth = widget.mapData.info.width.toDouble();
+    final mapHeight = widget.mapData.info.height.toDouble();
+    final resolution = widget.mapData.info.resolution;
+    final originX = widget.mapData.info.origin.x;
+    final originY = widget.mapData.info.origin.y;
+    
+    // Convert world coordinates to map pixel coordinates
+    final mapPixelX = (worldX - originX) / resolution;
+    final mapPixelY = mapHeight - ((worldY - originY) / resolution); // Flip Y axis
+    
+    // Convert map pixel coordinates to canvas coordinates
+    final canvasX = (mapPixelX / mapWidth) * canvasWidth;
+    final canvasY = (mapPixelY / mapHeight) * canvasHeight;
+    
+    // Apply current transform (scale and offset)
+    final screenX = (canvasX * _mapScale) + _mapOffset.dx;
+    final screenY = (canvasY * _mapScale) + _mapOffset.dy;
+    
+    return Offset(screenX, screenY);
+  } catch (e) {
+    print('❌ Error converting world to screen coordinates: $e');
+    return Offset.zero;
+  }
+}
+
 
   // ==========================================
   // MAP UTILITIES
   // ==========================================
-
-  Map<String, double> _screenToMapCoordinates(Offset screenPosition) {
-    try {
-      // Convert screen coordinates to map coordinates
-      // This is a simplified conversion - adjust based on your coordinate system
-      final mapX = (screenPosition.dx - _mapOffset.dx) / _mapScale;
-      final mapY = (screenPosition.dy - _mapOffset.dy) / _mapScale;
-
-      return {
-        'x': (mapX * widget.mapData.info.resolution).isFinite
-            ? mapX * widget.mapData.info.resolution
-            : 0.0,
-        'y': (mapY * widget.mapData.info.resolution).isFinite
-            ? mapY * widget.mapData.info.resolution
-            : 0.0,
-      };
-    } catch (e) {
-      print('❌ Error converting screen to map coordinates: $e');
-      return {'x': 0.0, 'y': 0.0};
-    }
+bool _isValidMapCoordinate(double x, double y) {
+  // Define reasonable bounds based on typical indoor/outdoor maps
+  // These bounds should match your actual map area
+  final maxBound = 100.0; // 100 meters from origin
+  final minBound = -100.0; // -100 meters from origin
+  
+  final isValid = x >= minBound && x <= maxBound && 
+                  y >= minBound && y <= maxBound &&
+                  x.isFinite && y.isFinite && !x.isNaN && !y.isNaN;
+                  
+  if (!isValid) {
+    print('⚠️ Invalid coordinates: x=$x, y=$y (bounds: $minBound to $maxBound)');
   }
+  
+  return isValid;
+}
 
-  String _getMapCoordinatesText(Offset screenPosition) {
-    try {
-      final coords = _screenToMapCoordinates(screenPosition);
-      return '(${coords['x']!.toStringAsFixed(2)}, ${coords['y']!.toStringAsFixed(2)})';
-    } catch (e) {
-      print('❌ Error getting map coordinates text: $e');
-      return '(0.00, 0.00)';
+Map<String, double> _screenToMapCoordinates(Offset screenPosition) {
+  try {
+    // Enhanced PGM map coordinate conversion
+    // This properly converts screen coordinates to ROS map coordinates
+    
+    // Get the actual canvas size
+    final renderBox = context.findRenderObject() as RenderBox?;
+    final canvasSize = renderBox?.size ?? Size(800, 600);
+    final canvasWidth = canvasSize.width;
+    final canvasHeight = canvasSize.height;
+    
+    // PGM map parameters from MapData
+    final mapWidth = widget.mapData.info.width.toDouble();
+    final mapHeight = widget.mapData.info.height.toDouble();
+    final resolution = widget.mapData.info.resolution; // meters per pixel
+    final originX = widget.mapData.info.origin.x; // map origin in meters
+    final originY = widget.mapData.info.origin.y;
+    
+    print('🗺️ Map info: ${mapWidth}x${mapHeight}, resolution: ${resolution}m/pixel');
+    print('🌍 Origin: (${originX}, ${originY})');
+    print('🖥️ Canvas: ${canvasWidth}x${canvasHeight}');
+    
+    // Apply current map transformations (scale and offset)
+    final adjustedX = (screenPosition.dx - _mapOffset.dx) / _mapScale;
+    final adjustedY = (screenPosition.dy - _mapOffset.dy) / _mapScale;
+    
+    // Convert canvas coordinates to map pixel coordinates
+    // Map the entire canvas to the map dimensions
+    final mapPixelX = (adjustedX / canvasWidth) * mapWidth;
+    final mapPixelY = (adjustedY / canvasHeight) * mapHeight;
+    
+    // Convert map pixel coordinates to world coordinates (meters)
+    // PGM maps have origin at bottom-left, but screen coordinates start at top-left
+    // So we need to flip the Y coordinate
+    final worldX = originX + (mapPixelX * resolution);
+    final worldY = originY + ((mapHeight - mapPixelY) * resolution);
+    
+    // Validate coordinates are within reasonable bounds
+    if (!_isValidMapCoordinate(worldX, worldY)) {
+      print('⚠️ Coordinates may be outside valid map bounds: ($worldX, $worldY)');
     }
+    
+    print('🔄 Coordinate conversion:');
+    print('  Screen: (${screenPosition.dx.toStringAsFixed(1)}, ${screenPosition.dy.toStringAsFixed(1)})');
+    print('  Adjusted: (${adjustedX.toStringAsFixed(1)}, ${adjustedY.toStringAsFixed(1)})');
+    print('  Map Pixel: (${mapPixelX.toStringAsFixed(1)}, ${mapPixelY.toStringAsFixed(1)})');
+    print('  World (ROS): (${worldX.toStringAsFixed(3)}, ${worldY.toStringAsFixed(3)})');
+    
+    return {
+      'x': worldX,
+      'y': worldY,
+    };
+  } catch (e) {
+    print('❌ Error converting screen to map coordinates: $e');
+    // Return safe fallback coordinates
+    return {'x': 0.0, 'y': 0.0};
   }
+}
+
+String _getMapCoordinatesText(Offset screenPosition) {
+  try {
+    final coords = _screenToMapCoordinates(screenPosition);
+    // Show coordinates in meters with 3 decimal places for precision
+    return '(${coords['x']!.toStringAsFixed(3)}m, ${coords['y']!.toStringAsFixed(3)}m)';
+  } catch (e) {
+    print('❌ Error getting map coordinates text: $e');
+    return '(0.000m, 0.000m)';
+  }
+}
 
   void _centerMap() {
     setState(() {
@@ -1099,6 +1233,57 @@ class _InteractiveMapOrderCreatorState extends State<InteractiveMapOrderCreator>
 // ==========================================
 // CUSTOM PAINTER FOR INTERACTIVE MAP
 // ==========================================
+  void _drawCoordinateGrid(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey.shade300
+      ..strokeWidth = 0.5;
+
+    // Calculate grid spacing in meters (adjust based on map resolution)
+    final gridSpacingMeters = 1.0; // 1 meter grid
+    final gridSpacingPixels = gridSpacingMeters / mapData.info.resolution;
+
+    // Draw vertical lines
+    for (double x = 0; x < size.width / mapScale; x += gridSpacingPixels) {
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height / mapScale),
+        paint,
+      );
+    }
+
+    // Draw horizontal lines
+    for (double y = 0; y < size.height / mapScale; y += gridSpacingPixels) {
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width / mapScale, y),
+        paint,
+      );
+    }
+
+    // Draw coordinate labels every 5 meters
+    final textPaint = TextPainter(
+      textDirection: TextDirection.ltr,
+    );
+
+    for (double x = 0; x < size.width / mapScale; x += gridSpacingPixels * 5) {
+      for (double y = 0; y < size.height / mapScale; y += gridSpacingPixels * 5) {
+        // Convert to world coordinates for labeling
+        final worldX = mapData.info.origin.x + (x * mapData.info.resolution);
+        final worldY = mapData.info.origin.y + ((mapData.info.height - y) * mapData.info.resolution);
+        
+        textPaint.text = TextSpan(
+          text: '(${worldX.toStringAsFixed(1)},${worldY.toStringAsFixed(1)})',
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 8),
+        );
+        textPaint.layout();
+        textPaint.paint(canvas, Offset(x + 2, y + 2));
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => true;
+}
 
 class InteractiveMapPainter extends CustomPainter {
   final MapData mapData;
@@ -1126,8 +1311,9 @@ class InteractiveMapPainter extends CustomPainter {
     try {
       print('🎨 Painting map canvas - Size: ${size.width}x${size.height}');
       print('📏 Map scale: $mapScale, Offset: $mapOffset');
-      print(
-          '🗺️ Map shapes: ${mapData.shapes.length}, Waypoints: ${waypoints.length}');
+      print('🗺️ Map dimensions: ${mapData.info.width}x${mapData.info.height}');
+      print('📍 Map resolution: ${mapData.info.resolution}m/pixel');
+      print('🌍 Map origin: (${mapData.info.origin.x}, ${mapData.info.origin.y})');
 
       // Handle zero height case
       if (size.height <= 0 || size.width <= 0) {
@@ -1141,23 +1327,23 @@ class InteractiveMapPainter extends CustomPainter {
       canvas.translate(mapOffset.dx, mapOffset.dy);
       canvas.scale(mapScale);
 
-      // Draw map background
+      // Draw map background with coordinate system info
       _drawMapBackground(canvas, size);
 
-      // Draw grid if enabled
+      // Draw coordinate grid if enabled
       if (showGrid) {
-        _drawGrid(canvas, size);
+        _drawCoordinateGrid(canvas, size);
       }
 
       // Draw existing map shapes
       _drawMapShapes(canvas);
 
-      // Draw waypoints
-      _drawWaypoints(canvas);
+      // Draw waypoints with ROS coordinates
+      _drawWaypointsWithCoordinates(canvas);
 
-      // Draw selected coordinate
+      // Draw selected coordinate with world coordinates
       if (selectedCoordinate != null) {
-        _drawSelectedCoordinate(canvas);
+        _drawSelectedCoordinateWithWorldPos(canvas);
       }
 
       canvas.restore();

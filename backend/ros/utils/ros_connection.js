@@ -1,6 +1,7 @@
 // ros/utils/ros_connection.js - FIXED to prevent double initialization
 const rclnodejs = require('rclnodejs');
 const config = require('../../config');
+const navigationFeedback = require('./navigation_feedback');
 
 let rosNode = null;
 let isInitialized = false;
@@ -51,6 +52,15 @@ async function initializeROS() {
         // Initialize subscribers with the node
         subscribers.initializeSubscribers(rosNode);
 
+        // ✅ NEW: Initialize navigation feedback system
+        try {
+            navigationFeedback.initializeNavigationFeedback(rosNode);
+            console.log('✅ Navigation feedback system initialized');
+        } catch (navError) {
+            console.warn('⚠️ Failed to initialize navigation feedback:', navError.message);
+            // Don't fail the entire initialization for navigation feedback
+        }
+
         // ✅ CRITICAL FIX: Only start spinning once per process
         if (!nodeSpinning) {
             rclnodejs.spin(rosNode);
@@ -73,9 +83,18 @@ async function initializeROS() {
             }
         }, 2000);
 
+        // ✅ NEW: Test navigation feedback after initialization
+        setTimeout(() => {
+            testNavigationFeedback();
+        }, 3000);
+
         isInitialized = true;
         isShutdown = false;
         initializationAttempts = 0; // Reset on success
+        
+        // Set global references
+        global.rosNode = rosNode;
+        global.rosInitialized = true;
         
         console.log('✅ ROS2 connection fully initialized');
         
@@ -101,6 +120,14 @@ async function initializeROS() {
                 publishers.initializePublishers(rosNode);
                 subscribers.initializeSubscribers(rosNode);
                 
+                // ✅ NEW: Initialize navigation feedback system after recovery
+                try {
+                    navigationFeedback.initializeNavigationFeedback(rosNode);
+                    console.log('✅ Navigation feedback system initialized after recovery');
+                } catch (navError) {
+                    console.warn('⚠️ Failed to initialize navigation feedback after recovery:', navError.message);
+                }
+                
                 if (!nodeSpinning) {
                     rclnodejs.spin(rosNode);
                     nodeSpinning = true;
@@ -112,6 +139,10 @@ async function initializeROS() {
                 isInitialized = true;
                 isShutdown = false;
                 initializationAttempts = 0;
+                
+                // Set global references
+                global.rosNode = rosNode;
+                global.rosInitialized = true;
                 
                 console.log('✅ ROS2 connection recovered successfully');
                 return true;
@@ -130,11 +161,24 @@ async function initializeROS() {
                 // Just initialize publishers and subscribers
                 publishers.initializePublishers(rosNode);
                 subscribers.initializeSubscribers(rosNode);
+                
+                // ✅ NEW: Initialize navigation feedback system
+                try {
+                    navigationFeedback.initializeNavigationFeedback(rosNode);
+                    console.log('✅ Navigation feedback system initialized (node was already spinning)');
+                } catch (navError) {
+                    console.warn('⚠️ Failed to initialize navigation feedback (node was already spinning):', navError.message);
+                }
+                
                 subscribers.subscribeToAllTopics();
                 
                 isInitialized = true;
                 isShutdown = false;
                 initializationAttempts = 0;
+                
+                // Set global references
+                global.rosNode = rosNode;
+                global.rosInitialized = true;
                 
                 console.log('✅ ROS2 connection recovered successfully (node was already spinning)');
                 return true;
@@ -193,6 +237,53 @@ async function recoverConnection() {
     
     // Attempt recovery
     return await initializeROS();
+}
+
+// ✅ NEW: Test navigation feedback system
+async function testNavigationFeedback() {
+    try {
+        if (!isInitialized || isShutdown) {
+            return {
+                success: false,
+                error: 'ROS not initialized',
+                timestamp: new Date().toISOString()
+            };
+        }
+        
+        console.log('🧪 Testing navigation feedback system...');
+        
+        // Get active navigation goals
+        const activeGoals = navigationFeedback.getActiveNavigationGoals ? 
+            navigationFeedback.getActiveNavigationGoals() : [];
+        console.log(`📊 Active navigation goals: ${activeGoals.length}`);
+        
+        // Test publisher status (if available)
+        let navStatus = null;
+        try {
+            navStatus = publishers.getNavigationStatus ? publishers.getNavigationStatus() : null;
+            console.log('📊 Navigation publisher status:', navStatus);
+        } catch (e) {
+            console.warn('⚠️ Could not get navigation publisher status:', e.message);
+        }
+        
+        console.log('✅ Navigation feedback test completed');
+        
+        return {
+            success: true,
+            rosInitialized: isInitialized,
+            activeGoals: activeGoals.length,
+            publisherStatus: navStatus,
+            timestamp: new Date().toISOString()
+        };
+        
+    } catch (error) {
+        console.error('❌ Navigation feedback test failed:', error);
+        return {
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        };
+    }
 }
 
 // ✅ ENHANCED: Joystick publishing with auto-recovery
@@ -548,6 +639,7 @@ function getConnectionStatus() {
         maxInitAttempts: MAX_INIT_ATTEMPTS,
         publisherStats: isInitialized ? publishers.getPublisherStats() : null,
         canRecover: initializationAttempts < MAX_INIT_ATTEMPTS,
+        navigationFeedbackActive: isInitialized ? (navigationFeedback.getActiveNavigationGoals ? navigationFeedback.getActiveNavigationGoals().length : 0) : 0,
         timestamp: new Date().toISOString()
     };
 }
@@ -566,6 +658,10 @@ function getROS2Status() {
             maxSpeeds: isInitialized ? publishers.getCurrentMaxSpeeds() : { linear: 0, angular: 0 },
             initializationAttempts: initializationAttempts,
             canRecover: initializationAttempts < MAX_INIT_ATTEMPTS,
+            navigationFeedback: {
+                initialized: isInitialized,
+                activeGoals: isInitialized ? (navigationFeedback.getActiveNavigationGoals ? navigationFeedback.getActiveNavigationGoals().length : 0) : 0
+            },
             lastUpdate: new Date().toISOString(),
             status: isInitialized && !isShutdown ? 'healthy' : 'disconnected'
         };
@@ -616,7 +712,15 @@ async function shutdown() {
         
         isShutdown = true;
         
-        // Cleanup subscribers first
+        // ✅ NEW: Cleanup navigation feedback first
+        try {
+            navigationFeedback.cleanup();
+            console.log('🧹 Navigation feedback cleanup completed');
+        } catch (e) {
+            console.warn('⚠️ Error cleaning up navigation feedback:', e.message);
+        }
+        
+        // Cleanup subscribers
         try {
             subscribers.cleanup();
         } catch (e) {
@@ -643,6 +747,10 @@ async function shutdown() {
                 nodeSpinning = false; // Reset anyway
             }
         }
+        
+        // Reset global references
+        global.rosNode = null;
+        global.rosInitialized = false;
         
         // ✅ FIXED: Only shutdown rclnodejs if we're doing a full shutdown
         // In most cases, we want to keep the context alive for recovery
@@ -710,6 +818,7 @@ module.exports = {
     initializeROS,
     ensureROSConnection,    // ✅ NEW
     recoverConnection,      // ✅ ENHANCED: Better context handling
+    testNavigationFeedback, // ✅ NEW: Test navigation feedback system
     publishJoystick,        // ✅ ENHANCED: Now with auto-recovery
     publishVelocity,
     publishGoal,
@@ -723,5 +832,5 @@ module.exports = {
     getROS2Status,          // ✅ ENHANCED: Recovery status
     testConnection,
     addConnectedDevice,     // ✅ NEW: Missing function
-    shutdown
+    shutdown                // ✅ ENHANCED: Now includes navigation feedback cleanup
 };
