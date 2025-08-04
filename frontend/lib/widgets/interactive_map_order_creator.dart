@@ -1,5 +1,5 @@
 // widgets/interactive_map_order_creator.dart - Interactive Map-based Order Creation
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart'; // This import provides the Color type
 import 'dart:math' as math;
 import '../models/map_data.dart';
 import '../services/api_service.dart';
@@ -1931,7 +1931,12 @@ class EnhancedInteractiveMapPainter extends CustomPainter {
       final bgWidth = (textPainter.width + 4).clamp(1, 1000);
       final bgHeight = (textPainter.height + 4).clamp(1, 100);
       
-      final bgRect = Rect.fromLTWH(bgX, bgY, bgWidth, bgHeight);
+      final bgRect = Rect.fromLTWH(
+        bgX.toDouble(),
+        bgY.toDouble(),
+        bgWidth.toDouble(),
+        bgHeight.toDouble(),
+      );
       
       // Draw background
       canvas.drawRect(
@@ -1944,7 +1949,7 @@ class EnhancedInteractiveMapPainter extends CustomPainter {
       final textY = (position.dy - textPainter.height).clamp(-1000, 10000);
       
       // Draw text
-      textPainter.paint(canvas, Offset(textX, textY));
+      textPainter.paint(canvas, Offset(textX.toDouble(), textY.toDouble()));
     } catch (e) {
       print('❌ Error drawing shape label for ${shape.name}: $e');
     }
@@ -2402,148 +2407,11 @@ class EnhancedInteractiveMapPainter extends CustomPainter {
       }
       
       // Handle hex colors without # prefix (like FF9C27B0)
-      if (RegExp(r'^[0-9A-Fa-f]{6}
-      
-      // Handle RGB format rgb(r,g,b)
-      final lowerColor = cleanColor.toLowerCase();
-      if (lowerColor.startsWith('rgb(') && lowerColor.endsWith(')')) {
-        final rgbString = lowerColor.substring(4, lowerColor.length - 1);
-        final parts = rgbString.split(',').map((s) => s.trim()).toList();
-        if (parts.length == 3) {
-          final r = (int.tryParse(parts[0]) ?? 0).clamp(0, 255);
-          final g = (int.tryParse(parts[1]) ?? 0).clamp(0, 255);
-          final b = (int.tryParse(parts[2]) ?? 0).clamp(0, 255);
-          return Color.fromARGB(255, r, g, b);
-        }
-      }
-      
-      // Handle RGBA format rgba(r,g,b,a)
-      if (lowerColor.startsWith('rgba(') && lowerColor.endsWith(')')) {
-        final rgbaString = lowerColor.substring(5, lowerColor.length - 1);
-        final parts = rgbaString.split(',').map((s) => s.trim()).toList();
-        if (parts.length == 4) {
-          final r = (int.tryParse(parts[0]) ?? 0).clamp(0, 255);
-          final g = (int.tryParse(parts[1]) ?? 0).clamp(0, 255);
-          final b = (int.tryParse(parts[2]) ?? 0).clamp(0, 255);
-          final a = ((double.tryParse(parts[3]) ?? 1.0) * 255).clamp(0, 255);
-          return Color.fromARGB(a.toInt(), r, g, b);
-        }
-      }
-      
-      // Handle named colors
-      switch (lowerColor) {
-        case 'red':
-          return Colors.red;
-        case 'green':
-          return Colors.green;
-        case 'blue':
-          return Colors.blue;
-        case 'yellow':
-          return Colors.yellow;
-        case 'orange':
-          return Colors.orange;
-        case 'purple':
-          return Colors.purple;
-        case 'pink':
-          return Colors.pink;
-        case 'cyan':
-          return Colors.cyan;
-        case 'brown':
-          return Colors.brown;
-        case 'grey':
-        case 'gray':
-          return Colors.grey;
-        case 'black':
-          return Colors.black;
-        case 'white':
-          return Colors.white;
-        case 'transparent':
-          return Colors.transparent;
-        default:
-          print('⚠️ Unknown color format: $colorString, using default blue');
-          return Colors.blue;
-      }
-    } catch (e) {
-      print('❌ Error parsing color "$colorString": $e, using default blue');
-      return Colors.blue;
-    }
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => true;
-}).hasMatch(cleanColor)) {
+      if (RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(cleanColor)) {
         // RRGGBB format without #
         final colorValue = int.parse('FF$cleanColor', radix: 16);
         return Color(colorValue);
-      } else if (RegExp(r'^[0-9A-Fa-f]{8}
-      
-      // Handle RGB format rgb(r,g,b)
-      if (cleanColor.startsWith('rgb(') && cleanColor.endsWith(')')) {
-        final rgbString = cleanColor.substring(4, cleanColor.length - 1);
-        final parts = rgbString.split(',').map((s) => s.trim()).toList();
-        if (parts.length == 3) {
-          final r = int.tryParse(parts[0]) ?? 0;
-          final g = int.tryParse(parts[1]) ?? 0;
-          final b = int.tryParse(parts[2]) ?? 0;
-          return Color.fromARGB(255, r, g, b);
-        }
-      }
-      
-      // Handle RGBA format rgba(r,g,b,a)
-      if (cleanColor.startsWith('rgba(') && cleanColor.endsWith(')')) {
-        final rgbaString = cleanColor.substring(5, cleanColor.length - 1);
-        final parts = rgbaString.split(',').map((s) => s.trim()).toList();
-        if (parts.length == 4) {
-          final r = int.tryParse(parts[0]) ?? 0;
-          final g = int.tryParse(parts[1]) ?? 0;
-          final b = int.tryParse(parts[2]) ?? 0;
-          final a = (double.tryParse(parts[3]) ?? 1.0) * 255;
-          return Color.fromARGB(a.toInt(), r, g, b);
-        }
-      }
-      
-      // Handle named colors
-      switch (cleanColor) {
-        case 'red':
-          return Colors.red;
-        case 'green':
-          return Colors.green;
-        case 'blue':
-          return Colors.blue;
-        case 'yellow':
-          return Colors.yellow;
-        case 'orange':
-          return Colors.orange;
-        case 'purple':
-          return Colors.purple;
-        case 'pink':
-          return Colors.pink;
-        case 'cyan':
-          return Colors.cyan;
-        case 'brown':
-          return Colors.brown;
-        case 'grey':
-        case 'gray':
-          return Colors.grey;
-        case 'black':
-          return Colors.black;
-        case 'white':
-          return Colors.white;
-        case 'transparent':
-          return Colors.transparent;
-        default:
-          print('⚠️ Unknown color format: $colorString, using default blue');
-          return Colors.blue;
-      }
-    } catch (e) {
-      print('❌ Error parsing color "$colorString": $e, using default blue');
-      return Colors.blue;
-    }
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => true;
-}).hasMatch(cleanColor)) {
+      } else if (RegExp(r'^[0-9A-Fa-f]{8}$').hasMatch(cleanColor)) {
         // AARRGGBB format without #
         final colorValue = int.parse(cleanColor, radix: 16);
         return Color(colorValue);
@@ -2581,7 +2449,7 @@ class EnhancedInteractiveMapPainter extends CustomPainter {
       }
       
       // Handle named colors
-      switch (cleanColor) {
+      switch (cleanColor.toLowerCase()) {
         case 'red':
           return Colors.red;
         case 'green':
@@ -2610,7 +2478,7 @@ class EnhancedInteractiveMapPainter extends CustomPainter {
         case 'transparent':
           return Colors.transparent;
         default:
-          print('⚠️ Unknown color format: $colorString, using default blue');
+          print('⚠️ Unknown color format: $cleanColor, using default blue');
           return Colors.blue;
       }
     } catch (e) {

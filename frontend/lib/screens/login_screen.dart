@@ -89,7 +89,8 @@ class _LoginScreenState extends State<LoginScreen>
   // Device type detection
   DeviceType _getDeviceType(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    if (screenWidth > 1200) return DeviceType.desktop;
+    if (screenWidth > 1400) return DeviceType.desktop;
+    if (screenWidth > 900) return DeviceType.laptop;
     if (screenWidth > 600) return DeviceType.tablet;
     return DeviceType.mobile;
   }
@@ -97,7 +98,6 @@ class _LoginScreenState extends State<LoginScreen>
   // Get responsive dimensions
   ResponsiveDimensions _getResponsiveDimensions(BuildContext context) {
     final deviceType = _getDeviceType(context);
-    final screenSize = MediaQuery.of(context).size;
 
     switch (deviceType) {
       case DeviceType.desktop:
@@ -114,6 +114,21 @@ class _LoginScreenState extends State<LoginScreen>
           buttonTextSize: 20.0,
           spacing: 60.0,
           maxWidth: 600.0,
+        );
+      case DeviceType.laptop:
+        return ResponsiveDimensions(
+          horizontalPadding: 72.0,
+          verticalPadding: 40.0,
+          logoSize: 340.0,
+          logoHeight: 150.0,
+          titleSize: 38.0,
+          subtitleSize: 19.0,
+          cardPadding: 44.0,
+          textFieldHeight: 68.0,
+          buttonHeight: 72.0,
+          buttonTextSize: 19.0,
+          spacing: 55.0,
+          maxWidth: 560.0,
         );
       case DeviceType.tablet:
         return ResponsiveDimensions(
@@ -276,9 +291,11 @@ class _LoginScreenState extends State<LoginScreen>
             ...List.generate(
                 deviceType == DeviceType.desktop
                     ? 20
-                    : deviceType == DeviceType.tablet
-                        ? 15
-                        : 10,
+                    : deviceType == DeviceType.laptop
+                        ? 16
+                        : deviceType == DeviceType.tablet
+                            ? 12
+                            : 8,
                 (index) => _buildBackgroundElement(index, dimensions)),
 
             // Main content
@@ -751,7 +768,7 @@ class _LoginScreenState extends State<LoginScreen>
 }
 
 // Helper classes for responsive design
-enum DeviceType { mobile, tablet, desktop }
+enum DeviceType { mobile, tablet, laptop, desktop }
 
 class ResponsiveDimensions {
   final double horizontalPadding;
