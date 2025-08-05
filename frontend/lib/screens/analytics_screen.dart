@@ -409,12 +409,12 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       // Update device stats with cross-referenced data
       _updateDeviceStatsWithCrossData();
 
-      print('📊 Final analytics data summary:');
-      print('  - Devices: ${_connectedDevices.length}');
-      print('  - Battery history entries: ${_batteryHistory.keys.length}');
-      print('  - Order history entries: ${_orderHistory.keys.length}');
-      print('  - Device stats entries: ${_deviceStats.keys.length}');
-      print('  - System events: ${_systemEvents.length}');
+      // print('📊 Final analytics data summary:');
+      // print('  - Devices: ${_connectedDevices.length}');
+      // print('  - Battery history entries: ${_batteryHistory.keys.length}');
+      // print('  - Order history entries: ${_orderHistory.keys.length}');
+      // print('  - Device stats entries: ${_deviceStats.keys.length}');
+      // print('  - System events: ${_systemEvents.length}');
 
       _chartAnimationController.forward();
     } catch (e) {

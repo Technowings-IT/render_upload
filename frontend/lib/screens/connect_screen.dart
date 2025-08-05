@@ -1,12 +1,17 @@
-// screens/connect_screen.dart - Enhanced UI with Modern Design
+// screens/connect_screen.dart - Modern Robotic Fleet Management Connection Interface
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:math' as math;
+import '../services/theme_service.dart';
 import '../services/api_service.dart';
 import '../services/web_socket_service.dart';
 import '../services/network_discovery_service.dart';
+import '../widgets/modern_ui_components.dart';
 
 class ConnectScreen extends StatefulWidget {
   @override
@@ -19,11 +24,9 @@ class _ConnectScreenState extends State<ConnectScreen>
   final WebSocketService _webSocketService = WebSocketService();
   final NetworkDiscoveryService _discoveryService = NetworkDiscoveryService();
 
-  // Auto-connection controllers
+  // Controllers
   final _deviceIdController = TextEditingController(text: 'agv_01');
   final _deviceNameController = TextEditingController(text: 'Primary AGV');
-
-  // Manual connection controllers
   final _manualBackendIpController = TextEditingController();
   final _manualBackendPortController = TextEditingController(text: '3000');
   final _manualDeviceIdController = TextEditingController();
@@ -31,6 +34,17 @@ class _ConnectScreenState extends State<ConnectScreen>
   final _manualDeviceIpController = TextEditingController();
   final _manualDevicePortController = TextEditingController(text: '3000');
 
+  // Animation controllers
+  late AnimationController _scanningController;
+  late AnimationController _connectionController;
+  late AnimationController _radarController;
+  late AnimationController _discoveryController;
+  late Animation<double> _scanningAnimation;
+  late Animation<double> _connectionPulse;
+  late Animation<double> _radarSweep;
+  late Animation<double> _discoveryFade;
+
+  // State
   List<Map<String, dynamic>> _connectedDevices = [];
   List<AGVDevice> _discoveredDevices = [];
   String? _detectedBackendIP;
@@ -38,27 +52,66 @@ class _ConnectScreenState extends State<ConnectScreen>
   bool _isConnecting = false;
   bool _isDiscovering = false;
   bool _isWebSocketConnected = false;
-  String _connectionStatus = 'Disconnected';
+  String _connectionStatus = 'Initializing...';
+  int _currentTabIndex = 0;
+
+  // Stream subscriptions
   late StreamSubscription _deviceEventsSubscription;
   late StreamSubscription _connectionStateSubscription;
-
-  // Animation controllers for enhanced UI
-  late AnimationController _pulseController;
-  late AnimationController _slideController;
-  late Animation<double> _pulseAnimation;
-  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
     _initializeConnections();
-    _startAutoDiscovery();
     _loadSavedConnections();
+    _startInitialDiscovery();
   }
 
   @override
   void dispose() {
+    _disposeControllers();
+    _disposeAnimations();
+    _deviceEventsSubscription.cancel();
+    _connectionStateSubscription.cancel();
+    super.dispose();
+  }
+
+  void _initializeAnimations() {
+    _scanningController = AnimationController(
+      duration: const Duration(seconds: 3),
+      vsync: this,
+    );
+    _connectionController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _radarController = AnimationController(
+      duration: const Duration(seconds: 4),
+      vsync: this,
+    );
+    _discoveryController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+
+    _scanningAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _scanningController, curve: Curves.linear),
+    );
+    _connectionPulse = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _connectionController, curve: Curves.easeInOut),
+    );
+    _radarSweep = Tween<double>(begin: 0.0, end: 2 * math.pi).animate(
+      CurvedAnimation(parent: _radarController, curve: Curves.linear),
+    );
+    _discoveryFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _discoveryController, curve: Curves.easeInOut),
+    );
+
+    _discoveryController.forward();
+  }
+
+  void _disposeControllers() {
     _deviceIdController.dispose();
     _deviceNameController.dispose();
     _manualBackendIpController.dispose();
@@ -67,52 +120,33 @@ class _ConnectScreenState extends State<ConnectScreen>
     _manualDeviceNameController.dispose();
     _manualDeviceIpController.dispose();
     _manualDevicePortController.dispose();
-    _deviceEventsSubscription.cancel();
-    _connectionStateSubscription.cancel();
-    _pulseController.dispose();
-    _slideController.dispose();
-    super.dispose();
   }
 
-  void _initializeAnimations() {
-    _pulseController = AnimationController(
-      duration: Duration(seconds: 2),
-      vsync: this,
-    )..repeat(reverse: true);
-
-    _slideController = AnimationController(
-      duration: Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOut));
-
-    _slideController.forward();
+  void _disposeAnimations() {
+    _scanningController.dispose();
+    _connectionController.dispose();
+    _radarController.dispose();
+    _discoveryController.dispose();
   }
 
   void _initializeConnections() {
-    // Subscribe to WebSocket connection state
     _connectionStateSubscription =
         _webSocketService.connectionState.listen((connected) {
       setState(() {
         _isWebSocketConnected = connected;
         _connectionStatus =
-            connected ? 'Connected to AGV Fleet Backend' : 'Disconnected';
+            connected ? 'Fleet Backend Connected' : 'Backend Disconnected';
       });
 
       if (connected) {
+        _connectionController.repeat(reverse: true);
         _loadConnectedDevices();
+      } else {
+        _connectionController.stop();
+        _connectionController.reset();
       }
     });
 
-    // Subscribe to device events
     _deviceEventsSubscription = _webSocketService.deviceEvents.listen((event) {
       switch (event['type']) {
         case 'device_connected':
@@ -131,45 +165,999 @@ class _ConnectScreenState extends State<ConnectScreen>
     });
   }
 
-  void _startAutoDiscovery() async {
-    if (mounted) {
-      setState(() {
-        _connectionStatus = 'Searching for AGV Fleet Backend...';
-      });
-    }
+  void _startInitialDiscovery() async {
+    setState(() {
+      _connectionStatus = 'Scanning network for AGV systems...';
+    });
+
+    _radarController.repeat();
 
     try {
       final backendIP = await _detectBackendIP();
 
       if (backendIP != null) {
-        if (mounted) {
-          setState(() {
-            _detectedBackendIP = backendIP;
-            _connectionStatus = 'Found backend at $backendIP';
-          });
-        }
-
+        setState(() {
+          _detectedBackendIP = backendIP;
+          _connectionStatus = 'AGV Backend detected at $backendIP';
+        });
         await _connectToDetectedBackend(backendIP);
       } else {
-        if (mounted) {
-          setState(() {
-            _connectionStatus =
-                'No AGV backend found - manual connection available';
-          });
-        }
+        setState(() {
+          _connectionStatus =
+              'No AGV backend found - manual connection available';
+        });
       }
 
       await _discoverAGVDevices();
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _connectionStatus = 'Auto-discovery failed: $e';
-        });
-      }
+      setState(() {
+        _connectionStatus = 'Discovery failed: ${e.toString()}';
+      });
+    } finally {
+      _radarController.stop();
     }
   }
 
+  @override
+  Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeService>(context);
+
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(gradient: theme.backgroundGradient),
+        child: FadeTransition(
+          opacity: _discoveryFade,
+          child: CustomScrollView(
+            slivers: [
+              _buildModernAppBar(theme),
+              SliverPadding(
+                padding: const EdgeInsets.all(20),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _buildConnectionStatusPanel(theme),
+                    const SizedBox(height: 24),
+                    _buildConnectionTabs(theme),
+                    const SizedBox(height: 24),
+                    _buildTabContent(theme),
+                    const SizedBox(height: 24),
+                    _buildConnectedDevicesPanel(theme),
+                  ]),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernAppBar(ThemeService theme) {
+    return SliverAppBar(
+      expandedHeight: 140,
+      floating: false,
+      pinned: true,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      flexibleSpace: FlexibleSpaceBar(
+        title: ShaderMask(
+          shaderCallback: (bounds) => LinearGradient(
+            colors: [theme.accentColor, theme.accentColor.withOpacity(0.7)],
+          ).createShader(bounds),
+          child: Text(
+            'Fleet Connection',
+            style: theme.displayMedium.copyWith(
+              fontSize: 24,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                theme.accentColor.withOpacity(0.3),
+                theme.accentColor.withOpacity(0.1),
+                Colors.transparent,
+              ],
+            ),
+          ),
+          child: Stack(
+            children: [
+              // Animated scanning lines
+              AnimatedBuilder(
+                animation: _scanningAnimation,
+                builder: (context, child) {
+                  return Positioned(
+                    left: MediaQuery.of(context).size.width *
+                            _scanningAnimation.value -
+                        100,
+                    top: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 2,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            theme.accentColor.withOpacity(0.5),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              // Network particles
+              ...List.generate(
+                  8, (index) => _buildNetworkParticle(index, theme)),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          onPressed: _isLoading ? null : () => _refreshConnections(),
+          icon: AnimatedBuilder(
+            animation: _scanningController,
+            builder: (context, child) {
+              return Transform.rotate(
+                angle: _scanningAnimation.value * 2 * math.pi,
+                child: Icon(
+                  Icons.radar,
+                  color: theme.accentColor,
+                  size: 28,
+                ),
+              );
+            },
+          ),
+          tooltip: 'Scan Network',
+        ),
+        IconButton(
+          onPressed: () => _startAutoDiscovery(),
+          icon: Icon(Icons.search, color: theme.accentColor),
+          tooltip: 'Discover Devices',
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  Widget _buildNetworkParticle(int index, ThemeService theme) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final left = (index * 47.3) % screenWidth;
+    final animationDelay = index * 0.3;
+
+    return TweenAnimationBuilder<double>(
+      duration: Duration(milliseconds: 3000 + (index * 200)),
+      tween: Tween(begin: 0.0, end: 1.0),
+      builder: (context, value, child) {
+        return Positioned(
+          left: left,
+          top: 30 + (index * 12.0),
+          child: Transform.translate(
+            offset: Offset(0, -30 * value),
+            child: Opacity(
+              opacity: 1.0 - value,
+              child: Container(
+                width: 3 + (index % 2),
+                height: 3 + (index % 2),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: theme.accentColor.withOpacity(0.4),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.accentColor.withOpacity(0.3),
+                      blurRadius: 4,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildConnectionStatusPanel(ThemeService theme) {
+    return ModernGlassCard(
+      showGlow: _isWebSocketConnected,
+      glowColor: _isWebSocketConnected ? theme.successColor : theme.errorColor,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              AnimatedBuilder(
+                animation: _connectionPulse,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _isWebSocketConnected ? _connectionPulse.value : 1.0,
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          colors: _isWebSocketConnected
+                              ? [
+                                  theme.successColor,
+                                  theme.successColor.withOpacity(0.7)
+                                ]
+                              : [
+                                  theme.errorColor,
+                                  theme.errorColor.withOpacity(0.7)
+                                ],
+                        ),
+                        borderRadius: theme.borderRadiusMedium,
+                        boxShadow:
+                            _isWebSocketConnected ? theme.neonGlow : null,
+                      ),
+                      child: Icon(
+                        _isWebSocketConnected ? Icons.wifi : Icons.wifi_off,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isWebSocketConnected ? 'CONNECTED' : 'DISCONNECTED',
+                      style: theme.headlineLarge.copyWith(
+                        color: _isWebSocketConnected
+                            ? theme.successColor
+                            : theme.errorColor,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _connectionStatus,
+                      style: theme.bodyLarge,
+                    ),
+                    if (_detectedBackendIP != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: theme.accentColor.withOpacity(0.1),
+                          borderRadius: theme.borderRadiusSmall,
+                          border: Border.all(
+                              color: theme.accentColor.withOpacity(0.3)),
+                        ),
+                        child: Text(
+                          'Backend: $_detectedBackendIP:3000',
+                          style: theme.monospace.copyWith(
+                            color: theme.accentColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              RoboticStatusIndicator(
+                status: _isWebSocketConnected ? 'online' : 'offline',
+                label: _isWebSocketConnected ? 'ONLINE' : 'OFFLINE',
+                animated: _isWebSocketConnected,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectionTabs(ThemeService theme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.isDarkMode
+            ? Colors.white.withOpacity(0.05)
+            : Colors.black.withOpacity(0.05),
+        borderRadius: theme.borderRadiusMedium,
+        border: Border.all(
+          color: theme.isDarkMode
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.1),
+        ),
+      ),
+      child: Row(
+        children: [
+          _buildTabButton('Auto Discovery', 0, Icons.radar, theme),
+          _buildTabButton('Manual Backend', 1, Icons.settings_ethernet, theme),
+          _buildTabButton(
+              'Manual Device', 2, Icons.precision_manufacturing, theme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabButton(
+      String title, int index, IconData icon, ThemeService theme) {
+    final isSelected = _currentTabIndex == index;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _currentTabIndex = index);
+          HapticFeedback.lightImpact();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          decoration: BoxDecoration(
+            gradient: isSelected ? theme.primaryGradient : null,
+            borderRadius: theme.borderRadiusSmall,
+          ),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.white : theme.accentColor,
+                size: 24,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: theme.bodySmall.copyWith(
+                  color: isSelected ? Colors.white : theme.accentColor,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabContent(ThemeService theme) {
+    switch (_currentTabIndex) {
+      case 0:
+        return _buildAutoDiscoveryPanel(theme);
+      case 1:
+        return _buildManualBackendPanel(theme);
+      case 2:
+        return _buildManualDevicePanel(theme);
+      default:
+        return Container();
+    }
+  }
+
+  Widget _buildAutoDiscoveryPanel(ThemeService theme) {
+    return ModernGlassCard(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.infoColor.withOpacity(0.1),
+                  borderRadius: theme.borderRadiusSmall,
+                ),
+                child: AnimatedBuilder(
+                  animation: _radarController,
+                  builder: (context, child) {
+                    return Transform.rotate(
+                      angle: _radarSweep.value,
+                      child:
+                          Icon(Icons.radar, color: theme.infoColor, size: 28),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Network Discovery', style: theme.headlineMedium),
+                    Text('Automatically find AGV systems on your network',
+                        style: theme.bodyMedium),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Discovery results
+          if (_discoveredDevices.isNotEmpty) ...[
+            _buildDiscoveryResults(theme),
+            const SizedBox(height: 24),
+          ],
+
+          // Action buttons
+          Row(
+            children: [
+              Expanded(
+                child: ModernActionButton(
+                  label: _isDiscovering ? 'Scanning...' : 'Scan Network',
+                  icon: Icons.search,
+                  onPressed:
+                      _isDiscovering ? () {} : () => _startAutoDiscovery(),
+                  isLoading: _isDiscovering,
+                  isSecondary: true,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ModernActionButton(
+                  label: 'Quick Connect',
+                  icon: Icons.flash_on,
+                  onPressed: () => _autoConnectAGV(),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiscoveryResults(ThemeService theme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.successColor.withOpacity(0.1),
+        borderRadius: theme.borderRadiusMedium,
+        border: Border.all(color: theme.successColor.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.devices, color: theme.successColor),
+              const SizedBox(width: 8),
+              Text(
+                'Discovered Devices (${_discoveredDevices.length})',
+                style: theme.bodyLarge.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.successColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _discoveredDevices.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final device = _discoveredDevices[index];
+              return _buildDiscoveredDeviceCard(device, theme);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiscoveredDeviceCard(AGVDevice device, ThemeService theme) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.isDarkMode
+            ? Colors.white.withOpacity(0.05)
+            : Colors.black.withOpacity(0.05),
+        borderRadius: theme.borderRadiusSmall,
+        border: Border.all(
+          color: theme.isDarkMode
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.accentColor.withOpacity(0.1),
+              borderRadius: theme.borderRadiusSmall,
+            ),
+            child: Icon(Icons.router, color: theme.accentColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(device.name,
+                    style:
+                        theme.bodyLarge.copyWith(fontWeight: FontWeight.w600)),
+                Text(
+                  '${device.ipAddress}:${device.port}',
+                  style: theme.monospace.copyWith(fontSize: 12),
+                ),
+                Text(
+                  'Method: ${device.discoveryMethod}',
+                  style: theme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          ModernActionButton(
+            label: 'Connect',
+            icon: Icons.link,
+            onPressed: () => _connectToDetectedBackend(device.ipAddress),
+            isSecondary: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManualBackendPanel(ThemeService theme) {
+    return ModernGlassCard(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.warningColor.withOpacity(0.1),
+                  borderRadius: theme.borderRadiusSmall,
+                ),
+                child: Icon(Icons.settings_ethernet,
+                    color: theme.warningColor, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Manual Backend Connection',
+                        style: theme.headlineMedium),
+                    Text('Connect to a specific AGV Fleet Backend',
+                        style: theme.bodyMedium),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Input fields
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: _buildModernTextField(
+                  controller: _manualBackendIpController,
+                  label: 'Backend IP Address',
+                  hint: '192.168.0.63',
+                  icon: Icons.computer,
+                  theme: theme,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildModernTextField(
+                  controller: _manualBackendPortController,
+                  label: 'Port',
+                  hint: '3000',
+                  icon: Icons.settings,
+                  theme: theme,
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Connect button
+          SizedBox(
+            width: double.infinity,
+            child: ModernActionButton(
+              label: _isConnecting ? 'Connecting...' : 'Connect to Backend',
+              icon: Icons.wifi,
+              onPressed:
+                  _isConnecting ? () {} : () => _connectManualWebSocket(),
+              isLoading: _isConnecting,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManualDevicePanel(ThemeService theme) {
+    return ModernGlassCard(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.accentColor.withOpacity(0.1),
+                  borderRadius: theme.borderRadiusSmall,
+                ),
+                child: Icon(Icons.precision_manufacturing,
+                    color: theme.accentColor, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Manual AGV Device', style: theme.headlineMedium),
+                    Text('Add a specific AGV device to your fleet',
+                        style: theme.bodyMedium),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Device information
+          _buildModernTextField(
+            controller: _manualDeviceIdController,
+            label: 'Device ID',
+            hint: 'agv_01',
+            icon: Icons.badge,
+            theme: theme,
+          ),
+          const SizedBox(height: 16),
+          _buildModernTextField(
+            controller: _manualDeviceNameController,
+            label: 'Device Name (Optional)',
+            hint: 'Primary AGV',
+            icon: Icons.label,
+            theme: theme,
+          ),
+          const SizedBox(height: 16),
+
+          // Device network information
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: _buildModernTextField(
+                  controller: _manualDeviceIpController,
+                  label: 'AGV IP Address',
+                  hint: '192.168.0.93',
+                  icon: Icons.smart_toy,
+                  theme: theme,
+                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _buildModernTextField(
+                  controller: _manualDevicePortController,
+                  label: 'Port',
+                  hint: '3000',
+                  icon: Icons.router,
+                  theme: theme,
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Add device button
+          SizedBox(
+            width: double.infinity,
+            child: ModernActionButton(
+              label: _isConnecting ? 'Adding Device...' : 'Add AGV Device',
+              icon: Icons.add_circle,
+              onPressed: _isConnecting ? () {} : () => _connectManualAGV(),
+              isLoading: _isConnecting,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required ThemeService theme,
+    TextInputType? keyboardType,
+  }) {
+    return Container(
+      decoration: theme.glassMorphism,
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: theme.bodyLarge,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.accentColor.withOpacity(0.1),
+              borderRadius: theme.borderRadiusSmall,
+            ),
+            child: Icon(icon, color: theme.accentColor, size: 20),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: theme.borderRadiusMedium,
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.transparent,
+          labelStyle: theme.bodyMedium.copyWith(color: theme.accentColor),
+          hintStyle: theme.bodyMedium.copyWith(
+            color: theme.isDarkMode
+                ? Colors.white.withOpacity(0.5)
+                : Colors.black.withOpacity(0.5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConnectedDevicesPanel(ThemeService theme) {
+    return ModernGlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.successColor.withOpacity(0.1),
+                  borderRadius: theme.borderRadiusSmall,
+                ),
+                child: Icon(Icons.devices_other,
+                    color: theme.successColor, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Connected Fleet', style: theme.headlineMedium),
+                    Text('Active AGV devices in your fleet',
+                        style: theme.bodyMedium),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.successColor.withOpacity(0.1),
+                  borderRadius: theme.borderRadiusSmall,
+                  border:
+                      Border.all(color: theme.successColor.withOpacity(0.3)),
+                ),
+                child: Text(
+                  '${_connectedDevices.length} UNITS',
+                  style: theme.bodySmall.copyWith(
+                    color: theme.successColor,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          if (_connectedDevices.isEmpty)
+            _buildEmptyFleetState(theme)
+          else
+            _buildConnectedDevicesList(theme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyFleetState(ThemeService theme) {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: theme.isDarkMode
+            ? Colors.white.withOpacity(0.03)
+            : Colors.black.withOpacity(0.03),
+        borderRadius: theme.borderRadiusMedium,
+        border: Border.all(
+          color: theme.isDarkMode
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.1),
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                colors: [
+                  theme.accentColor.withOpacity(0.2),
+                  theme.accentColor.withOpacity(0.05),
+                ],
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.devices_other,
+              size: 64,
+              color: theme.accentColor.withOpacity(0.7),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'No Devices Connected',
+            style: theme.headlineLarge.copyWith(color: theme.accentColor),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _isWebSocketConnected
+                ? 'Fleet backend is connected. Use the tabs above to discover and add AGV devices to your fleet.'
+                : 'Connect to the AGV backend first, then add devices using discovery or manual connection.',
+            style: theme.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          if (!_isWebSocketConnected)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.warningColor.withOpacity(0.1),
+                borderRadius: theme.borderRadiusMedium,
+                border: Border.all(color: theme.warningColor.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning, color: theme.warningColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Backend Connection Required',
+                      style: theme.bodyMedium.copyWith(
+                        color: theme.warningColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConnectedDevicesList(ThemeService theme) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _connectedDevices.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final device = _connectedDevices[index];
+        return _buildConnectedDeviceCard(device, theme);
+      },
+    );
+  }
+
+  Widget _buildConnectedDeviceCard(
+      Map<String, dynamic> device, ThemeService theme) {
+    final deviceId = device['id']?.toString() ?? '';
+    final deviceName = device['name']?.toString() ?? deviceId;
+    final deviceStatus = device['status']?.toString() ?? 'unknown';
+    final isOnline = deviceStatus == 'connected';
+
+    return ModernGlassCard(
+      showGlow: isOnline,
+      glowColor: isOnline ? theme.successColor : theme.errorColor,
+      onTap: () => _navigateToControl(device),
+      child: Row(
+        children: [
+          // Device icon and status
+          Stack(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isOnline
+                        ? [
+                            theme.successColor,
+                            theme.successColor.withOpacity(0.7)
+                          ]
+                        : [theme.errorColor, theme.errorColor.withOpacity(0.7)],
+                  ),
+                  borderRadius: theme.borderRadiusMedium,
+                ),
+                child: Icon(Icons.smart_toy, color: Colors.white, size: 32),
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isOnline ? theme.successColor : theme.errorColor,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: theme.elevationSmall,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(width: 16),
+
+          // Device information
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(deviceName, style: theme.headlineMedium),
+                const SizedBox(height: 4),
+                Text('ID: $deviceId', style: theme.bodySmall),
+                const SizedBox(height: 8),
+                RoboticStatusIndicator(
+                  status: deviceStatus,
+                  label: deviceStatus.toUpperCase(),
+                  animated: isOnline,
+                ),
+                if (device['ipAddress'] != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'IP: ${device['ipAddress']}',
+                    style: theme.monospace.copyWith(fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // Action buttons
+          Column(
+            children: [
+              ModernActionButton(
+                label: 'Control',
+                icon: Icons.gamepad,
+                onPressed: () => _navigateToControl(device),
+                isSecondary: true,
+              ),
+              const SizedBox(height: 8),
+              IconButton(
+                onPressed: () => _showDeviceOptions(device),
+                icon: Icon(Icons.more_vert, color: theme.accentColor),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Keep all your existing methods but add modern UI touches
   Future<String?> _detectBackendIP() async {
+    // Your existing implementation
     final networkInfo = await _getNetworkInfo();
     if (networkInfo == null) return null;
 
@@ -218,7 +1206,7 @@ class _ConnectScreenState extends State<ConnectScreen>
       final response = await http.get(
         Uri.parse('http://$ip:3000/health'),
         headers: {'Accept': 'application/json'},
-      ).timeout(Duration(seconds: 2));
+      ).timeout(const Duration(seconds: 2));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -258,6 +1246,11 @@ class _ConnectScreenState extends State<ConnectScreen>
   }
 
   Future<void> _connectToDetectedBackend(String ip) async {
+    setState(() {
+      _isConnecting = true;
+      _connectionStatus = 'Connecting to backend at $ip...';
+    });
+
     try {
       _apiService.setBaseUrl('http://$ip:3000');
 
@@ -275,111 +1268,20 @@ class _ConnectScreenState extends State<ConnectScreen>
       });
 
       if (wsConnected) {
-        if (mounted) {
-          setState(() {
-            _connectionStatus = 'Connected to AGV Fleet Backend';
-            _isWebSocketConnected = true;
-          });
-        }
-
-        _showSuccessSnackBar('Auto-connected to AGV backend at $ip');
-      } else {
-        throw Exception('WebSocket connection failed');
-      }
-    } catch (e) {
-      print('❌ Error connecting to detected backend: $e');
-      if (mounted) {
-        setState(() {
-          _connectionStatus = 'Connection failed: $e';
-        });
-      }
-    }
-  }
-
-  Future<void> _discoverAGVDevices() async {
-    if (mounted) {
-      setState(() {
-        _isDiscovering = true;
-      });
-    }
-
-    try {
-      final devices = await _discoveryService.discoverDevices(
-        timeout: Duration(seconds: 15),
-        useNetworkScan: true,
-        useMDNS: false,
-        useBroadcast: false,
-      );
-
-      if (mounted) {
-        setState(() {
-          _discoveredDevices = devices;
-        });
-      }
-
-      print('🔍 Discovered ${devices.length} AGV devices');
-    } catch (e) {
-      print('❌ Device discovery failed: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isDiscovering = false;
-        });
-      }
-    }
-  }
-
-  void _connectManualWebSocket() async {
-    final ip = _manualBackendIpController.text.trim();
-    final port = _manualBackendPortController.text.trim();
-
-    if (ip.isEmpty) {
-      _showErrorSnackBar('Backend IP address is required');
-      return;
-    }
-
-    if (!_isValidIP(ip)) {
-      _showErrorSnackBar('Invalid IP address format');
-      return;
-    }
-
-    setState(() {
-      _isConnecting = true;
-      _connectionStatus = 'Connecting to $ip:$port...';
-    });
-
-    try {
-      _apiService.setBaseUrl('http://$ip:$port');
-      final apiWorking = await _apiService.testConnection();
-
-      if (!apiWorking) {
-        throw Exception('Backend API not responding at $ip:$port');
-      }
-
-      final wsUrl = 'ws://$ip:$port';
-      final wsConnected = await _webSocketService
-          .connect(wsUrl, deviceId: 'flutter_app', deviceInfo: {
-        'name': 'Flutter AGV Controller (Manual)',
-        'type': 'mobile_client',
-        'platform': Platform.isAndroid ? 'android' : 'ios',
-      });
-
-      if (wsConnected) {
         setState(() {
           _connectionStatus = 'Connected to AGV Fleet Backend';
           _isWebSocketConnected = true;
           _detectedBackendIP = ip;
         });
 
-        _showSuccessSnackBar('Manually connected to AGV backend at $ip:$port');
-        _saveConnectionSettings();
+        _showSuccessSnackBar('Connected to AGV backend at $ip');
       } else {
         throw Exception('WebSocket connection failed');
       }
     } catch (e) {
-      _showErrorSnackBar('Manual connection failed: $e');
+      _showErrorSnackBar('Connection failed: $e');
       setState(() {
-        _connectionStatus = 'Manual connection failed: $e';
+        _connectionStatus = 'Connection failed: $e';
       });
     } finally {
       setState(() {
@@ -388,11 +1290,22 @@ class _ConnectScreenState extends State<ConnectScreen>
     }
   }
 
-  void _connectManualAGV() async {
+  Future<void> _connectManualWebSocket() async {
+    final ip = _manualBackendIpController.text.trim();
+    final port = _manualBackendPortController.text.trim();
+
+    if (ip.isEmpty || !_isValidIP(ip)) {
+      _showErrorSnackBar('Please enter a valid IP address');
+      return;
+    }
+
+    await _connectToDetectedBackend(ip);
+  }
+
+  Future<void> _connectManualAGV() async {
     final deviceId = _manualDeviceIdController.text.trim();
     final deviceName = _manualDeviceNameController.text.trim();
     final deviceIp = _manualDeviceIpController.text.trim();
-    final devicePort = _manualDevicePortController.text.trim();
 
     if (deviceId.isEmpty || deviceIp.isEmpty) {
       _showErrorSnackBar('Device ID and IP Address are required');
@@ -409,23 +1322,9 @@ class _ConnectScreenState extends State<ConnectScreen>
     });
 
     try {
-      // Check if API service is properly initialized
       if (!_apiService.isInitialized) {
         throw Exception(
             'Backend not connected. Please connect to backend first.');
-      }
-
-      // Test backend connection before attempting to add device
-      final connectionWorking = await _apiService.testConnection();
-      if (!connectionWorking) {
-        throw Exception(
-            'Backend connection lost. Please reconnect to backend.');
-      }
-
-      final deviceReachable = await _testDeviceConnection(deviceIp, devicePort);
-      if (!deviceReachable) {
-        _showWarningSnackBar(
-            'Device at $deviceIp:$devicePort not responding, but adding anyway...');
       }
 
       final result = await _apiService.connectDevice(
@@ -439,40 +1338,13 @@ class _ConnectScreenState extends State<ConnectScreen>
       if (result['success'] == true) {
         _showSuccessSnackBar('AGV device connected successfully');
         _loadConnectedDevices();
-
-        _manualDeviceIdController.clear();
-        _manualDeviceNameController.clear();
-        _manualDeviceIpController.clear();
-
-        _showDashboardDialog();
+        _clearManualDeviceFields();
+        _showNavigationDialog();
       } else {
-        _showErrorSnackBar(
-            'Failed to connect device: ${result['error'] ?? 'Unknown error'}');
+        _showErrorSnackBar('Failed to connect device: ${result['error']}');
       }
     } catch (e) {
-      String errorMessage = e.toString();
-
-      // Provide more user-friendly error messages
-      if (errorMessage.contains('Failed to parse response') ||
-          errorMessage.contains('Network error') ||
-          errorMessage.contains('Connection failed')) {
-        errorMessage =
-            'Connection to backend lost. Please check network and reconnect.';
-      } else if (errorMessage.contains('API service not initialized')) {
-        errorMessage =
-            'Backend not connected. Please connect to backend first.';
-      } else if (errorMessage.contains('Request timeout')) {
-        errorMessage = 'Request timed out. Please check backend connection.';
-      }
-
-      _showErrorSnackBar('Failed to connect AGV device: $errorMessage');
-
-      // If there's a connection issue, suggest reconnecting
-      if (errorMessage.contains('connection') ||
-          errorMessage.contains('network')) {
-        _showWarningSnackBar(
-            'Try reconnecting to the backend if the problem persists.');
-      }
+      _showErrorSnackBar('Failed to connect AGV device: $e');
     } finally {
       setState(() {
         _isConnecting = false;
@@ -480,18 +1352,10 @@ class _ConnectScreenState extends State<ConnectScreen>
     }
   }
 
-  Future<bool> _testDeviceConnection(String ip, String port) async {
-    try {
-      final response = await http.get(
-        Uri.parse('http://$ip:$port/health'),
-        headers: {'Accept': 'application/json'},
-      ).timeout(Duration(seconds: 3));
-
-      return response.statusCode == 200;
-    } catch (e) {
-      print('❌ Device connection test failed: $e');
-      return false;
-    }
+  void _clearManualDeviceFields() {
+    _manualDeviceIdController.clear();
+    _manualDeviceNameController.clear();
+    _manualDeviceIpController.clear();
   }
 
   bool _isValidIP(String ip) {
@@ -506,82 +1370,38 @@ class _ConnectScreenState extends State<ConnectScreen>
     return true;
   }
 
-  /// Check if backend connection is healthy
-  Future<bool> _checkBackendConnection() async {
-    try {
-      if (!_apiService.isInitialized) {
-        return false;
-      }
-
-      return await _apiService.testConnection();
-    } catch (e) {
-      print('❌ Backend connection check failed: $e');
-      return false;
-    }
-  }
-
-  /// Show connection status to user
-  void _updateConnectionStatus() async {
-    final isConnected = await _checkBackendConnection();
+  Future<void> _startAutoDiscovery() async {
     setState(() {
-      _isWebSocketConnected = isConnected;
-      _connectionStatus = isConnected
-          ? 'Connected to AGV Fleet Backend'
-          : 'Backend connection lost - please reconnect';
-    });
-  }
-
-  void _saveConnectionSettings() {
-    print('💾 Saving connection settings for future use');
-  }
-
-  void _loadConnectedDevices() async {
-    setState(() {
-      _isLoading = true;
+      _isDiscovering = true;
     });
 
+    _scanningController.repeat();
+
     try {
-      // Check if API service is initialized before loading devices
-      if (!_apiService.isInitialized) {
-        print('⚠️ API service not initialized, skipping device load');
-        setState(() {
-          _connectedDevices = [];
-        });
-        return;
-      }
+      final devices = await _discoveryService.discoverDevices(
+        timeout: const Duration(seconds: 15),
+        useNetworkScan: true,
+        useMDNS: false,
+        useBroadcast: false,
+      );
 
-      final devices = await _apiService.getDevices();
       setState(() {
-        _connectedDevices = devices;
+        _discoveredDevices = devices;
       });
+
+      print('🔍 Discovered ${devices.length} AGV devices');
     } catch (e) {
-      print('❌ Error loading devices: $e');
-
-      String errorMessage = e.toString();
-
-      // Only show error if it's not just an initialization issue
-      if (!errorMessage.contains('API service not initialized')) {
-        if (errorMessage.contains('Failed to parse response') ||
-            errorMessage.contains('Network error') ||
-            errorMessage.contains('Connection failed')) {
-          _showWarningSnackBar(
-              'Lost connection to backend. Some features may not work.');
-        } else {
-          _showErrorSnackBar('Failed to load devices: $errorMessage');
-        }
-      }
-
-      setState(() {
-        _connectedDevices = [];
-      });
+      print('❌ Device discovery failed: $e');
     } finally {
       setState(() {
-        _isLoading = false;
+        _isDiscovering = false;
       });
+      _scanningController.stop();
+      _scanningController.reset();
     }
   }
 
-  void _autoConnectAGV() async {
+  Future<void> _autoConnectAGV() async {
     setState(() {
       _isConnecting = true;
     });
@@ -592,7 +1412,7 @@ class _ConnectScreenState extends State<ConnectScreen>
       if (result['success'] == true) {
         _showSuccessSnackBar('AGV auto-connected successfully');
         _loadConnectedDevices();
-        _showDashboardDialog();
+        _showNavigationDialog();
       } else {
         _showErrorSnackBar('Auto-connect failed: ${result['error']}');
       }
@@ -605,1363 +1425,46 @@ class _ConnectScreenState extends State<ConnectScreen>
     }
   }
 
-  void _showDashboardDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.green, size: 28),
-            SizedBox(width: 12),
-            Text(
-              'Device Connected',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: Text(
-          'Your AGV device has been successfully connected. Would you like to go to the Dashboard to manage your fleet?',
-          style: TextStyle(fontSize: 16),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Stay Here'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.pushNamed(context, '/dashboard');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Text('Go to Dashboard'),
-          ),
-        ],
-      ),
-    );
-  }
+  Future<void> _loadConnectedDevices() async {
+    setState(() {
+      _isLoading = true;
+    });
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'AGV Fleet Connection',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: _isWebSocketConnected ? Colors.green : Colors.blue,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: _isWebSocketConnected
-                  ? [Colors.green.shade600, Colors.green.shade400]
-                  : [Colors.blue.shade600, Colors.blue.shade400],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: _isLoading
-                ? null
-                : () {
-                    _updateConnectionStatus();
-                    _loadConnectedDevices();
-                    _startAutoDiscovery();
-                  },
-            tooltip: 'Refresh',
-          ),
-          IconButton(
-            icon: Icon(Icons.search),
-            onPressed: _isDiscovering ? null : _discoverAGVDevices,
-            tooltip: 'Discover Devices',
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Loading AGV Fleet...',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.grey.shade50,
-                    Colors.white,
-                  ],
-                ),
-              ),
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildEnhancedConnectionStatusCard(),
-                      SizedBox(height: 20),
-                      _buildEnhancedAutoDiscoveryCard(),
-                      SizedBox(height: 20),
-                      _buildEnhancedManualWebSocketCard(),
-                      SizedBox(height: 20),
-                      _buildEnhancedManualAGVCard(),
-                      SizedBox(height: 20),
-                      _buildEnhancedAutoConnectCard(),
-                      SizedBox(height: 20),
-                      if (_discoveredDevices.isNotEmpty) ...[
-                        _buildEnhancedDiscoveredDevicesCard(),
-                        SizedBox(height: 20),
-                      ],
-                      _buildEnhancedConnectedDevicesCard(),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-    );
-  }
-
-  Widget _buildEnhancedConnectionStatusCard() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: _isWebSocketConnected
-              ? [Colors.green.shade50, Colors.green.shade100]
-              : [Colors.orange.shade50, Colors.orange.shade100],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: _isWebSocketConnected
-              ? Colors.green.withOpacity(0.3)
-              : Colors.orange.withOpacity(0.3),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _isWebSocketConnected ? Colors.green : Colors.orange,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color:
-                        (_isWebSocketConnected ? Colors.green : Colors.orange)
-                            .withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: AnimatedBuilder(
-                animation: _pulseAnimation,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _isWebSocketConnected ? _pulseAnimation.value : 1.0,
-                    child: Icon(
-                      _isWebSocketConnected ? Icons.wifi : Icons.wifi_off,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  );
-                },
-              ),
-            ),
-            SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _isWebSocketConnected ? 'Connected' : 'Disconnected',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: _isWebSocketConnected
-                          ? Colors.green.shade800
-                          : Colors.orange.shade800,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    _connectionStatus,
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontSize: 14,
-                    ),
-                  ),
-                  if (_detectedBackendIP != null) ...[
-                    SizedBox(height: 8),
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.8),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'Backend: $_detectedBackendIP:3000',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEnhancedAutoDiscoveryCard() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade50, Colors.blue.shade100],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.blue.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.blue.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child:
-                      Icon(Icons.network_check, color: Colors.white, size: 24),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Auto Network Discovery',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade800,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Find AGV backends and devices automatically',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              height: 50,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.blue.shade600, Colors.blue.shade400],
-                ),
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.blue.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ElevatedButton.icon(
-                onPressed: _isDiscovering ? null : _startAutoDiscovery,
-                icon: _isDiscovering
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Icon(Icons.search, color: Colors.white),
-                label: Text(
-                  _isDiscovering ? 'Discovering...' : 'Auto-Discover Network',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEnhancedManualWebSocketCard() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.purple.shade50, Colors.purple.shade100],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.purple.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.purple,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.purple.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Icon(Icons.settings_ethernet,
-                      color: Colors.white, size: 24),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Manual Backend Connection',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.purple.shade800,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Connect to a specific AGV Fleet Backend',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _manualBackendIpController,
-                      decoration: InputDecoration(
-                        labelText: 'Backend IP Address',
-                        prefixIcon: Icon(Icons.computer, color: Colors.purple),
-                        hintText: '192.168.0.63',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        labelStyle: TextStyle(color: Colors.purple.shade700),
-                      ),
-                      keyboardType:
-                          TextInputType.numberWithOptions(decimal: true),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  flex: 1,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _manualBackendPortController,
-                      decoration: InputDecoration(
-                        labelText: 'Port',
-                        hintText: '3000',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        labelStyle: TextStyle(color: Colors.purple.shade700),
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              height: 50,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.purple.shade600, Colors.purple.shade400],
-                ),
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.purple.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ElevatedButton.icon(
-                onPressed: _isConnecting ? null : _connectManualWebSocket,
-                icon: _isConnecting
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Icon(Icons.wifi, color: Colors.white),
-                label: Text(
-                  _isConnecting ? 'Connecting...' : 'Connect to Backend',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEnhancedManualAGVCard() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.orange.shade50, Colors.orange.shade100],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.orange.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.orange.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Icon(Icons.precision_manufacturing,
-                      color: Colors.white, size: 24),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Manual AGV Device Connection',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade800,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Add a specific AGV device using its IP address',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            _buildEnhancedTextField(
-              controller: _manualDeviceIdController,
-              label: 'Device ID',
-              hint: 'agv_01',
-              icon: Icons.badge,
-              color: Colors.orange,
-            ),
-            SizedBox(height: 16),
-            _buildEnhancedTextField(
-              controller: _manualDeviceNameController,
-              label: 'Device Name (Optional)',
-              hint: 'Primary AGV',
-              icon: Icons.label,
-              color: Colors.orange,
-            ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: _buildEnhancedTextField(
-                    controller: _manualDeviceIpController,
-                    label: 'AGV IP Address',
-                    hint: '192.168.0.93',
-                    icon: Icons.smart_toy,
-                    color: Colors.orange,
-                    keyboardType:
-                        TextInputType.numberWithOptions(decimal: true),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  flex: 1,
-                  child: _buildEnhancedTextField(
-                    controller: _manualDevicePortController,
-                    label: 'Port',
-                    hint: '3000',
-                    icon: null,
-                    color: Colors.orange,
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              height: 50,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.orange.shade600, Colors.orange.shade400],
-                ),
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.orange.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ElevatedButton.icon(
-                onPressed: _isConnecting ? null : _connectManualAGV,
-                icon: _isConnecting
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Icon(Icons.add_circle, color: Colors.white),
-                label: Text(
-                  _isConnecting ? 'Adding...' : 'Add AGV Device',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEnhancedTextField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    IconData? icon,
-    required Color color,
-    TextInputType? keyboardType,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: icon != null ? Icon(icon, color: color) : null,
-          hintText: hint,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          labelStyle: TextStyle(color: color),
-          hintStyle: TextStyle(color: Colors.grey[400]),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEnhancedAutoConnectCard() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.green.shade50, Colors.green.shade100],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.green.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.green.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child:
-                      Icon(Icons.auto_fix_high, color: Colors.white, size: 24),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Quick Auto-Connect',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green.shade800,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Connect to your AGV with default settings',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              height: 50,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.green.shade600, Colors.green.shade400],
-                ),
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.green.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ElevatedButton.icon(
-                onPressed: _isConnecting ? null : _autoConnectAGV,
-                icon: _isConnecting
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : Icon(Icons.smart_toy, color: Colors.white),
-                label: Text(
-                  _isConnecting ? 'Connecting...' : 'Auto-Connect AGV',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEnhancedDiscoveredDevicesCard() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.indigo.shade50, Colors.indigo.shade100],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.indigo.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.indigo,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.indigo.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Icon(Icons.devices, color: Colors.white, size: 24),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    'Discovered AGV Devices (${_discoveredDevices.length})',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.indigo.shade800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
-              itemCount: _discoveredDevices.length,
-              separatorBuilder: (context, index) =>
-                  Divider(color: Colors.indigo.shade200),
-              itemBuilder: (context, index) {
-                final device = _discoveredDevices[index];
-                return Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.8),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListTile(
-                    leading: Container(
-                      padding: EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.indigo.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(Icons.router, color: Colors.indigo),
-                    ),
-                    title: Text(
-                      device.name,
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      '${device.ipAddress}:${device.port} (${device.discoveryMethod})',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                    trailing: ElevatedButton(
-                      onPressed: () async {
-                        await _connectToDetectedBackend(device.ipAddress);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.indigo,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text('Connect'),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEnhancedConnectedDevicesCard() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.white, Colors.grey.shade50],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.blue.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child:
-                      Icon(Icons.devices_other, color: Colors.white, size: 24),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    'Connected Devices',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[800],
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade100,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'Total: ${_connectedDevices.length}',
-                    style: TextStyle(
-                      color: Colors.blue.shade700,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            if (_connectedDevices.isEmpty)
-              Container(
-                padding: EdgeInsets.all(40),
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.grey.shade50, Colors.grey.shade100],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                      color: Colors.grey.shade300, style: BorderStyle.none),
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.devices_other,
-                        size: 48,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                    SizedBox(height: 20),
-                    Text(
-                      'No Devices Connected',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      _isWebSocketConnected
-                          ? 'Backend connected. Use auto-discovery or manual connection\nto add AGV devices to your fleet'
-                          : 'Connect to the backend first, then add AGV devices\nusing auto-discovery or manual connection',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 16,
-                      ),
-                    ),
-                    if (!_isWebSocketConnected) ...[
-                      SizedBox(height: 16),
-                      Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.orange.shade200),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.warning,
-                                color: Colors.orange.shade700, size: 20),
-                            SizedBox(width: 8),
-                            Text(
-                              'Backend Not Connected',
-                              style: TextStyle(
-                                color: Colors.orange.shade700,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ]
-                  ],
-                ),
-              )
-            else
-              ListView.separated(
-                shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-                itemCount: _connectedDevices.length,
-                separatorBuilder: (context, index) =>
-                    Divider(color: Colors.grey.shade300),
-                itemBuilder: (context, index) {
-                  final device = _connectedDevices[index];
-                  return _buildEnhancedDeviceListItem(device);
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEnhancedDeviceListItem(Map<String, dynamic> device) {
-    final deviceId = device['id']?.toString() ?? '';
-    final deviceName = device['name']?.toString() ?? deviceId;
-    final deviceStatus = device['status']?.toString() ?? 'unknown';
-    final deviceType = device['type']?.toString() ?? 'differential_drive';
-    final isOnline = deviceStatus == 'connected';
-
-    return Container(
-      margin: EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isOnline
-              ? [Colors.green.shade50, Colors.green.shade100]
-              : [Colors.grey.shade50, Colors.grey.shade100],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isOnline
-              ? Colors.green.withOpacity(0.3)
-              : Colors.grey.withOpacity(0.3),
-        ),
-      ),
-      child: ListTile(
-        contentPadding: EdgeInsets.all(16),
-        leading: Stack(
-          children: [
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: isOnline
-                      ? [Colors.green.shade300, Colors.green.shade500]
-                      : [Colors.grey.shade300, Colors.grey.shade500],
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: (isOnline ? Colors.green : Colors.grey)
-                        .withOpacity(0.3),
-                    blurRadius: 6,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.smart_toy,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: Container(
-                width: 16,
-                height: 16,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isOnline ? Colors.green : Colors.red,
-                  border: Border.all(color: Colors.white, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 2,
-                      offset: Offset(0, 1),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        title: Text(
-          deviceName,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-            color: Colors.grey[800],
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: 4),
-            Text(
-              'ID: $deviceId',
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
-            ),
-            Text(
-              'Type: $deviceType',
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
-            ),
-            Container(
-              margin: EdgeInsets.only(top: 4),
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: isOnline ? Colors.green : Colors.red,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                'Status: ${deviceStatus.toUpperCase()}',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 10,
-                ),
-              ),
-            ),
-            if (device['ipAddress'] != null)
-              Padding(
-                padding: EdgeInsets.only(top: 4),
-                child: Text(
-                  'IP: ${device['ipAddress']}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ),
-          ],
-        ),
-        trailing: PopupMenuButton<String>(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              value: 'control',
-              child: ListTile(
-                leading: Icon(Icons.gamepad, color: Colors.blue),
-                title: Text('Control'),
-                dense: true,
-              ),
-            ),
-            PopupMenuItem(
-              value: 'map',
-              child: ListTile(
-                leading: Icon(Icons.map, color: Colors.green),
-                title: Text('Map Editor'),
-                dense: true,
-              ),
-            ),
-            PopupMenuItem(
-              value: 'status',
-              child: ListTile(
-                leading: Icon(Icons.info, color: Colors.orange),
-                title: Text('Status'),
-                dense: true,
-              ),
-            ),
-            PopupMenuItem(
-              value: 'remove',
-              child: ListTile(
-                leading: Icon(Icons.delete, color: Colors.red),
-                title: Text('Remove', style: TextStyle(color: Colors.red)),
-                dense: true,
-              ),
-            ),
-          ],
-          onSelected: (value) => _handleDeviceAction(device, value),
-        ),
-        onTap: () => _navigateToControl(device),
-      ),
-    );
-  }
-
-  void _handleDeviceAction(Map<String, dynamic> device, String action) async {
-    // Check backend connectivity for actions that require API calls
-    if (action == 'remove') {
-      final isConnected = await _checkBackendConnection();
-      if (!isConnected) {
-        _showErrorSnackBar(
-            'Backend not connected. Please reconnect to remove devices.');
+    try {
+      if (!_apiService.isInitialized) {
+        setState(() {
+          _connectedDevices = [];
+        });
         return;
       }
-    }
 
-    switch (action) {
-      case 'control':
-        _navigateToControl(device);
-        break;
-      case 'map':
-        _navigateToMap(device);
-        break;
-      case 'status':
-        _showDeviceStatus(device);
-        break;
-      case 'remove':
-        _confirmRemoveDevice(device);
-        break;
+      final devices = await _apiService.getDevices();
+      setState(() {
+        _connectedDevices = devices;
+      });
+    } catch (e) {
+      print('❌ Error loading devices: $e');
+      setState(() {
+        _connectedDevices = [];
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
-  void _navigateToControl(Map<String, dynamic> device) async {
+  Future<void> _refreshConnections() async {
+    _scanningController.repeat();
+    await Future.wait([
+      _startAutoDiscovery(),
+      _loadConnectedDevices(),
+    ]);
+    _scanningController.stop();
+    _scanningController.reset();
+  }
+
+  Future<void> _navigateToControl(Map<String, dynamic> device) async {
     await Navigator.pushNamed(
       context,
       '/control',
@@ -1971,6 +1474,93 @@ class _ConnectScreenState extends State<ConnectScreen>
       },
     );
     Navigator.pushReplacementNamed(context, '/dashboard');
+  }
+
+  void _showDeviceOptions(Map<String, dynamic> device) {
+    final theme = Provider.of<ThemeService>(context, listen: false);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          gradient: theme.backgroundGradient,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Device Options',
+                style: theme.headlineLarge,
+              ),
+              const SizedBox(height: 20),
+              _buildDeviceOption('Control Device', Icons.gamepad, () {
+                Navigator.pop(context);
+                _navigateToControl(device);
+              }, theme),
+              _buildDeviceOption('Map Editor', Icons.map, () {
+                Navigator.pop(context);
+                _navigateToMap(device);
+              }, theme),
+              _buildDeviceOption('Device Status', Icons.info, () {
+                Navigator.pop(context);
+                _showDeviceStatus(device);
+              }, theme),
+              _buildDeviceOption('Remove Device', Icons.delete, () {
+                Navigator.pop(context);
+                _confirmRemoveDevice(device);
+              }, theme, isDestructive: true),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeviceOption(
+    String title,
+    IconData icon,
+    VoidCallback onTap,
+    ThemeService theme, {
+    bool isDestructive = false,
+  }) {
+    final color = isDestructive ? theme.errorColor : theme.accentColor;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ModernGlassCard(
+        onTap: onTap,
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: theme.borderRadiusSmall,
+              ),
+              child: Icon(icon, color: color),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                title,
+                style: theme.bodyLarge.copyWith(
+                  color: isDestructive ? theme.errorColor : null,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, color: color, size: 16),
+          ],
+        ),
+      ),
+    );
   }
 
   void _navigateToMap(Map<String, dynamic> device) {
@@ -1984,41 +1574,36 @@ class _ConnectScreenState extends State<ConnectScreen>
   }
 
   void _showDeviceStatus(Map<String, dynamic> device) {
+    final theme = Provider.of<ThemeService>(context, listen: false);
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor:
+            theme.isDarkMode ? const Color(0xFF262640) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: theme.borderRadiusMedium,
+        ),
         title: Row(
           children: [
-            Icon(Icons.info, color: Colors.blue, size: 28),
-            SizedBox(width: 12),
-            Text(
-              'Device Status',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            Icon(Icons.info, color: theme.infoColor),
+            const SizedBox(width: 12),
+            Text('Device Status'),
           ],
         ),
-        content: Container(
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildStatusRow('Device ID', device['id']?.toString() ?? ''),
-              _buildStatusRow('Name', device['name']?.toString() ?? ''),
-              _buildStatusRow('Type', device['type']?.toString() ?? ''),
-              _buildStatusRow('Status', device['status']?.toString() ?? ''),
-              if (device['ipAddress'] != null)
-                _buildStatusRow('IP Address', device['ipAddress'].toString()),
-              if (device['connectedAt'] != null)
-                _buildStatusRow(
-                    'Connected At', _formatDateTime(device['connectedAt'])),
-            ],
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildStatusRow('Device ID', device['id']?.toString() ?? '', theme),
+            _buildStatusRow('Name', device['name']?.toString() ?? '', theme),
+            _buildStatusRow('Type', device['type']?.toString() ?? '', theme),
+            _buildStatusRow(
+                'Status', device['status']?.toString() ?? '', theme),
+            if (device['ipAddress'] != null)
+              _buildStatusRow(
+                  'IP Address', device['ipAddress'].toString(), theme),
+          ],
         ),
         actions: [
           TextButton(
@@ -2031,11 +1616,8 @@ class _ConnectScreenState extends State<ConnectScreen>
               _navigateToControl(device);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: theme.accentColor,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
             ),
             child: Text('Control'),
           ),
@@ -2044,27 +1626,23 @@ class _ConnectScreenState extends State<ConnectScreen>
     );
   }
 
-  Widget _buildStatusRow(String label, String value) {
+  Widget _buildStatusRow(String label, String value, ThemeService theme) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
           SizedBox(
             width: 100,
             child: Text(
               '$label:',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
+              style: theme.bodyMedium.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
-                color: Colors.grey[800],
-                fontWeight: FontWeight.w500,
+              style: theme.monospace.copyWith(
+                color: theme.accentColor,
               ),
             ),
           ),
@@ -2074,23 +1652,26 @@ class _ConnectScreenState extends State<ConnectScreen>
   }
 
   void _confirmRemoveDevice(Map<String, dynamic> device) {
+    final theme = Provider.of<ThemeService>(context, listen: false);
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor:
+            theme.isDarkMode ? const Color(0xFF262640) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: theme.borderRadiusMedium,
+        ),
         title: Row(
           children: [
-            Icon(Icons.warning, color: Colors.red, size: 28),
-            SizedBox(width: 12),
-            Text(
-              'Remove Device',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            Icon(Icons.warning, color: theme.errorColor),
+            const SizedBox(width: 12),
+            Text('Remove Device'),
           ],
         ),
         content: Text(
           'Are you sure you want to remove "${device['name'] ?? device['id']}" from your fleet?',
-          style: TextStyle(fontSize: 16),
+          style: theme.bodyMedium,
         ),
         actions: [
           TextButton(
@@ -2098,17 +1679,14 @@ class _ConnectScreenState extends State<ConnectScreen>
             child: Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
             onPressed: () {
               Navigator.of(context).pop();
               _removeDevice(device['id']);
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.errorColor,
+              foregroundColor: Colors.white,
+            ),
             child: Text('Remove'),
           ),
         ],
@@ -2116,57 +1694,25 @@ class _ConnectScreenState extends State<ConnectScreen>
     );
   }
 
-  void _removeDevice(String deviceId) async {
+  Future<void> _removeDevice(String deviceId) async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Check if API service is properly initialized
       if (!_apiService.isInitialized) {
-        throw Exception(
-            'Backend not connected. Please connect to backend first.');
-      }
-
-      // Test connection before attempting to remove device
-      final connectionWorking = await _apiService.testConnection();
-      if (!connectionWorking) {
-        throw Exception(
-            'Backend connection lost. Please reconnect to backend.');
+        throw Exception('Backend not connected');
       }
 
       final result = await _apiService.disconnectDevice(deviceId: deviceId);
       if (result['success'] == true) {
         _showSuccessSnackBar('Device removed successfully');
-        _loadConnectedDevices(); // Reload the device list
+        _loadConnectedDevices();
       } else {
-        _showErrorSnackBar(
-            'Failed to remove device: ${result['error'] ?? 'Unknown error'}');
+        _showErrorSnackBar('Failed to remove device: ${result['error']}');
       }
     } catch (e) {
-      String errorMessage = e.toString();
-
-      // Provide more user-friendly error messages
-      if (errorMessage.contains('Failed to parse response') ||
-          errorMessage.contains('Network error') ||
-          errorMessage.contains('Connection failed')) {
-        errorMessage =
-            'Connection to backend lost. Please check network and reconnect.';
-      } else if (errorMessage.contains('API service not initialized')) {
-        errorMessage =
-            'Backend not connected. Please connect to backend first.';
-      } else if (errorMessage.contains('Request timeout')) {
-        errorMessage = 'Request timed out. Please check backend connection.';
-      }
-
-      _showErrorSnackBar('Failed to remove device: $errorMessage');
-
-      // If there's a connection issue, suggest reconnecting
-      if (errorMessage.contains('connection') ||
-          errorMessage.contains('network')) {
-        _showWarningSnackBar(
-            'Try reconnecting to the backend if the problem persists.');
-      }
+      _showErrorSnackBar('Failed to remove device: $e');
     } finally {
       setState(() {
         _isLoading = false;
@@ -2174,69 +1720,112 @@ class _ConnectScreenState extends State<ConnectScreen>
     }
   }
 
-  String _formatDateTime(dynamic dateTime) {
-    try {
-      if (dateTime is String) {
-        final dt = DateTime.parse(dateTime);
-        return '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
-      }
-      return dateTime.toString();
-    } catch (e) {
-      return 'Unknown';
-    }
+  void _showNavigationDialog() {
+    final theme = Provider.of<ThemeService>(context, listen: false);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor:
+            theme.isDarkMode ? const Color(0xFF262640) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: theme.borderRadiusMedium,
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.check_circle, color: theme.successColor),
+            const SizedBox(width: 12),
+            Text('Device Connected'),
+          ],
+        ),
+        content: Text(
+          'Your AGV device has been successfully connected to the fleet. Would you like to go to the Dashboard to manage your fleet?',
+          style: theme.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Stay Here'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.pushNamed(context, '/dashboard');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.successColor,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Go to Dashboard'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSuccessSnackBar(String message) {
+    final theme = Provider.of<ThemeService>(context, listen: false);
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
             Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 12),
-            Text(message),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
           ],
         ),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 2),
+        backgroundColor: theme.successColor,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: theme.borderRadiusMedium),
       ),
     );
   }
 
   void _showErrorSnackBar(String message) {
+    final theme = Provider.of<ThemeService>(context, listen: false);
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
             Icon(Icons.error, color: Colors.white),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(child: Text(message)),
           ],
         ),
-        backgroundColor: Colors.red,
-        duration: Duration(seconds: 4),
+        backgroundColor: theme.errorColor,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: theme.borderRadiusMedium),
+        duration: const Duration(seconds: 4),
       ),
     );
   }
 
-  void _showWarningSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.warning, color: Colors.white),
-            SizedBox(width: 12),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.orange,
-        duration: Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+  Future<void> _discoverAGVDevices() async {
+    setState(() {
+      _isDiscovering = true;
+    });
+
+    try {
+      final devices = await _discoveryService.discoverDevices(
+        timeout: const Duration(seconds: 15),
+        useNetworkScan: true,
+        useMDNS: false,
+        useBroadcast: false,
+      );
+
+      setState(() {
+        _discoveredDevices = devices;
+      });
+
+      print('🔍 Discovered ${devices.length} AGV devices');
+    } catch (e) {
+      print('❌ Device discovery failed: $e');
+    } finally {
+      setState(() {
+        _isDiscovering = false;
+      });
+    }
   }
 }
