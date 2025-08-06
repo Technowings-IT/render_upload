@@ -21,7 +21,7 @@ class ROS2ScriptManager extends EventEmitter {
         
         // Raspberry Pi SSH configuration - can be updated via updatePiConfig
         this.piConfig = {
-            host: '192.168.0.93',
+            host: '192.168.0.64',
             username: 'piros',
             password: 'piros',
             port: 22
@@ -880,7 +880,7 @@ class ROS2ScriptManager extends EventEmitter {
     // DEPLOYMENT TO RASPBERRY PI
     // ==========================================
 
-    async deployMapToRaspberryPi(mapName, piAddress = '192.168.0.93') {
+    async deployMapToRaspberryPi(mapName, piAddress = '192.168.0.64') {
         try {
             await this.log(`Deploying map ${mapName} to Raspberry Pi: ${piAddress}`);
             

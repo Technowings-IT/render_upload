@@ -1,13 +1,15 @@
-// screens/enhanced_analytics_screen.dart - Restructured Enhanced Analytics with Improved UI
+// screens/enhanced_analytics_screen.dart - Modern Robotic Analytics with Full Theme Integration
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
 import 'dart:math' as math;
 import 'dart:async';
 import '../services/api_service.dart';
 import '../services/web_socket_service.dart';
+import '../services/theme_service.dart';
+import '../widgets/modern_ui_components.dart';
 
 // ============================================================================
-// CONSTANTS & DESIGN SYSTEM
+// CONSTANTS & DESIGN SYSTEM (Enhanced for Modern Theme)
 // ============================================================================
 class AppConstants {
   static const double borderRadius = 16.0;
@@ -79,7 +81,7 @@ class AppTextStyles {
 }
 
 // ============================================================================
-// MAIN ENHANCED ANALYTICS SCREEN
+// MAIN ENHANCED ANALYTICS SCREEN WITH MODERN THEME INTEGRATION
 // ============================================================================
 class EnhancedAnalyticsScreen extends StatefulWidget {
   @override
@@ -97,6 +99,8 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
 
   late TabController _tabController;
   late AnimationController _chartAnimationController;
+  late AnimationController _dataAnimationController;
+  late AnimationController _pulseController;
   late StreamSubscription _realTimeSubscription;
 
   // ============================================================================
@@ -129,25 +133,38 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   @override
   void initState() {
     super.initState();
+    _initializeAnimations();
+    _initializeData();
+    _setupRealTimeUpdates();
+    _startAutoRefresh();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateDeviceType();
+    });
+  }
+
+  void _initializeAnimations() {
     _tabController = TabController(length: 6, vsync: this);
     _chartAnimationController = AnimationController(
       duration: AppConstants.animationDuration,
       vsync: this,
     );
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _updateDeviceType();
-    });
-
-    _initializeData();
-    _setupRealTimeUpdates();
-    _startAutoRefresh();
+    _dataAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     _chartAnimationController.dispose();
+    _dataAnimationController.dispose();
+    _pulseController.dispose();
     _realTimeSubscription.cancel();
     _refreshTimer?.cancel();
     super.dispose();
@@ -172,7 +189,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   // ============================================================================
   // DATA INITIALIZATION & REAL-TIME UPDATES
   // ============================================================================
-  void _initializeData() async {
+  void _initializeData() {
     _loadDevices();
     _loadAnalyticsData();
   }
@@ -409,14 +426,8 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       // Update device stats with cross-referenced data
       _updateDeviceStatsWithCrossData();
 
-      // print('📊 Final analytics data summary:');
-      // print('  - Devices: ${_connectedDevices.length}');
-      // print('  - Battery history entries: ${_batteryHistory.keys.length}');
-      // print('  - Order history entries: ${_orderHistory.keys.length}');
-      // print('  - Device stats entries: ${_deviceStats.keys.length}');
-      // print('  - System events: ${_systemEvents.length}');
-
       _chartAnimationController.forward();
+      _dataAnimationController.forward();
     } catch (e) {
       print('❌ Error loading analytics data: $e');
       _generateMockData();
@@ -854,84 +865,87 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   }
 
   // ============================================================================
-  // BUILD METHODS - MAIN UI
+  // BUILD METHODS - MAIN UI WITH MODERN THEME INTEGRATION
   // ============================================================================
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final theme = Provider.of<ThemeService>(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth > 1200;
+    final isTablet = screenWidth > 768 && screenWidth <= 1200;
+
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: Colors.transparent,
       appBar: _buildEnhancedAppBar(theme),
-      body: _buildResponsiveBody(),
+      body: Container(
+        decoration: BoxDecoration(gradient: theme.backgroundGradient),
+        child: _isLoading
+            ? ModernLoadingIndicator(
+                message: 'Loading Analytics Data...', size: 60)
+            : _buildResponsiveBody(isDesktop, isTablet),
+      ),
     );
   }
 
-  PreferredSizeWidget _buildEnhancedAppBar(ThemeData theme) {
+  PreferredSizeWidget _buildEnhancedAppBar(ThemeService theme) {
     return AppBar(
-      title: Row(
-        children: [
-          EnhancedIconContainer(
-            icon: Icons.analytics,
-            gradient: LinearGradient(colors: [
-              theme.primaryColor,
-              theme.primaryColor.withOpacity(0.7)
-            ]),
-          ),
-          const SizedBox(width: 12),
-          Text('Analytics & Reports',
-              style: AppTextStyles.heading3.copyWith(color: Colors.white)),
-        ],
+      title: ShaderMask(
+        shaderCallback: (bounds) => theme.primaryGradient.createShader(bounds),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: theme.primaryGradient,
+                borderRadius: theme.borderRadiusSmall,
+                boxShadow: theme.neonGlow,
+              ),
+              child: Icon(Icons.analytics, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Fleet Analytics',
+              style: theme.displayMedium.copyWith(
+                fontSize: 20,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
       ),
-      backgroundColor: theme.primaryColor,
+      backgroundColor: Colors.transparent,
       elevation: 0,
       flexibleSpace: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [theme.primaryColor, theme.primaryColor.withOpacity(0.8)],
+            colors: theme.isDarkMode
+                ? [
+                    const Color(0xFF1E1E2E).withOpacity(0.95),
+                    const Color(0xFF262640).withOpacity(0.95),
+                  ]
+                : [
+                    Colors.white.withOpacity(0.95),
+                    Colors.white.withOpacity(0.9),
+                  ],
           ),
         ),
       ),
       actions: [
-        _buildTimeRangeSelector(),
-        const SizedBox(width: 8),
-        _buildDeviceSelector(),
-        const SizedBox(width: 8),
-        EnhancedActionButton(
-          icon: _autoRefresh ? Icons.sync : Icons.sync_disabled,
-          gradient: LinearGradient(
-            colors: _autoRefresh
-                ? [AppColors.success, AppColors.success.withOpacity(0.8)]
-                : [Colors.grey.shade400, Colors.grey.shade600],
-          ),
-          onPressed: () {
-            setState(() {
-              _autoRefresh = !_autoRefresh;
-            });
-            _refreshTimer?.cancel();
-            if (_autoRefresh) {
-              _startAutoRefresh();
-            }
-          },
-          tooltip:
-              _autoRefresh ? 'Disable Auto Refresh' : 'Enable Auto Refresh',
-        ),
-        EnhancedActionButton(
-          icon: Icons.refresh,
-          gradient: LinearGradient(
-              colors: [AppColors.info, AppColors.info.withOpacity(0.8)]),
-          onPressed: _loadAnalyticsData,
-          tooltip: 'Refresh Data',
-        ),
+        _buildTimeRangeSelector(theme),
+        _buildDeviceSelector(theme),
+        _buildActionButtons(theme),
       ],
       bottom: _deviceType != DeviceType.phone
           ? TabBar(
               controller: _tabController,
-              indicatorColor: Colors.white,
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.white70,
-              isScrollable: true,
+              indicatorColor: theme.accentColor,
+              labelColor: theme.accentColor,
+              unselectedLabelColor: theme.isDarkMode
+                  ? Colors.white.withOpacity(0.6)
+                  : Colors.black.withOpacity(0.6),
+              indicatorWeight: 3,
               tabs: const [
                 Tab(icon: Icon(Icons.dashboard), text: 'Overview'),
                 Tab(icon: Icon(Icons.battery_std), text: 'Performance'),
@@ -945,116 +959,168 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     );
   }
 
-  Widget _buildTimeRangeSelector() {
-    return EnhancedDropdown<String>(
-      value: _selectedTimeRange,
-      items: const [
-        DropdownMenuItem(value: '1h', child: Text('Last Hour')),
-        DropdownMenuItem(value: '24h', child: Text('Last 24h')),
-        DropdownMenuItem(value: '7d', child: Text('Last 7 days')),
-        DropdownMenuItem(value: '30d', child: Text('Last 30 days')),
-      ],
-      onChanged: (value) {
-        if (value != null) {
-          setState(() {
-            _selectedTimeRange = value;
-          });
-          _loadAnalyticsData();
-        }
-      },
-    );
-  }
-
-  Widget _buildDeviceSelector() {
-    return EnhancedDropdown<String>(
-      value: _selectedDeviceId,
-      items: [
-        const DropdownMenuItem(value: 'all', child: Text('All Devices')),
-        ..._connectedDevices.map((device) => DropdownMenuItem(
-              value: device['id'],
-              child: Text(device['name'] ?? device['id']),
-            )),
-      ],
-      onChanged: (value) {
-        if (value != null) {
-          setState(() {
-            _selectedDeviceId = value;
-          });
-          _loadAnalyticsData();
-        }
-      },
-    );
-  }
-
-  Widget _buildResponsiveBody() {
-    if (_isLoading) {
-      return _buildLoadingView();
-    }
-
-    switch (_deviceType) {
-      case DeviceType.desktop:
-        return _buildDesktopLayout();
-      case DeviceType.tablet:
-        return _buildTabletLayout();
-      case DeviceType.phone:
-        return _buildPhoneLayout();
-    }
-  }
-
-  Widget _buildLoadingView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedBuilder(
-            animation: _chartAnimationController,
-            builder: (context, child) {
-              return Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).primaryColor,
-                      Theme.of(context).primaryColor.withOpacity(0.3),
-                    ],
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: CircularProgressIndicator(
-                  value: _chartAnimationController.value,
-                  backgroundColor: Colors.transparent,
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                  strokeWidth: 4,
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Loading Analytics Data...',
-            style: AppTextStyles.subtitle.copyWith(color: Colors.grey.shade600),
-          ),
+  Widget _buildTimeRangeSelector(ThemeService theme) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        gradient: theme.glassMorphism.gradient,
+        borderRadius: theme.borderRadiusSmall,
+        border: theme.glassMorphism.border,
+      ),
+      child: DropdownButton<String>(
+        value: _selectedTimeRange,
+        dropdownColor:
+            theme.isDarkMode ? const Color(0xFF262640) : Colors.white,
+        style: theme.bodyMedium.copyWith(color: theme.accentColor),
+        underline: Container(),
+        icon: Icon(Icons.expand_more, color: theme.accentColor, size: 16),
+        items: const [
+          DropdownMenuItem(value: '1h', child: Text('Last Hour')),
+          DropdownMenuItem(value: '24h', child: Text('Last 24h')),
+          DropdownMenuItem(value: '7d', child: Text('Last 7 days')),
+          DropdownMenuItem(value: '30d', child: Text('Last 30 days')),
         ],
+        onChanged: (value) {
+          if (value != null) {
+            setState(() {
+              _selectedTimeRange = value;
+            });
+            _loadAnalyticsData();
+          }
+        },
       ),
     );
   }
 
-  Widget _buildDesktopLayout() {
-    return TabBarView(
-      controller: _tabController,
+  Widget _buildDeviceSelector(ThemeService theme) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        gradient: theme.glassMorphism.gradient,
+        borderRadius: theme.borderRadiusSmall,
+        border: theme.glassMorphism.border,
+      ),
+      child: DropdownButton<String>(
+        value: _selectedDeviceId,
+        dropdownColor:
+            theme.isDarkMode ? const Color(0xFF262640) : Colors.white,
+        style: theme.bodyMedium.copyWith(color: theme.accentColor),
+        underline: Container(),
+        icon: Icon(Icons.expand_more, color: theme.accentColor, size: 16),
+        items: [
+          const DropdownMenuItem(value: 'all', child: Text('All Devices')),
+          ..._connectedDevices.map((device) => DropdownMenuItem(
+                value: device['id'],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RoboticStatusIndicator(
+                      status: device['status'] ?? 'offline',
+                      label: '',
+                      size: 8,
+                      animated: false,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(device['name'] ?? device['id']),
+                  ],
+                ),
+              )),
+        ],
+        onChanged: (value) {
+          if (value != null) {
+            setState(() {
+              _selectedDeviceId = value;
+            });
+            _loadAnalyticsData();
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(ThemeService theme) {
+    return Row(
       children: [
-        _buildOverviewTab(),
-        _buildPerformanceTab(),
-        _buildOrdersTab(),
-        _buildNavigationTab(),
-        _buildEventsTab(),
-        _buildRealTimeTab(),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            gradient: _autoRefresh ? theme.primaryGradient : null,
+            color: _autoRefresh ? null : Colors.grey.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: _autoRefresh ? theme.neonGlow : null,
+          ),
+          child: IconButton(
+            icon: AnimatedBuilder(
+              animation: _pulseController,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale:
+                      _autoRefresh ? 1.0 + (_pulseController.value * 0.1) : 1.0,
+                  child: Icon(
+                    _autoRefresh ? Icons.sync : Icons.sync_disabled,
+                    color: Colors.white,
+                  ),
+                );
+              },
+            ),
+            onPressed: () {
+              setState(() {
+                _autoRefresh = !_autoRefresh;
+              });
+              _refreshTimer?.cancel();
+              if (_autoRefresh) {
+                _startAutoRefresh();
+              }
+            },
+            tooltip:
+                _autoRefresh ? 'Disable Auto Refresh' : 'Enable Auto Refresh',
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            gradient: theme.primaryGradient,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: theme.elevationSmall,
+          ),
+          child: IconButton(
+            icon: Icon(Icons.refresh, color: Colors.white),
+            onPressed: _loadAnalyticsData,
+            tooltip: 'Refresh Data',
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildTabletLayout() {
+  Widget _buildResponsiveBody(bool isDesktop, bool isTablet) {
+    switch (_deviceType) {
+      case DeviceType.desktop:
+        return _buildDesktopLayout(isDesktop, isTablet);
+      case DeviceType.tablet:
+        return _buildTabletLayout(isDesktop, isTablet);
+      case DeviceType.phone:
+        return _buildPhoneLayout(isDesktop, isTablet);
+    }
+  }
+
+  Widget _buildDesktopLayout(bool isDesktop, bool isTablet) {
+    return TabBarView(
+      controller: _tabController,
+      children: [
+        _buildOverviewTab(isDesktop, isTablet),
+        _buildPerformanceTab(isDesktop, isTablet),
+        _buildOrdersTab(isDesktop, isTablet),
+        _buildNavigationTab(isDesktop, isTablet),
+        _buildEventsTab(isDesktop, isTablet),
+        _buildRealTimeTab(isDesktop, isTablet),
+      ],
+    );
+  }
+
+  Widget _buildTabletLayout(bool isDesktop, bool isTablet) {
     return Column(
       children: [
         Container(
@@ -1082,12 +1148,12 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
           child: TabBarView(
             controller: _tabController,
             children: [
-              _buildOverviewTab(),
-              _buildPerformanceTab(),
-              _buildOrdersTab(),
-              _buildNavigationTab(),
-              _buildEventsTab(),
-              _buildRealTimeTab(),
+              _buildOverviewTab(isDesktop, isTablet),
+              _buildPerformanceTab(isDesktop, isTablet),
+              _buildOrdersTab(isDesktop, isTablet),
+              _buildNavigationTab(isDesktop, isTablet),
+              _buildEventsTab(isDesktop, isTablet),
+              _buildRealTimeTab(isDesktop, isTablet),
             ],
           ),
         ),
@@ -1095,19 +1161,19 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     );
   }
 
-  Widget _buildPhoneLayout() {
+  Widget _buildPhoneLayout(bool isDesktop, bool isTablet) {
     return Column(
       children: [
         Expanded(
           child: TabBarView(
             controller: _tabController,
             children: [
-              _buildOverviewTab(),
-              _buildPerformanceTab(),
-              _buildOrdersTab(),
-              _buildNavigationTab(),
-              _buildEventsTab(),
-              _buildRealTimeTab(),
+              _buildOverviewTab(isDesktop, isTablet),
+              _buildPerformanceTab(isDesktop, isTablet),
+              _buildOrdersTab(isDesktop, isTablet),
+              _buildNavigationTab(isDesktop, isTablet),
+              _buildEventsTab(isDesktop, isTablet),
+              _buildRealTimeTab(isDesktop, isTablet),
             ],
           ),
         ),
@@ -1136,25 +1202,68 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   }
 
   // ============================================================================
-  // TAB CONTENT BUILDERS
+  // TAB CONTENT BUILDERS WITH MODERN THEME INTEGRATION
   // ============================================================================
-  Widget _buildOverviewTab() {
+  Widget _buildOverviewTab(bool isDesktop, bool isTablet) {
+    final theme = Provider.of<ThemeService>(context);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildOverviewMetrics(),
+          // Key Metrics Row
+          AnimatedBuilder(
+            animation: _dataAnimationController,
+            builder: (context, child) {
+              return Transform.translate(
+                offset: Offset(0, 50 * (1 - _dataAnimationController.value)),
+                child: Opacity(
+                  opacity: _dataAnimationController.value,
+                  child: _buildKeyMetrics(isDesktop, isTablet, theme),
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 20),
-          _buildFleetHealthCard(),
+
+          // Fleet Health Overview
+          AnimatedBuilder(
+            animation: _dataAnimationController,
+            builder: (context, child) {
+              return Transform.translate(
+                offset: Offset(0, 50 * (1 - _dataAnimationController.value)),
+                child: Opacity(
+                  opacity: _dataAnimationController.value,
+                  child: _buildFleetHealthOverview(theme),
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 20),
-          _buildQuickStatsGrid(),
+
+          // Performance Charts
+          if (isDesktop || isTablet)
+            Row(
+              children: [
+                Expanded(child: _buildBatteryChart(theme)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildOrderTrendsChart(theme)),
+              ],
+            )
+          else
+            Column(
+              children: [
+                _buildBatteryChart(theme),
+                const SizedBox(height: 16),
+                _buildOrderTrendsChart(theme),
+              ],
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildOverviewMetrics() {
+  Widget _buildKeyMetrics(bool isDesktop, bool isTablet, ThemeService theme) {
     final totalDevices = _connectedDevices.length;
     final activeDevices =
         _connectedDevices.where((d) => d['status'] == 'connected').length;
@@ -1168,124 +1277,382 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
             _deviceStats.length
         : 0.0;
 
-    return AnimatedBuilder(
-      animation: _chartAnimationController,
-      builder: (context, child) {
-        return Row(
-          children: [
-            Expanded(
-                child: EnhancedMetricCard(
-              title: 'Fleet Size',
-              value: totalDevices.toString(),
-              icon: Icons.devices,
-              color: AppColors.info,
-            )),
-            const SizedBox(width: 12),
-            Expanded(
-                child: EnhancedMetricCard(
-              title: 'Active Devices',
-              value: activeDevices.toString(),
-              icon: Icons.power,
-              color: AppColors.success,
-            )),
-            const SizedBox(width: 12),
-            Expanded(
-                child: EnhancedMetricCard(
-              title: 'Total Orders',
-              value: totalOrders.toString(),
-              icon: Icons.assignment,
-              color: AppColors.warning,
-            )),
-            const SizedBox(width: 12),
-            Expanded(
-                child: EnhancedMetricCard(
-              title: 'Avg Uptime',
-              value: '${averageUptime.toStringAsFixed(0)}h',
-              icon: Icons.schedule,
-              color: Colors.purple,
-            )),
-          ],
-        );
-      },
+    final crossAxisCount = isDesktop ? 4 : (isTablet ? 2 : 2);
+
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: crossAxisCount,
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      childAspectRatio: 1.2,
+      children: [
+        ModernStatsCard(
+          title: 'Fleet Size',
+          value: totalDevices.toString(),
+          subtitle: 'Total AGV units',
+          icon: Icons.precision_manufacturing,
+          color: theme.infoColor,
+          trend: '+2',
+          showTrend: true,
+        ),
+        ModernStatsCard(
+          title: 'Active Devices',
+          value: activeDevices.toString(),
+          subtitle: 'Currently online',
+          icon: Icons.power_settings_new,
+          color: theme.onlineColor,
+          trend: '+1',
+          showTrend: true,
+        ),
+        ModernStatsCard(
+          title: 'Total Orders',
+          value: totalOrders.toString(),
+          subtitle: 'Completed today',
+          icon: Icons.assignment_turned_in,
+          color: theme.warningColor,
+          trend: '+12%',
+          showTrend: true,
+        ),
+        ModernStatsCard(
+          title: 'Avg Uptime',
+          value: '${averageUptime.toStringAsFixed(0)}h',
+          subtitle: 'System reliability',
+          icon: Icons.schedule,
+          color: theme.accentColor,
+          trend: '+5%',
+          showTrend: true,
+        ),
+      ],
     );
   }
 
-  Widget _buildFleetHealthCard() {
-    return EnhancedCard(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [AppColors.info.withOpacity(0.1), AppColors.cardBackground],
-      ),
+  Widget _buildFleetHealthOverview(ThemeService theme) {
+    return ModernGlassCard(
+      showGlow: true,
+      glowColor: theme.successColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CardHeader(
-            title: 'Fleet Health Overview',
-            icon: Icons.health_and_safety,
-            color: AppColors.info,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.successColor,
+                      theme.successColor.withOpacity(0.8)
+                    ],
+                  ),
+                  borderRadius: theme.borderRadiusSmall,
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.successColor.withOpacity(0.3),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: Icon(Icons.health_and_safety,
+                    color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Fleet Health Overview', style: theme.headlineLarge),
+                    Text(
+                      'Real-time system status monitoring',
+                      style: theme.bodyMedium.copyWith(
+                        color: theme.isDarkMode
+                            ? Colors.white.withOpacity(0.7)
+                            : Colors.black.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              AnimatedBuilder(
+                animation: _pulseController,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: 1.0 + (_pulseController.value * 0.1),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: theme.primaryGradient,
+                        borderRadius: theme.borderRadiusSmall,
+                        boxShadow: theme.neonGlow,
+                      ),
+                      child: Text(
+                        'LIVE',
+                        style: theme.bodySmall.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           if (_connectedDevices.isEmpty)
-            const Center(child: Text('No devices available'))
+            Center(
+              child: Column(
+                children: [
+                  Icon(Icons.device_unknown, size: 48, color: theme.errorColor),
+                  const SizedBox(height: 12),
+                  Text('No devices connected', style: theme.headlineMedium),
+                  Text('Connect AGV devices to see fleet health',
+                      style: theme.bodyMedium),
+                ],
+              ),
+            )
           else
-            ..._connectedDevices.map((device) {
-              final deviceId = device['id'];
-              final stats = _deviceStats[deviceId];
-              final batteryLevel = stats?['currentBattery']?.toDouble() ?? 0.0;
-              final isOnline = device['status'] == 'connected';
-
-              return DeviceHealthItem(
-                device: device,
-                batteryLevel: batteryLevel,
-                isOnline: isOnline,
-              );
-            }),
+            ..._connectedDevices
+                .map((device) => _buildDeviceHealthItem(device, theme)),
         ],
       ),
     );
   }
 
-  Widget _buildQuickStatsGrid() {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: _deviceType == DeviceType.phone ? 2 : 4,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.2,
-      children: [
-        EnhancedStatCard(
-            title: 'Total Distance',
-            value: _getTotalDistance(),
-            icon: Icons.route,
-            color: AppColors.info),
-        EnhancedStatCard(
-            title: 'Avg Order Time',
-            value: _getAverageOrderTime(),
-            icon: Icons.timer,
-            color: AppColors.success),
-        EnhancedStatCard(
-            title: 'Success Rate',
-            value: _getSuccessRate(),
-            icon: Icons.check_circle,
-            color: AppColors.warning),
-        EnhancedStatCard(
-            title: 'Active Orders',
-            value: _getActiveOrders(),
-            icon: Icons.play_circle,
-            color: Colors.purple),
-      ],
+  Widget _buildDeviceHealthItem(
+      Map<String, dynamic> device, ThemeService theme) {
+    final deviceId = device['id'];
+    final stats = _deviceStats[deviceId];
+    final batteryLevel = stats?['currentBattery']?.toDouble() ?? 0.0;
+    final isOnline = device['status'] == 'connected';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: theme.isDarkMode
+              ? [
+                  const Color(0xFF262640).withOpacity(0.5),
+                  const Color(0xFF1E1E2E).withOpacity(0.5),
+                ]
+              : [
+                  Colors.white.withOpacity(0.8),
+                  Colors.grey.shade50.withOpacity(0.8),
+                ],
+        ),
+        borderRadius: theme.borderRadiusMedium,
+        border: Border.all(
+          color: isOnline
+              ? theme.onlineColor.withOpacity(0.3)
+              : theme.offlineColor.withOpacity(0.3),
+        ),
+        boxShadow: theme.elevationSmall,
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isOnline
+                    ? [theme.onlineColor, theme.onlineColor.withOpacity(0.8)]
+                    : [theme.offlineColor, theme.offlineColor.withOpacity(0.8)],
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: (isOnline ? theme.onlineColor : theme.offlineColor)
+                      .withOpacity(0.3),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Icon(
+              isOnline ? Icons.smart_toy : Icons.warning,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  device['name'] ?? deviceId,
+                  style: theme.headlineMedium,
+                ),
+                const SizedBox(height: 4),
+                RoboticStatusIndicator(
+                  status: device['status'] ?? 'offline',
+                  label: (device['status'] ?? 'offline').toUpperCase(),
+                  animated: isOnline,
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Battery', style: theme.bodySmall),
+                    Text('${batteryLevel.toStringAsFixed(0)}%',
+                        style: theme.bodySmall
+                            .copyWith(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: theme.isDarkMode
+                        ? Colors.white.withOpacity(0.1)
+                        : Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: batteryLevel / 100.0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: batteryLevel > 30
+                              ? [
+                                  theme.successColor,
+                                  theme.successColor.withOpacity(0.8)
+                                ]
+                              : batteryLevel > 15
+                                  ? [
+                                      theme.warningColor,
+                                      theme.warningColor.withOpacity(0.8)
+                                    ]
+                                  : [
+                                      theme.errorColor,
+                                      theme.errorColor.withOpacity(0.8)
+                                    ],
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (batteryLevel > 30
+                                    ? theme.successColor
+                                    : batteryLevel > 15
+                                        ? theme.warningColor
+                                        : theme.errorColor)
+                                .withOpacity(0.3),
+                            blurRadius: 4,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildPerformanceTab() {
+  Widget _buildBatteryChart(ThemeService theme) {
+    return ModernGlassCard(
+      showGlow: true,
+      glowColor: theme.successColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.successColor,
+                      theme.successColor.withOpacity(0.8)
+                    ],
+                  ),
+                  borderRadius: theme.borderRadiusSmall,
+                ),
+                child: Icon(Icons.battery_charging_full,
+                    color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text('Battery Levels (${_getTimeRangeLabel()})',
+                  style: theme.headlineMedium),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            height: 200,
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: ModernBatteryChartPainter(
+                  _batteryHistory, _selectedDeviceId, theme),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderTrendsChart(ThemeService theme) {
+    return ModernGlassCard(
+      showGlow: true,
+      glowColor: theme.warningColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.warningColor,
+                      theme.warningColor.withOpacity(0.8)
+                    ],
+                  ),
+                  borderRadius: theme.borderRadiusSmall,
+                ),
+                child: Icon(Icons.trending_up, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text('Order Trends (${_getTimeRangeLabel()})',
+                  style: theme.headlineMedium),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            height: 200,
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: ModernOrderTrendsChartPainter(
+                  _orderHistory, _selectedDeviceId, theme),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPerformanceTab(bool isDesktop, bool isTablet) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          _buildBatteryChart(),
-          const SizedBox(height: 20),
           _buildVelocityChart(),
           const SizedBox(height: 20),
           _buildPerformanceMetrics(),
@@ -1294,57 +1661,38 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     );
   }
 
-  Widget _buildBatteryChart() {
-    return EnhancedCard(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [AppColors.success.withOpacity(0.1), AppColors.cardBackground],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CardHeader(
-            title: 'Battery Levels (${_getTimeRangeLabel()})',
-            icon: Icons.battery_std,
-            color: AppColors.success,
-          ),
-          const SizedBox(height: 16),
-          Container(
-            height: 200,
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: EnhancedBatteryChartPainter(
-                  _batteryHistory, _selectedDeviceId),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildVelocityChart() {
-    return EnhancedCard(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [AppColors.info.withOpacity(0.1), AppColors.cardBackground],
-      ),
+    final theme = Provider.of<ThemeService>(context);
+    return ModernGlassCard(
+      showGlow: true,
+      glowColor: theme.infoColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CardHeader(
-            title: 'Velocity History (${_getTimeRangeLabel()})',
-            icon: Icons.speed,
-            color: AppColors.info,
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [theme.infoColor, theme.infoColor.withOpacity(0.8)],
+                  ),
+                  borderRadius: theme.borderRadiusSmall,
+                ),
+                child: Icon(Icons.speed, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text('Velocity History (${_getTimeRangeLabel()})',
+                  style: theme.headlineLarge),
+            ],
           ),
           const SizedBox(height: 16),
           Container(
             height: 200,
             child: CustomPaint(
               size: Size.infinite,
-              painter:
-                  VelocityChartPainter(_velocityHistory, _selectedDeviceId),
+              painter: VelocityChartPainter(
+                  _velocityHistory, _selectedDeviceId, theme),
             ),
           ),
         ],
@@ -1453,7 +1801,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     );
   }
 
-  Widget _buildOrdersTab() {
+  Widget _buildOrdersTab(bool isDesktop, bool isTablet) {
     final relevantOrders = _selectedDeviceId == 'all'
         ? _orderHistory.values.expand((orders) => orders).toList()
         : _orderHistory[_selectedDeviceId] ?? [];
@@ -1488,7 +1836,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     );
   }
 
-  Widget _buildNavigationTab() {
+  Widget _buildNavigationTab(bool isDesktop, bool isTablet) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1619,7 +1967,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     );
   }
 
-  Widget _buildEventsTab() {
+  Widget _buildEventsTab(bool isDesktop, bool isTablet) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1647,7 +1995,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
     );
   }
 
-  Widget _buildRealTimeTab() {
+  Widget _buildRealTimeTab(bool isDesktop, bool isTablet) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1822,59 +2170,78 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
           _deviceStats[_selectedDeviceId]?['averageOrderTime']?.toDouble() ??
               0.0;
       if (time > 300) {
-        // More than 5 minutes likely means it's in seconds
         return '${(time / 60).toStringAsFixed(1)} min';
       }
       return '${time.toStringAsFixed(1)} min';
     }
   }
 
-  String _getSuccessRate() {
+  String _getAverageBattery() {
     if (_selectedDeviceId == 'all') {
-      final totalOrders = _deviceStats.values
-          .fold(0, (sum, stats) => sum + (stats['totalOrders'] as int? ?? 0));
-      final completedOrders = _deviceStats.values.fold(
-          0, (sum, stats) => sum + (stats['completedOrders'] as int? ?? 0));
-      if (totalOrders == 0) return '0%';
-      return '${((completedOrders / totalOrders) * 100).toStringAsFixed(1)}%';
+      final batteries = _deviceStats.values
+          .map((stats) => stats['currentBattery'] as double? ?? 0.0)
+          .where((b) => b > 0)
+          .toList();
+      if (batteries.isEmpty) return '0';
+      final average =
+          batteries.fold(0.0, (sum, bat) => sum + bat) / batteries.length;
+      return '${average.toStringAsFixed(0)}';
     } else {
-      final stats = _deviceStats[_selectedDeviceId];
-      if (stats == null) return '0%';
-      final total = stats['totalOrders'] as int? ?? 0;
-      final completed = stats['completedOrders'] as int? ?? 0;
-      if (total == 0) return '0%';
-      return '${((completed / total) * 100).toStringAsFixed(1)}%';
+      final battery =
+          _deviceStats[_selectedDeviceId]?['currentBattery']?.toDouble() ?? 0.0;
+      return '${battery.toStringAsFixed(0)}';
     }
   }
 
-  String _getActiveOrders() {
-    final random = math.Random();
-    return random.nextInt(5).toString();
+  String _getEstimatedTimeLeft() {
+    final times = _navigationMetrics.entries
+        .where((entry) => entry.key.contains('time_remaining'))
+        .map((entry) => entry.value)
+        .where((time) => time > 0)
+        .toList();
+
+    if (times.isEmpty) return '0';
+
+    final avgTime = times.fold(0.0, (sum, time) => sum + time) / times.length;
+    return '${(avgTime / 60).toStringAsFixed(0)}'; // Convert seconds to minutes
   }
 
-  String _getAverageBattery() {
-    final batteries = _deviceStats.values
-        .map((stats) => stats['currentBattery'] as double? ?? 0.0)
-        .where((b) => b > 0)
+  String _getNavigationTime() {
+    final activeNavs = _currentNavigationStatus.values
+        .map((status) => status['navigation_time'] as double? ?? 0.0)
+        .where((time) => time > 0)
         .toList();
-    if (batteries.isEmpty) return '0%';
-    final average =
-        batteries.fold(0.0, (sum, battery) => sum + battery) / batteries.length;
-    return '${average.toStringAsFixed(0)}%';
+
+    if (activeNavs.isEmpty) return '0';
+
+    final avgTime =
+        activeNavs.fold(0.0, (sum, time) => sum + time) / activeNavs.length;
+    return '${(avgTime / 60).toStringAsFixed(0)}'; // Convert seconds to minutes
+  }
+
+  String _getDeviceRecoveryCount() {
+    final recoveries = _navigationMetrics.entries
+        .where((entry) => entry.key.contains('recoveries'))
+        .map((entry) => entry.value)
+        .fold(0.0, (sum, count) => sum + count);
+
+    return '${recoveries.toStringAsFixed(0)}';
   }
 
   String _getActiveOrdersCount() {
-    final random = math.Random();
-    return random.nextInt(8).toString();
+    // This would need to be implemented based on actual active orders tracking
+    return '${_currentNavigationStatus.length}';
   }
 
   String _getAverageNavigationSpeed() {
     final speeds = _navigationMetrics.entries
-        .where((entry) => entry.key.startsWith('current_speed_'))
+        .where((entry) => entry.key.contains('current_speed'))
         .map((entry) => entry.value)
-        .where((speed) => speed > 0);
+        .where((speed) => speed > 0)
+        .toList();
 
-    if (speeds.isEmpty) return '0.0 m/s';
+    if (speeds.isEmpty) return '0.00 m/s';
+
     final avgSpeed =
         speeds.fold(0.0, (sum, speed) => sum + speed) / speeds.length;
     return '${avgSpeed.toStringAsFixed(2)} m/s';
@@ -1882,74 +2249,42 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
 
   String _getTotalRecoveries() {
     final totalRecoveries = _navigationMetrics.entries
-        .where((entry) => entry.key.startsWith('recoveries_'))
+        .where((entry) => entry.key.contains('recoveries'))
         .fold(0.0, (sum, entry) => sum + entry.value);
 
-    return totalRecoveries.toInt().toString();
+    return '${totalRecoveries.toStringAsFixed(0)}';
   }
 
   String _getNavigationSuccessRate() {
-    final navEvents = _systemEvents
-        .where((event) => event['message'].toString().contains('Navigation'))
-        .toList();
+    // This would need to be calculated based on successful vs failed navigations
+    // For now, return a calculated estimate
+    final totalRecoveries = _navigationMetrics.entries
+        .where((entry) => entry.key.contains('recoveries'))
+        .fold(0.0, (sum, entry) => sum + entry.value);
 
-    if (navEvents.isEmpty) return '100%';
+    final totalNavigations = _navigationHistory.values
+        .fold(0, (sum, history) => sum + history.length);
 
-    final successful = navEvents
-        .where((event) => event['message'].toString().contains('SUCCEEDED'))
-        .length;
-    final rate = (successful / navEvents.length * 100);
-    return '${rate.toStringAsFixed(0)}%';
+    if (totalNavigations == 0) return '100%';
+
+    final successRate =
+        ((totalNavigations - totalRecoveries) / totalNavigations * 100)
+            .clamp(0, 100);
+    return '${successRate.toStringAsFixed(0)}%';
   }
 
   String _getAverageNavigationTime() {
-    final allHistory =
-        _navigationHistory.values.expand((list) => list).toList();
+    final allNavTimes = _navigationHistory.values
+        .expand((history) => history)
+        .map((nav) => nav['navigation_time'] as double? ?? 0.0)
+        .where((time) => time > 0)
+        .toList();
 
-    if (allHistory.isEmpty) return '0s';
+    if (allNavTimes.isEmpty) return '0 min';
 
     final avgTime =
-        allHistory.fold(0.0, (sum, nav) => sum + nav['navigation_time']) /
-            allHistory.length;
-    return '${avgTime.toStringAsFixed(0)}s';
-  }
-
-  String _getEstimatedTimeLeft() {
-    final allHistory =
-        _navigationHistory.values.expand((list) => list).toList();
-    if (allHistory.isEmpty) return '0';
-
-    final avgEstTime = allHistory
-        .map((nav) => nav['estimated_time_remaining'] as double? ?? 0.0)
-        .where((time) => time > 0)
-        .fold(0.0, (sum, time) => sum + time);
-
-    if (allHistory.isEmpty) return '0';
-    return '${(avgEstTime / allHistory.length / 60).toStringAsFixed(0)}'; // Convert to minutes
-  }
-
-  String _getNavigationTime() {
-    final allHistory =
-        _navigationHistory.values.expand((list) => list).toList();
-    if (allHistory.isEmpty) return '0';
-
-    final totalNavTime = allHistory
-        .map((nav) => nav['navigation_time'] as double? ?? 0.0)
-        .fold(0.0, (sum, time) => sum + time);
-
-    return '${(totalNavTime / 60).toStringAsFixed(0)}'; // Convert to minutes
-  }
-
-  String _getDeviceRecoveryCount() {
-    final recoveryEvents = _systemEvents
-        .where((event) =>
-            event['message'].toString().toLowerCase().contains('recovery') ||
-            event['message'].toString().toLowerCase().contains('reconnect') ||
-            event['message'].toString().toLowerCase().contains('error') ||
-            event['type'].toString().toLowerCase().contains('recovery'))
-        .length;
-
-    return recoveryEvents.toString();
+        allNavTimes.fold(0.0, (sum, time) => sum + time) / allNavTimes.length;
+    return '${(avgTime / 60).toStringAsFixed(1)} min';
   }
 
   String _getTimeRangeLabel() {
@@ -1968,224 +2303,51 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   }
 
   String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    return '${dateTime.day.toString().padLeft(2, '0')}/'
+        '${dateTime.month.toString().padLeft(2, '0')}/'
+        '${dateTime.year} '
+        '${dateTime.hour.toString().padLeft(2, '0')}:'
+        '${dateTime.minute.toString().padLeft(2, '0')}';
   }
 }
 
 // ============================================================================
-// REUSABLE UI COMPONENTS
+// CUSTOM PAINTERS FOR CHARTS WITH GLOW EFFECTS
 // ============================================================================
-class EnhancedCard extends StatelessWidget {
-  final Widget child;
-  final Gradient? gradient;
-  final Color? borderColor;
-  final double elevation;
-
-  const EnhancedCard({
-    Key? key,
-    required this.child,
-    this.gradient,
-    this.borderColor,
-    this.elevation = AppConstants.cardElevation,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: gradient,
-        color: gradient == null ? AppColors.cardBackground : null,
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-        border: Border.all(color: borderColor ?? Colors.grey.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: elevation * 2,
-            offset: Offset(0, elevation),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: child,
-    );
-  }
-}
-
-class EnhancedIconContainer extends StatelessWidget {
-  final IconData icon;
-  final Gradient gradient;
-  final double size;
-
-  const EnhancedIconContainer({
-    Key? key,
-    required this.icon,
-    required this.gradient,
-    this.size = 32,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius),
-      ),
-      child: Icon(icon, color: Colors.white, size: AppConstants.iconSize),
-    );
-  }
-}
-
-class EnhancedActionButton extends StatelessWidget {
-  final IconData icon;
-  final Gradient gradient;
-  final VoidCallback onPressed;
-  final String tooltip;
-
-  const EnhancedActionButton({
-    Key? key,
-    required this.icon,
-    required this.gradient,
-    required this.onPressed,
-    required this.tooltip,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: IconButton(
-        icon: Icon(icon, color: Colors.white),
-        onPressed: onPressed,
-        tooltip: tooltip,
-      ),
-    );
-  }
-}
-
-class EnhancedDropdown<T> extends StatelessWidget {
-  final T value;
-  final List<DropdownMenuItem<T>> items;
-  final ValueChanged<T?> onChanged;
-
-  const EnhancedDropdown({
-    Key? key,
-    required this.value,
-    required this.items,
-    required this.onChanged,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: DropdownButton<T>(
-        value: value,
-        dropdownColor: Colors.grey[800],
-        style: const TextStyle(color: Colors.white),
-        underline: Container(),
-        items: items,
-        onChanged: onChanged,
-      ),
-    );
-  }
-}
-
-class EnhancedMetricCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const EnhancedMetricCard({
-    Key? key,
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
-        ),
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-        border: Border.all(color: color.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 32, color: color),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: AppTextStyles.body.copyWith(color: Colors.grey.shade600),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: AppTextStyles.heading3.copyWith(color: color),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// CUSTOM PAINTERS FOR CHARTS
-// ============================================================================
-class EnhancedBatteryChartPainter extends CustomPainter {
+class ModernBatteryChartPainter extends CustomPainter {
   final Map<String, List<Map<String, dynamic>>> batteryHistory;
   final String selectedDeviceId;
+  final ThemeService theme;
 
-  EnhancedBatteryChartPainter(this.batteryHistory, this.selectedDeviceId);
+  ModernBatteryChartPainter(
+      this.batteryHistory, this.selectedDeviceId, this.theme);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
-
     _drawGrid(canvas, size);
     _drawAxes(canvas, size);
 
     if (selectedDeviceId == 'all') {
       int colorIndex = 0;
+      final colors = [
+        theme.successColor,
+        theme.warningColor,
+        theme.errorColor,
+        theme.infoColor
+      ];
       batteryHistory.forEach((deviceId, data) {
-        paint.color =
-            AppColors.chartColors[colorIndex % AppColors.chartColors.length];
+        final paint = Paint()
+          ..color = colors[colorIndex % colors.length]
+          ..strokeWidth = 3
+          ..style = PaintingStyle.stroke;
         _drawBatteryLine(canvas, size, data, paint);
         colorIndex++;
       });
     } else if (batteryHistory.containsKey(selectedDeviceId)) {
-      paint.color = AppColors.success;
+      final paint = Paint()
+        ..color = theme.successColor
+        ..strokeWidth = 3
+        ..style = PaintingStyle.stroke;
       _drawBatteryLine(canvas, size, batteryHistory[selectedDeviceId]!, paint);
     }
 
@@ -2194,17 +2356,18 @@ class EnhancedBatteryChartPainter extends CustomPainter {
 
   void _drawGrid(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = Colors.grey.withOpacity(0.2)
+      ..color = theme.isDarkMode
+          ? Colors.white.withOpacity(0.1)
+          : Colors.black.withOpacity(0.1)
       ..strokeWidth = 1;
 
-    // Horizontal grid lines
+    // Draw grid lines
     for (int i = 0; i <= 5; i++) {
       final y = size.height * 0.9 * (i / 5) + size.height * 0.05;
       canvas.drawLine(
           Offset(size.width * 0.1, y), Offset(size.width * 0.95, y), gridPaint);
     }
 
-    // Vertical grid lines
     for (int i = 0; i <= 6; i++) {
       final x = size.width * 0.1 + (size.width * 0.85) * (i / 6);
       canvas.drawLine(Offset(x, size.height * 0.05),
@@ -2214,7 +2377,7 @@ class EnhancedBatteryChartPainter extends CustomPainter {
 
   void _drawAxes(Canvas canvas, Size size) {
     final axisPaint = Paint()
-      ..color = Colors.grey.shade600
+      ..color = theme.accentColor
       ..strokeWidth = 2;
 
     // Y-axis
@@ -2253,12 +2416,26 @@ class EnhancedBatteryChartPainter extends CustomPainter {
         path.lineTo(x, y);
       }
 
+      // Draw glow effect points
+      final glowPaint = Paint()
+        ..color = paint.color.withOpacity(0.6)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      canvas.drawCircle(Offset(x, y), 4, glowPaint);
+
       // Draw data points
       final pointPaint = Paint()
         ..color = paint.color
         ..style = PaintingStyle.fill;
       canvas.drawCircle(Offset(x, y), 3, pointPaint);
     }
+
+    // Draw glow effect for line
+    final glowLinePaint = Paint()
+      ..color = paint.color.withOpacity(0.3)
+      ..strokeWidth = 6
+      ..style = PaintingStyle.stroke
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+    canvas.drawPath(path, glowLinePaint);
 
     canvas.drawPath(path, paint);
   }
@@ -2276,7 +2453,7 @@ class EnhancedBatteryChartPainter extends CustomPainter {
 
       textPainter.text = TextSpan(
         text: '$percentage%',
-        style: AppTextStyles.caption.copyWith(color: Colors.grey.shade600),
+        style: theme.bodySmall.copyWith(color: theme.accentColor),
       );
       textPainter.layout();
       textPainter.paint(
@@ -2290,7 +2467,141 @@ class EnhancedBatteryChartPainter extends CustomPainter {
 
       textPainter.text = TextSpan(
         text: '${hours}h',
-        style: AppTextStyles.caption.copyWith(color: Colors.grey.shade600),
+        style: theme.bodySmall.copyWith(color: theme.accentColor),
+      );
+      textPainter.layout();
+      textPainter.paint(
+          canvas, Offset(x - textPainter.width / 2, size.height * 0.97));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class ModernOrderTrendsChartPainter extends CustomPainter {
+  final Map<String, List<Map<String, dynamic>>> orderHistory;
+  final String selectedDeviceId;
+  final ThemeService theme;
+
+  ModernOrderTrendsChartPainter(
+      this.orderHistory, this.selectedDeviceId, this.theme);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _drawGrid(canvas, size);
+    _drawAxes(canvas, size);
+
+    // Group orders by hour and count them
+    final hourlyOrders = <int, int>{};
+
+    if (selectedDeviceId == 'all') {
+      orderHistory.values.expand((orders) => orders).forEach((order) {
+        final hour = (order['completedAt'] as DateTime).hour;
+        hourlyOrders[hour] = (hourlyOrders[hour] ?? 0) + 1;
+      });
+    } else if (orderHistory.containsKey(selectedDeviceId)) {
+      orderHistory[selectedDeviceId]!.forEach((order) {
+        final hour = (order['completedAt'] as DateTime).hour;
+        hourlyOrders[hour] = (hourlyOrders[hour] ?? 0) + 1;
+      });
+    }
+
+    _drawOrderBars(canvas, size, hourlyOrders);
+    _drawLabels(canvas, size);
+  }
+
+  void _drawGrid(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = theme.isDarkMode
+          ? Colors.white.withOpacity(0.1)
+          : Colors.black.withOpacity(0.1)
+      ..strokeWidth = 1;
+
+    for (int i = 0; i <= 5; i++) {
+      final y = size.height * 0.9 * (i / 5) + size.height * 0.05;
+      canvas.drawLine(
+          Offset(size.width * 0.1, y), Offset(size.width * 0.95, y), gridPaint);
+    }
+  }
+
+  void _drawAxes(Canvas canvas, Size size) {
+    final axisPaint = Paint()
+      ..color = theme.accentColor
+      ..strokeWidth = 2;
+
+    canvas.drawLine(
+      Offset(size.width * 0.1, size.height * 0.05),
+      Offset(size.width * 0.1, size.height * 0.95),
+      axisPaint,
+    );
+
+    canvas.drawLine(
+      Offset(size.width * 0.1, size.height * 0.95),
+      Offset(size.width * 0.95, size.height * 0.95),
+      axisPaint,
+    );
+  }
+
+  void _drawOrderBars(Canvas canvas, Size size, Map<int, int> hourlyOrders) {
+    if (hourlyOrders.isEmpty) return;
+
+    final maxOrders = hourlyOrders.values.reduce(math.max).toDouble();
+    if (maxOrders == 0) return;
+
+    final chartWidth = size.width * 0.85;
+    final chartHeight = size.height * 0.9;
+    final startX = size.width * 0.1;
+    final startY = size.height * 0.05;
+    final barWidth = chartWidth / 24;
+
+    for (int hour = 0; hour < 24; hour++) {
+      final orderCount = hourlyOrders[hour] ?? 0;
+      if (orderCount == 0) continue;
+
+      final barHeight = chartHeight * (orderCount / maxOrders);
+      final x = startX + (hour * barWidth);
+      final y = startY + chartHeight - barHeight;
+
+      // Draw glow effect
+      final glowPaint = Paint()
+        ..color = theme.warningColor.withOpacity(0.4)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+
+      final glowRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, y, barWidth * 0.8, barHeight),
+        const Radius.circular(4),
+      );
+      canvas.drawRRect(glowRect, glowPaint);
+
+      // Draw main bar
+      final barPaint = Paint()
+        ..shader = LinearGradient(
+          colors: [theme.warningColor, theme.warningColor.withOpacity(0.8)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ).createShader(Rect.fromLTWH(x, y, barWidth * 0.8, barHeight));
+
+      final barRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, y, barWidth * 0.8, barHeight),
+        const Radius.circular(4),
+      );
+      canvas.drawRRect(barRect, barPaint);
+    }
+  }
+
+  void _drawLabels(Canvas canvas, Size size) {
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    );
+
+    // X-axis labels (hours)
+    for (int i = 0; i < 24; i += 4) {
+      final x = size.width * 0.1 + (size.width * 0.85) * (i / 24);
+      textPainter.text = TextSpan(
+        text: '${i}h',
+        style: theme.bodySmall.copyWith(color: theme.accentColor),
       );
       textPainter.layout();
       textPainter.paint(
@@ -2305,18 +2616,19 @@ class EnhancedBatteryChartPainter extends CustomPainter {
 class VelocityChartPainter extends CustomPainter {
   final Map<String, List<Map<String, dynamic>>> velocityHistory;
   final String selectedDeviceId;
+  final ThemeService theme;
 
-  VelocityChartPainter(this.velocityHistory, this.selectedDeviceId);
+  VelocityChartPainter(this.velocityHistory, this.selectedDeviceId, this.theme);
 
   @override
   void paint(Canvas canvas, Size size) {
     final linearPaint = Paint()
-      ..color = AppColors.info
+      ..color = theme.infoColor
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
 
     final angularPaint = Paint()
-      ..color = AppColors.error
+      ..color = theme.errorColor
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
 
@@ -2338,7 +2650,9 @@ class VelocityChartPainter extends CustomPainter {
 
   void _drawGrid(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = Colors.grey.withOpacity(0.2)
+      ..color = theme.isDarkMode
+          ? Colors.white.withOpacity(0.1)
+          : Colors.black.withOpacity(0.1)
       ..strokeWidth = 1;
 
     // Horizontal grid lines
@@ -2358,7 +2672,7 @@ class VelocityChartPainter extends CustomPainter {
 
   void _drawAxes(Canvas canvas, Size size) {
     final axisPaint = Paint()
-      ..color = Colors.grey.shade600
+      ..color = theme.accentColor
       ..strokeWidth = 2;
 
     // Y-axis
@@ -2399,7 +2713,21 @@ class VelocityChartPainter extends CustomPainter {
       } else {
         path.lineTo(x, y);
       }
+
+      // Draw glow effect points
+      final glowPaint = Paint()
+        ..color = paint.color.withOpacity(0.6)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+      canvas.drawCircle(Offset(x, y), 3, glowPaint);
     }
+
+    // Draw glow effect for line
+    final glowLinePaint = Paint()
+      ..color = paint.color.withOpacity(0.3)
+      ..strokeWidth = 5
+      ..style = PaintingStyle.stroke
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+    canvas.drawPath(path, glowLinePaint);
 
     canvas.drawPath(path, paint);
   }
@@ -2417,7 +2745,7 @@ class VelocityChartPainter extends CustomPainter {
 
       textPainter.text = TextSpan(
         text: '${velocity.toStringAsFixed(1)}',
-        style: AppTextStyles.caption.copyWith(color: Colors.grey.shade600),
+        style: theme.bodySmall.copyWith(color: theme.accentColor),
       );
       textPainter.layout();
       textPainter.paint(
@@ -2433,7 +2761,7 @@ class VelocityChartPainter extends CustomPainter {
 
     // Linear velocity legend
     final linearPaint = Paint()
-      ..color = AppColors.info
+      ..color = theme.infoColor
       ..strokeWidth = 3;
     canvas.drawLine(
       Offset(size.width * 0.12, size.height * 0.92),
@@ -2443,14 +2771,14 @@ class VelocityChartPainter extends CustomPainter {
 
     textPainter.text = TextSpan(
       text: 'Linear Velocity (m/s)',
-      style: AppTextStyles.caption.copyWith(color: AppColors.info),
+      style: theme.bodySmall.copyWith(color: theme.infoColor),
     );
     textPainter.layout();
     textPainter.paint(canvas, Offset(size.width * 0.19, size.height * 0.91));
 
     // Angular velocity legend
     final angularPaint = Paint()
-      ..color = AppColors.error
+      ..color = theme.errorColor
       ..strokeWidth = 3;
     canvas.drawLine(
       Offset(size.width * 0.5, size.height * 0.92),
@@ -2460,7 +2788,7 @@ class VelocityChartPainter extends CustomPainter {
 
     textPainter.text = TextSpan(
       text: 'Angular Velocity (rad/s)',
-      style: AppTextStyles.caption.copyWith(color: AppColors.error),
+      style: theme.bodySmall.copyWith(color: theme.errorColor),
     );
     textPainter.layout();
     textPainter.paint(canvas, Offset(size.width * 0.57, size.height * 0.91));
@@ -2831,100 +3159,6 @@ class CardHeader extends StatelessWidget {
         const SizedBox(width: 12),
         Text(title, style: AppTextStyles.heading3),
       ],
-    );
-  }
-}
-
-class DeviceHealthItem extends StatelessWidget {
-  final Map<String, dynamic> device;
-  final double batteryLevel;
-  final bool isOnline;
-
-  const DeviceHealthItem({
-    Key? key,
-    required this.device,
-    required this.batteryLevel,
-    required this.isOnline,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius + 4),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isOnline ? AppColors.success : AppColors.error,
-              boxShadow: [
-                BoxShadow(
-                  color: (isOnline ? AppColors.success : AppColors.error)
-                      .withOpacity(0.3),
-                  blurRadius: 4,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: Text(
-              device['name'] ?? device['id'],
-              style: AppTextStyles.subtitle,
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Container(
-              height: 8,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: batteryLevel / 100.0,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: batteryLevel > 30
-                          ? [
-                              AppColors.success,
-                              AppColors.success.withOpacity(0.8)
-                            ]
-                          : batteryLevel > 15
-                              ? [
-                                  AppColors.warning,
-                                  AppColors.warning.withOpacity(0.8)
-                                ]
-                              : [
-                                  AppColors.error,
-                                  AppColors.error.withOpacity(0.8)
-                                ],
-                    ),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            '${batteryLevel.toStringAsFixed(0)}%',
-            style: AppTextStyles.subtitle,
-          ),
-        ],
-      ),
     );
   }
 }
@@ -3587,6 +3821,68 @@ class EmptyStateCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// Enhanced Card Widget
+class EnhancedCard extends StatelessWidget {
+  final Widget child;
+  final LinearGradient? gradient;
+
+  const EnhancedCard({
+    Key? key,
+    required this.child,
+    this.gradient,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: gradient ??
+            LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.cardBackground, Colors.grey.shade50],
+            ),
+        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: child,
+      ),
+    );
+  }
+}
+
+// Enhanced Icon Container
+class EnhancedIconContainer extends StatelessWidget {
+  final IconData icon;
+  final LinearGradient gradient;
+
+  const EnhancedIconContainer({
+    Key? key,
+    required this.icon,
+    required this.gradient,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(AppConstants.smallBorderRadius),
+      ),
+      child: Icon(icon, color: Colors.white, size: AppConstants.iconSize),
     );
   }
 }

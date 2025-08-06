@@ -4,7 +4,7 @@
 const { Client } = require('ssh2');
 
 const piConfig = {
-    host: '192.168.0.93',
+    host: '192.168.0.64',
     username: 'piros',
     password: 'piros',
     port: 22

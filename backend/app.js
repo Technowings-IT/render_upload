@@ -910,7 +910,7 @@ async function initializeApplication() {
                         id: 'piros', // Changed to match your device name
                         name: 'Primary AGV',
                         type: 'differential_drive',
-                        ipAddress: '192.168.0.93', // Your AGV's IP
+                        ipAddress: '192.168.0.64', // Your AGV's IP
                         capabilities: config.DEVICE.CAPABILITIES,
                         autoConnected: true
                     };

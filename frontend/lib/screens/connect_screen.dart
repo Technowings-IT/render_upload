@@ -833,7 +833,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 child: _buildModernTextField(
                   controller: _manualDeviceIpController,
                   label: 'AGV IP Address',
-                  hint: '192.168.0.93',
+                  hint: '192.168.0.64',
                   icon: Icons.smart_toy,
                   theme: theme,
                   keyboardType: TextInputType.numberWithOptions(decimal: true),

@@ -3,7 +3,7 @@ const path = require('path');
 // SSH CONFIGURATION - Add to your config.js
 // ==========================================
 const SSH_CONFIG = {
-    host: process.env.RASPBERRY_PI_HOST || '192.168.0.93', // Default Pi IP
+    host: process.env.RASPBERRY_PI_HOST || '192.168.0.64', // Default Pi IP
     port: process.env.RASPBERRY_PI_PORT || 22,
     username: process.env.RASPBERRY_PI_USER || 'piros',
     password: process.env.RASPBERRY_PI_PASSWORD || 'piros',
@@ -123,7 +123,7 @@ const config = {
             'http://localhost:8080',
             'http://127.0.0.1:3000',
             'http://127.0.0.1:8080',
-            'http://192.168.0.93:3000', // ✅ FIXED: Your AGV IP
+            'http://192.168.0.64:3000', // ✅ FIXED: Your AGV IP
             'http://192.168.0.63:3000',  // ✅ FIXED: Your backend IP
             'http://192.168.0.*:*',      // ✅ FIXED: Allow entire subnet
             '*' // ✅ FIXED: Allow all origins for development

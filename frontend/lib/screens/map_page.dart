@@ -1,12 +1,20 @@
-// screens/enhanced_map_page.dart - Enhanced Map Page with PGM Editor Only
+// screens/enhanced_map_page.dart - Modern Robotic Map Editor with Full Theme Integration
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'dart:async';
+import 'dart:math' as math;
 import '../models/map_data.dart';
 import '../services/api_service.dart';
+import '../services/theme_service.dart';
 import '../widgets/pgm_map_editor.dart';
 import '../services/web_socket_service.dart';
 import '../widgets/ros2_saved_maps_screen.dart';
-import 'dart:async';
+import '../widgets/modern_ui_components.dart';
 import '../models/odom.dart' as odom;
+
+enum DeviceType { phone, tablet, desktop }
+
+enum AGVMode { defaultMode, autonomous, mapping }
 
 class EnhancedMapPage extends StatefulWidget {
   final String? deviceId;
@@ -19,18 +27,22 @@ class EnhancedMapPage extends StatefulWidget {
 
 class _EnhancedMapPageState extends State<EnhancedMapPage>
     with TickerProviderStateMixin {
+  // Services
   final ApiService _apiService = ApiService();
   final WebSocketService _webSocketService = WebSocketService();
 
-  AGVMode _currentMode = AGVMode.defaultMode;
-
+  // Controllers
   late TabController _tabController;
   late AnimationController _loadingAnimationController;
+  late AnimationController _pulseController;
+  late AnimationController _statusAnimationController;
   late StreamSubscription _realTimeSubscription;
   late StreamSubscription _mapEventsSubscription;
   late StreamSubscription _deviceEventsSubscription;
   late StreamSubscription _connectionStateSubscription;
 
+  // State variables
+  AGVMode _currentMode = AGVMode.defaultMode;
   MapData? _currentMap;
   List<Map<String, dynamic>> _connectedDevices = <Map<String, dynamic>>[];
   String? _selectedDeviceId;
@@ -40,7 +52,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
 
   // Enhanced debugging and error handling
   String? _error;
-  String? _loadSource; // Track where data was loaded from
+  String? _loadSource;
   Map<String, dynamic>? _rawApiResponse;
   bool _showDebugInfo = false;
 
@@ -52,26 +64,18 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _loadingAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-    _selectedDeviceId = widget.deviceId;
-
+    _initializeAnimations();
     _initializeConnections();
     _loadConnectedDevices();
     _subscribeToUpdates();
+    _selectedDeviceId = widget.deviceId;
 
     if (_selectedDeviceId != null) {
       _loadMapForDevice(_selectedDeviceId!);
     }
 
-    // Determine device type
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateDeviceType();
-
-      // Check if we should load a ROS2 saved map
       final args =
           ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       if (args != null && args['loadROS2Map'] == true) {
@@ -81,6 +85,22 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         }
       }
     });
+  }
+
+  void _initializeAnimations() {
+    _tabController = TabController(length: 3, vsync: this);
+    _loadingAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    )..repeat(reverse: true);
+    _statusAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
   }
 
   void _updateDeviceType() {
@@ -99,17 +119,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         }
       });
     }
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _loadingAnimationController.dispose();
-    _realTimeSubscription.cancel();
-    _mapEventsSubscription.cancel();
-    _deviceEventsSubscription.cancel();
-    _connectionStateSubscription.cancel();
-    super.dispose();
   }
 
   void _initializeConnections() async {
@@ -141,9 +150,8 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         });
       }
 
-      if (!connected) {
-        _showWarningSnackBar(
-            'WebSocket connection failed. Real-time features will be limited.');
+      if (connected) {
+        _statusAnimationController.forward();
       }
     }
   }
@@ -173,6 +181,11 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         setState(() {
           _isWebSocketConnected = connected;
         });
+        if (connected) {
+          _statusAnimationController.forward();
+        } else {
+          _statusAnimationController.reverse();
+        }
       }
     });
   }
@@ -216,7 +229,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         setState(() {
           _connectedDevices = devices;
 
-          // Validate that selected device still exists in the list
           if (_selectedDeviceId != null) {
             final deviceExists = devices
                 .any((device) => device['id']?.toString() == _selectedDeviceId);
@@ -250,31 +262,38 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
 
   void _loadMapWithConfirmation(String deviceId) async {
     if (_hasUnsavedChanges) {
+      final theme = Provider.of<ThemeService>(context, listen: false);
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Unsaved Changes'),
+          backgroundColor:
+              theme.isDarkMode ? const Color(0xFF262640) : Colors.white,
+          title: Text('Unsaved Changes', style: theme.headlineLarge),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('You have unsaved changes that will be lost.'),
+              Text('You have unsaved changes that will be lost.',
+                  style: theme.bodyMedium),
               const SizedBox(height: 8),
               Text(
                 'Current map: ${_currentMap?.shapes.length ?? 0} locations',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: theme.bodyMedium.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
           actions: [
-            TextButton(
+            ModernActionButton(
+              label: 'Cancel',
+              icon: Icons.cancel,
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel'),
+              isSecondary: true,
             ),
-            ElevatedButton(
+            ModernActionButton(
+              label: 'Load Anyway',
+              icon: Icons.warning,
               onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              child: const Text('Load Anyway'),
+              backgroundColor: theme.warningColor,
             ),
           ],
         ),
@@ -302,9 +321,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
 
     try {
       final response = await _apiService.getMapData(deviceId);
-
-      print('📦 API Response: ${response.keys.toList()}');
-      // Store raw response for debugging
       _rawApiResponse = Map<String, dynamic>.from(response);
 
       if (response['success'] == true && response['mapData'] != null) {
@@ -325,8 +341,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               '✅ Map loaded successfully for device: $deviceId from source: ${_loadSource}');
         } catch (parseError) {
           print('❌ Error parsing map data: $parseError');
-          print(
-              '📋 Raw map data structure: ${response['mapData']?.keys?.toList() ?? 'null'}');
 
           if (mounted) {
             setState(() {
@@ -412,9 +426,53 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
+  Future<void> _loadROS2SavedMap(String mapName) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      print('🔄 Loading ROS2 saved map: $mapName');
+
+      final response = await _apiService.loadROS2SavedMap(
+        deviceId: _selectedDeviceId!,
+        mapName: mapName,
+      );
+
+      if (response['success'] == true && response['mapData'] != null) {
+        final mapData = MapData.fromJson(response['mapData']);
+        setState(() {
+          _currentMap = mapData;
+          _hasUnsavedChanges = false;
+          _loadSource = 'ros2_saved';
+          _error = null;
+        });
+
+        _showInfoSnackBar('ROS2 saved map loaded: $mapName');
+        print('✅ ROS2 saved map loaded successfully: $mapName');
+      } else {
+        setState(() {
+          _error = response['error'] ?? 'Failed to load ROS2 saved map';
+        });
+        _showErrorSnackBar('Failed to load ROS2 map: ${response['error']}');
+      }
+    } catch (e) {
+      print('❌ Error loading ROS2 saved map: $e');
+      setState(() {
+        _error = 'Failed to load ROS2 saved map: $e';
+      });
+      _showErrorSnackBar('Failed to load ROS2 saved map: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final theme = Provider.of<ThemeService>(context);
 
     return PopScope(
       canPop: false,
@@ -424,73 +482,93 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       },
       child: Scaffold(
         appBar: _buildEnhancedAppBar(theme),
-        body: _buildResponsiveBody(),
-        drawer: _deviceType == DeviceType.phone ? _buildMobileDrawer() : null,
-        floatingActionButton: _buildFloatingActionButtons(),
+        body: Container(
+          decoration: BoxDecoration(gradient: theme.backgroundGradient),
+          child: _buildResponsiveBody(theme),
+        ),
+        drawer:
+            _deviceType == DeviceType.phone ? _buildModernDrawer(theme) : null,
+        floatingActionButton: _buildFloatingActionButtons(theme),
       ),
     );
   }
 
-  PreferredSizeWidget _buildEnhancedAppBar(ThemeData theme) {
+  PreferredSizeWidget _buildEnhancedAppBar(ThemeService theme) {
     return AppBar(
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: () {
-          Navigator.pushReplacementNamed(context, '/dashboard');
-        },
-        tooltip: 'Back to Dashboard',
+      leading: ModernActionButton(
+        label: '',
+        icon: Icons.arrow_back,
+        onPressed: () => Navigator.pushReplacementNamed(context, '/dashboard'),
+        isSecondary: true,
       ),
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  theme.primaryColor,
-                  theme.primaryColor.withOpacity(0.7)
-                ],
+      title: ShaderMask(
+        shaderCallback: (bounds) => theme.primaryGradient.createShader(bounds),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: theme.primaryGradient,
+                borderRadius: theme.borderRadiusSmall,
+                boxShadow: theme.neonGlow,
               ),
-              borderRadius: BorderRadius.circular(8),
+              child: Icon(Icons.map, color: Colors.white, size: 20),
             ),
-            child: const Icon(Icons.map, color: Colors.white, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Map Editor', style: TextStyle(fontSize: 18)),
-              if (_currentMap != null)
+            const SizedBox(width: 12),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  _hasUnsavedChanges
-                      ? '● ${_currentMap!.shapes.length} locations (unsaved)'
-                      : '${_currentMap!.shapes.length} locations (saved)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _hasUnsavedChanges
-                        ? Colors.orange.shade200
-                        : Colors.white70,
-                    fontWeight: _hasUnsavedChanges
-                        ? FontWeight.bold
-                        : FontWeight.normal,
+                  'Map Editor',
+                  style: theme.displayMedium.copyWith(
+                    fontSize: 18,
+                    color: Colors.white,
                   ),
                 ),
-            ],
-          ),
-        ],
+                if (_currentMap != null)
+                  AnimatedBuilder(
+                    animation: _pulseController,
+                    builder: (context, child) {
+                      return Text(
+                        _hasUnsavedChanges
+                            ? '● ${_currentMap!.shapes.length} locations (unsaved)'
+                            : '${_currentMap!.shapes.length} locations (saved)',
+                        style: theme.bodySmall.copyWith(
+                          color: _hasUnsavedChanges
+                              ? Color.lerp(
+                                  Colors.orange.shade200,
+                                  Colors.orange.shade400,
+                                  _pulseController.value)
+                              : Colors.white70,
+                          fontWeight: _hasUnsavedChanges
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
-      backgroundColor: theme.primaryColor,
+      backgroundColor: Colors.transparent,
       elevation: 0,
       flexibleSpace: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              theme.primaryColor,
-              theme.primaryColor.withOpacity(0.8),
-            ],
+            colors: theme.isDarkMode
+                ? [
+                    const Color(0xFF1E1E2E).withOpacity(0.95),
+                    const Color(0xFF262640).withOpacity(0.95),
+                  ]
+                : [
+                    Colors.white.withOpacity(0.95),
+                    Colors.white.withOpacity(0.9),
+                  ],
           ),
         ),
       ),
@@ -501,81 +579,82 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             margin: const EdgeInsets.only(right: 8),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: _getSourceColor(_loadSource!),
-              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                colors: [
+                  _getSourceColor(_loadSource!, theme),
+                  _getSourceColor(_loadSource!, theme).withOpacity(0.8)
+                ],
+              ),
+              borderRadius: theme.borderRadiusSmall,
+              boxShadow: [
+                BoxShadow(
+                  color: _getSourceColor(_loadSource!, theme).withOpacity(0.3),
+                  blurRadius: 4,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
             child: Text(
               _loadSource!.toUpperCase(),
-              style: const TextStyle(fontSize: 10, color: Colors.white),
+              style: theme.bodySmall.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
             ),
           ),
 
         // Debug toggle
-        IconButton(
-          onPressed: () {
-            setState(() {
-              _showDebugInfo = !_showDebugInfo;
-            });
-          },
-          icon: Icon(Icons.bug_report,
-              color: _showDebugInfo ? Colors.orange : Colors.white70),
-          tooltip: 'Toggle Debug Info',
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            gradient: _showDebugInfo
+                ? LinearGradient(
+                    colors: [Colors.orange, Colors.orange.shade700])
+                : null,
+            color: _showDebugInfo ? null : Colors.grey.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: IconButton(
+            onPressed: () {
+              setState(() {
+                _showDebugInfo = !_showDebugInfo;
+              });
+            },
+            icon: Icon(
+              Icons.bug_report,
+              color: Colors.white,
+            ),
+            tooltip: 'Toggle Debug Info',
+          ),
         ),
 
         // Enhanced status indicators
-        _buildStatusIndicator('API', true, Colors.green),
+        _buildStatusIndicator('API', true, theme.onlineColor, theme),
         const SizedBox(width: 8),
-        _buildStatusIndicator('WS', _isWebSocketConnected,
-            _isWebSocketConnected ? Colors.green : Colors.red),
+        _buildStatusIndicator(
+            'WS',
+            _isWebSocketConnected,
+            _isWebSocketConnected ? theme.onlineColor : theme.offlineColor,
+            theme),
         const SizedBox(width: 16),
 
         // Device selector for larger screens
-        if (_deviceType != DeviceType.phone) _buildDeviceSelector(),
+        if (_deviceType != DeviceType.phone) _buildDeviceSelector(theme),
 
         // Action buttons
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: _hasUnsavedChanges
-                  ? [Colors.orange.shade400, Colors.orange.shade600]
-                  : [Colors.grey.shade400, Colors.grey.shade600],
-            ),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.save, color: Colors.white),
-            onPressed: _hasUnsavedChanges ? _saveMap : null,
-            tooltip: 'Save Map',
-          ),
-        ),
-
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.blue.shade400, Colors.blue.shade600],
-            ),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _selectedDeviceId != null
-                ? () => _loadMapWithConfirmation(_selectedDeviceId!)
-                : null,
-            tooltip: 'Refresh Map',
-          ),
-        ),
-
-        _buildMenuButton(),
+        _buildActionButtons(theme),
       ],
       bottom: _deviceType != DeviceType.phone
           ? TabBar(
               controller: _tabController,
-              indicatorColor: Colors.white,
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.white70,
-              tabs: const [
+              indicatorColor: theme.accentColor,
+              labelColor: theme.accentColor,
+              unselectedLabelColor: theme.isDarkMode
+                  ? Colors.white.withOpacity(0.6)
+                  : Colors.black.withOpacity(0.6),
+              indicatorWeight: 3,
+              tabs: [
                 Tab(icon: Icon(Icons.brush), text: 'PGM Editor'),
                 Tab(icon: Icon(Icons.list), text: 'Locations'),
                 Tab(icon: Icon(Icons.analytics), text: 'Analysis'),
@@ -585,47 +664,57 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  Widget _buildStatusIndicator(String label, bool connected, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: connected ? color : Colors.red,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: (connected ? color : Colors.red).withOpacity(0.3),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
+  Widget _buildStatusIndicator(
+      String label, bool connected, Color color, ThemeService theme) {
+    return AnimatedBuilder(
+      animation: _statusAnimationController,
+      builder: (context, child) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [color, color.withOpacity(0.8)],
             ),
+            borderRadius: theme.borderRadiusSmall,
+            boxShadow: connected
+                ? [
+                    BoxShadow(
+                      color: color.withOpacity(
+                          0.4 + (_statusAnimationController.value * 0.2)),
+                      blurRadius: 6 + (_statusAnimationController.value * 2),
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
           ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: theme.bodySmall.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildDeviceSelector() {
-    // Get unique devices and check if selected device exists
+  Widget _buildDeviceSelector(ThemeService theme) {
     final uniqueDevices = _connectedDevices
         .fold<Map<String, Map<String, dynamic>>>(
           {},
@@ -640,7 +729,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         .values
         .toList();
 
-    // Validate selected device exists in unique devices
     final selectedDeviceExists = _selectedDeviceId != null &&
         uniqueDevices
             .any((device) => device['id']?.toString() == _selectedDeviceId);
@@ -649,16 +737,19 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       margin: const EdgeInsets.symmetric(horizontal: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(20),
+        gradient: theme.glassMorphism.gradient,
+        borderRadius: theme.borderRadiusSmall,
+        border: theme.glassMorphism.border,
       ),
       child: DropdownButton<String>(
         value: selectedDeviceExists ? _selectedDeviceId : null,
-        hint:
-            const Text('Select Device', style: TextStyle(color: Colors.white)),
-        dropdownColor: Colors.grey[800],
-        style: const TextStyle(color: Colors.white),
+        hint: Text('Select Device',
+            style: theme.bodyMedium.copyWith(color: theme.accentColor)),
+        dropdownColor:
+            theme.isDarkMode ? const Color(0xFF262640) : Colors.white,
+        style: theme.bodyMedium.copyWith(color: theme.accentColor),
         underline: Container(),
+        icon: Icon(Icons.expand_more, color: theme.accentColor, size: 16),
         items: uniqueDevices.map((device) {
           final deviceId = device['id']?.toString() ?? '';
           final deviceName = device['name']?.toString() ?? deviceId;
@@ -669,15 +760,11 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: deviceStatus == 'connected'
-                        ? Colors.green
-                        : Colors.grey,
-                  ),
+                RoboticStatusIndicator(
+                  status: deviceStatus,
+                  label: '',
+                  size: 8,
+                  animated: deviceStatus == 'connected',
                 ),
                 const SizedBox(width: 8),
                 Text(deviceName),
@@ -704,83 +791,133 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  Widget _buildMenuButton() {
-    return PopupMenuButton(
-      icon: const Icon(Icons.more_vert, color: Colors.white),
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          child: ListTile(
-            leading: const Icon(Icons.folder),
-            title: const Text('Saved Maps'),
-            dense: true,
+  Widget _buildActionButtons(ThemeService theme) {
+    return Row(
+      children: [
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            gradient: _hasUnsavedChanges
+                ? LinearGradient(
+                    colors: [Colors.orange.shade400, Colors.orange.shade600])
+                : null,
+            color: _hasUnsavedChanges ? null : Colors.grey.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: _hasUnsavedChanges ? theme.neonGlow : null,
           ),
-          onTap: () => _showSavedMaps(),
-        ),
-        PopupMenuItem(
-          child: ListTile(
-            leading: const Icon(Icons.rocket_launch),
-            title: const Text('ROS2 Saved Maps'),
-            dense: true,
+          child: IconButton(
+            icon: Icon(Icons.save, color: Colors.white),
+            onPressed: _hasUnsavedChanges ? () => _saveMap() : null,
+            tooltip: 'Save Map',
           ),
-          onTap: () => _showROS2SavedMaps(),
         ),
-        PopupMenuItem(
-          child: ListTile(
-            leading: const Icon(Icons.clear_all),
-            title: const Text('Clear All'),
-            dense: true,
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+                colors: [Colors.blue.shade400, Colors.blue.shade600]),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: theme.elevationSmall,
           ),
-          onTap: _clearAllData,
-        ),
-        PopupMenuItem(
-          child: ListTile(
-            leading: const Icon(Icons.send),
-            title: const Text('Send to AGV'),
-            dense: true,
+          child: IconButton(
+            icon: Icon(Icons.refresh, color: Colors.white),
+            onPressed: _selectedDeviceId != null
+                ? () => _loadMapWithConfirmation(_selectedDeviceId!)
+                : null,
+            tooltip: 'Refresh Map',
           ),
-          onTap: _sendMapToAGV,
         ),
-        PopupMenuItem(
-          child: ListTile(
-            leading: const Icon(Icons.info),
-            title: const Text('Connection Info'),
-            dense: true,
-          ),
-          onTap: _showConnectionInfo,
-        ),
+        _buildMenuButton(theme),
       ],
     );
   }
 
-  Widget _buildResponsiveBody() {
+  Widget _buildMenuButton(ThemeService theme) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        gradient: theme.primaryGradient,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: theme.elevationSmall,
+      ),
+      child: PopupMenuButton(
+        icon: Icon(Icons.more_vert, color: Colors.white),
+        color: theme.isDarkMode ? const Color(0xFF262640) : Colors.white,
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            child: ListTile(
+              leading: Icon(Icons.folder, color: theme.accentColor),
+              title: Text('Saved Maps', style: theme.bodyMedium),
+              dense: true,
+            ),
+            onTap: () => _showSavedMaps(),
+          ),
+          PopupMenuItem(
+            child: ListTile(
+              leading: Icon(Icons.rocket_launch, color: theme.accentColor),
+              title: Text('ROS2 Saved Maps', style: theme.bodyMedium),
+              dense: true,
+            ),
+            onTap: () => _showROS2SavedMaps(),
+          ),
+          PopupMenuItem(
+            child: ListTile(
+              leading: Icon(Icons.clear_all, color: theme.errorColor),
+              title: Text('Clear All', style: theme.bodyMedium),
+              dense: true,
+            ),
+            onTap: _clearAllData,
+          ),
+          PopupMenuItem(
+            child: ListTile(
+              leading: Icon(Icons.send, color: theme.successColor),
+              title: Text('Send to AGV', style: theme.bodyMedium),
+              dense: true,
+            ),
+            onTap: _sendMapToAGV,
+          ),
+          PopupMenuItem(
+            child: ListTile(
+              leading: Icon(Icons.info, color: theme.infoColor),
+              title: Text('Connection Info', style: theme.bodyMedium),
+              dense: true,
+            ),
+            onTap: _showConnectionInfo,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResponsiveBody(ThemeService theme) {
     return Column(
       children: [
         // Debug info panel
-        if (_showDebugInfo) _buildDebugPanel(),
+        if (_showDebugInfo) _buildDebugPanel(theme),
 
         // Error display
-        if (_error != null) _buildErrorBanner(),
+        if (_error != null) _buildErrorBanner(theme),
 
         // Main responsive content
         Expanded(
-          child: _buildMainResponsiveContent(),
+          child: _buildMainResponsiveContent(theme),
         ),
       ],
     );
   }
 
-  Widget _buildMainResponsiveContent() {
+  Widget _buildMainResponsiveContent(ThemeService theme) {
     switch (_deviceType) {
       case DeviceType.desktop:
-        return _buildDesktopLayout();
+        return _buildDesktopLayout(theme);
       case DeviceType.tablet:
-        return _buildTabletLayout();
+        return _buildTabletLayout(theme);
       case DeviceType.phone:
-        return _buildPhoneLayout();
+        return _buildPhoneLayout(theme);
     }
   }
 
-  Widget _buildDesktopLayout() {
+  Widget _buildDesktopLayout(ThemeService theme) {
     return Row(
       children: [
         // Sidebar
@@ -791,16 +928,25 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Colors.grey.shade50,
-                  Colors.grey.shade100,
-                ],
+                colors: theme.isDarkMode
+                    ? [
+                        const Color(0xFF1E1E2E).withOpacity(0.95),
+                        const Color(0xFF262640).withOpacity(0.95),
+                      ]
+                    : [
+                        Colors.white.withOpacity(0.95),
+                        Colors.grey.shade50.withOpacity(0.95),
+                      ],
               ),
               border: Border(
-                right: BorderSide(color: Colors.grey.shade300),
+                right: BorderSide(
+                  color: theme.isDarkMode
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.black.withOpacity(0.1),
+                ),
               ),
             ),
-            child: _buildSidebar(),
+            child: _buildSidebar(theme),
           ),
 
         // Main content
@@ -810,17 +956,24 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               // Tab bar
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  gradient: theme.glassMorphism.gradient,
                   border: Border(
-                    bottom: BorderSide(color: Colors.grey.shade300),
+                    bottom: BorderSide(
+                      color: theme.isDarkMode
+                          ? Colors.white.withOpacity(0.1)
+                          : Colors.black.withOpacity(0.1),
+                    ),
                   ),
                 ),
                 child: TabBar(
                   controller: _tabController,
-                  labelColor: Theme.of(context).primaryColor,
-                  unselectedLabelColor: Colors.grey,
-                  indicatorColor: Theme.of(context).primaryColor,
-                  tabs: const [
+                  labelColor: theme.accentColor,
+                  unselectedLabelColor: theme.isDarkMode
+                      ? Colors.white.withOpacity(0.6)
+                      : Colors.black.withOpacity(0.6),
+                  indicatorColor: theme.accentColor,
+                  indicatorWeight: 3,
+                  tabs: [
                     Tab(icon: Icon(Icons.brush), text: 'PGM Editor'),
                     Tab(icon: Icon(Icons.list), text: 'Locations'),
                     Tab(icon: Icon(Icons.analytics), text: 'Analysis'),
@@ -830,7 +983,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
 
               // Content
               Expanded(
-                child: _buildMainContent(),
+                child: _buildMainContent(theme),
               ),
             ],
           ),
@@ -844,55 +997,73 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Colors.blue.shade50,
-                  Colors.blue.shade100,
-                ],
+                colors: theme.isDarkMode
+                    ? [
+                        const Color(0xFF262640).withOpacity(0.95),
+                        const Color(0xFF1E1E2E).withOpacity(0.95),
+                      ]
+                    : [
+                        Colors.blue.shade50.withOpacity(0.95),
+                        Colors.blue.shade100.withOpacity(0.95),
+                      ],
               ),
               border: Border(
-                left: BorderSide(color: Colors.blue.shade300),
+                left: BorderSide(
+                  color: theme.accentColor.withOpacity(0.3),
+                ),
               ),
             ),
-            child: _buildPropertiesPanel(),
+            child: _buildPropertiesPanel(theme),
           ),
       ],
     );
   }
 
-  Widget _buildTabletLayout() {
+  Widget _buildTabletLayout(ThemeService theme) {
     return Column(
       children: [
         // Status bar
-        _buildStatusBar(),
+        _buildStatusBar(theme),
 
         // Content
         Expanded(
-          child: _buildMainContent(),
+          child: _buildMainContent(theme),
         ),
       ],
     );
   }
 
-// Update _buildPhoneLayout method:
-  Widget _buildPhoneLayout() {
+  Widget _buildPhoneLayout(ThemeService theme) {
     return Column(
       children: [
         // Compact mode selector for mobile
         Container(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: theme.glassMorphism.gradient,
+            border: Border(
+              bottom: BorderSide(
+                color: theme.isDarkMode
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.1),
+              ),
+            ),
+          ),
           child: Row(
             children: [
-              Text('Mode: ', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('Mode: ', style: theme.headlineMedium),
               Expanded(
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _buildCompactModeButton('Default', AGVMode.defaultMode),
-                      SizedBox(width: 8),
-                      _buildCompactModeButton('Auto', AGVMode.autonomous),
-                      SizedBox(width: 8),
-                      _buildCompactModeButton('Map', AGVMode.mapping),
+                      _buildCompactModeButton(
+                          'Default', AGVMode.defaultMode, theme),
+                      const SizedBox(width: 8),
+                      _buildCompactModeButton(
+                          'Auto', AGVMode.autonomous, theme),
+                      const SizedBox(width: 8),
+                      _buildCompactModeButton('Map', AGVMode.mapping, theme),
                     ],
                   ),
                 ),
@@ -902,39 +1073,146 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         ),
 
         // Compact status bar
-        if (_selectedDeviceId != null) _buildCompactStatusBar(),
+        if (_selectedDeviceId != null) _buildCompactStatusBar(theme),
 
         // Main content with better space usage
         Expanded(
           child: _selectedDeviceId == null
-              ? _buildSelectDeviceView()
+              ? _buildSelectDeviceView(theme)
               : _isLoading
-                  ? _buildLoadingView()
-                  : _buildCompactMapEditor(),
+                  ? ModernLoadingIndicator(
+                      message: 'Loading Map Data...', size: 60)
+                  : _buildCompactMapEditor(theme),
         ),
 
         // Compact bottom controls
-        _buildCompactBottomControls(),
+        _buildCompactBottomControls(theme),
       ],
     );
   }
 
-  /// Compact map editor for mobile layout
-  Widget _buildCompactMapEditor() {
-    if (_currentMap == null) {
-      return const Center(child: Text('No map data available'));
-    }
+  Widget _buildCompactModeButton(
+      String label, AGVMode mode, ThemeService theme) {
+    final isSelected = _currentMode == mode;
     return Container(
+      height: 32,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.grey.shade50,
-            Colors.white,
-          ],
+        gradient: isSelected ? theme.primaryGradient : null,
+        color: isSelected
+            ? null
+            : theme.isDarkMode
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.1),
+        borderRadius: theme.borderRadiusSmall,
+        boxShadow: isSelected ? theme.neonGlow : null,
+      ),
+      child: ElevatedButton(
+        onPressed: () => _setMode(mode),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          foregroundColor: isSelected ? Colors.white : theme.accentColor,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          minimumSize: const Size(60, 32),
+          shape: RoundedRectangleBorder(borderRadius: theme.borderRadiusSmall),
+        ),
+        child: Text(label,
+            style: theme.bodySmall.copyWith(fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  void _setMode(AGVMode mode) {
+    setState(() {
+      _currentMode = mode;
+    });
+  }
+
+  Widget _buildCompactStatusBar(ThemeService theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: theme.glassMorphism.gradient,
+        border: Border(
+          bottom: BorderSide(
+            color: theme.isDarkMode
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.1),
+          ),
         ),
       ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              gradient: theme.primaryGradient,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.device_hub, size: 16, color: Colors.white),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _selectedDeviceId!,
+              style: theme.headlineMedium.copyWith(fontSize: 14),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (_hasUnsavedChanges)
+            AnimatedBuilder(
+              animation: _pulseController,
+              builder: (context, child) {
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Color.lerp(Colors.orange, Colors.orange.shade700,
+                        _pulseController.value),
+                    borderRadius: theme.borderRadiusSmall,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.orange
+                            .withOpacity(0.3 + (_pulseController.value * 0.2)),
+                        blurRadius: 4,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    'UNSAVED',
+                    style: theme.bodySmall.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactMapEditor(ThemeService theme) {
+    if (_currentMap == null) {
+      return Center(
+        child: ModernGlassCard(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.map_outlined, size: 64, color: theme.errorColor),
+              const SizedBox(height: 16),
+              Text('No map data available', style: theme.headlineLarge),
+              Text('Load a map to start editing', style: theme.bodyMedium),
+            ],
+          ),
+        ),
+      );
+    }
+    return Container(
+      decoration: BoxDecoration(gradient: theme.backgroundGradient),
       child: EnhancedPGMMapEditor(
         mapData: _currentMap,
         onMapChanged: _onMapChanged,
@@ -943,68 +1221,247 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  /// Builds a compact mode button for mobile layout.
-  Widget _buildCompactModeButton(String label, AGVMode mode) {
-    final isSelected = _currentMode == mode;
+  Widget _buildCompactBottomControls(ThemeService theme) {
     return Container(
-      height: 32,
-      child: ElevatedButton(
-        onPressed: () => _setMode(mode),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isSelected
-              ? Theme.of(context).primaryColor
-              : Colors.grey.shade300,
-          foregroundColor: isSelected ? Colors.white : Colors.black,
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          minimumSize: Size(60, 32),
-        ),
-        child: Text(label, style: TextStyle(fontSize: 12)),
-      ),
-    );
-  }
-
-  /// Sets the current AGV mode and updates the UI.
-  void _setMode(AGVMode mode) {
-    setState(() {
-      _currentMode = mode;
-    });
-  }
-
-  Widget _buildCompactStatusBar() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+        gradient: theme.glassMorphism.gradient,
+        border: Border(
+          top: BorderSide(
+            color: theme.isDarkMode
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.1),
+          ),
+        ),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          Icon(Icons.device_hub,
-              size: 16, color: Theme.of(context).primaryColor),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _selectedDeviceId!,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (_hasUnsavedChanges)
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.orange,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text('UNSAVED',
-                  style: TextStyle(color: Colors.white, fontSize: 8)),
-            ),
+          _buildCompactControlButton(
+              Icons.dashboard,
+              'Dashboard',
+              theme.infoColor,
+              () => Navigator.pushReplacementNamed(context, '/dashboard'),
+              theme),
+          _buildCompactControlButton(
+              Icons.save,
+              'Save',
+              _hasUnsavedChanges ? theme.warningColor : Colors.grey,
+              _hasUnsavedChanges ? _saveMap : null,
+              theme),
+          _buildCompactControlButton(
+              Icons.refresh,
+              'Refresh',
+              theme.accentColor,
+              _selectedDeviceId != null
+                  ? () => _loadMapWithConfirmation(_selectedDeviceId!)
+                  : null,
+              theme),
+          _buildCompactControlButton(Icons.send, 'Send', theme.successColor,
+              _currentMap != null ? _sendMapToAGV : null, theme),
+          _buildCompactControlButton(Icons.clear_all, 'Clear', theme.errorColor,
+              _currentMap != null ? _clearAllData : null, theme),
         ],
       ),
     );
   }
 
-  Widget _buildStatusBar() {
+  Widget _buildCompactControlButton(IconData icon, String tooltip, Color color,
+      VoidCallback? onPressed, ThemeService theme) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: onPressed != null
+            ? LinearGradient(colors: [color, color.withOpacity(0.8)])
+            : null,
+        color: onPressed == null ? Colors.grey.withOpacity(0.3) : null,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: onPressed != null
+            ? [
+                BoxShadow(
+                  color: color.withOpacity(0.3),
+                  blurRadius: 4,
+                  spreadRadius: 1,
+                ),
+              ]
+            : null,
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: Colors.white),
+        onPressed: onPressed,
+        tooltip: tooltip,
+      ),
+    );
+  }
+
+  Widget _buildSelectDeviceView(ThemeService theme) {
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 400),
+        padding: const EdgeInsets.all(24),
+        child: ModernGlassCard(
+          showGlow: true,
+          glowColor: theme.accentColor,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      theme.accentColor.withOpacity(0.3),
+                      theme.accentColor.withOpacity(0.1),
+                      Colors.transparent,
+                    ],
+                  ),
+                  boxShadow: theme.neonGlow,
+                ),
+                child: Icon(Icons.map, size: 50, color: theme.accentColor),
+              ),
+              const SizedBox(height: 24),
+              Text('Select a Device',
+                  style: theme.displayLarge.copyWith(fontSize: 28)),
+              const SizedBox(height: 8),
+              Text(
+                'Choose a connected AGV device to edit its map',
+                style: theme.bodyLarge,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              if (!_isWebSocketConnected) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.orange.shade50.withOpacity(0.5),
+                        Colors.orange.shade100.withOpacity(0.5),
+                      ],
+                    ),
+                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    borderRadius: theme.borderRadiusMedium,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning, color: Colors.orange.shade700),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'WebSocket disconnected. Real-time features unavailable.',
+                          style: theme.bodyMedium
+                              .copyWith(color: Colors.orange.shade700),
+                        ),
+                      ),
+                      ModernActionButton(
+                        label: 'Reconnect',
+                        icon: Icons.refresh,
+                        onPressed: _reconnectWebSocket,
+                        isSecondary: true,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+              if (_connectedDevices.isEmpty) ...[
+                Text('No connected devices found', style: theme.bodyLarge),
+                const SizedBox(height: 16),
+                ModernActionButton(
+                  label: 'Connect Devices',
+                  icon: Icons.add,
+                  onPressed: () => Navigator.pushNamed(context, '/connect'),
+                ),
+                const SizedBox(height: 8),
+                ModernActionButton(
+                  label: 'Refresh Device List',
+                  icon: Icons.refresh,
+                  onPressed: _loadConnectedDevices,
+                  isSecondary: true,
+                ),
+              ] else
+                _buildDeviceList(theme),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeviceList(ThemeService theme) {
+    return Column(
+      children: _connectedDevices.map((device) {
+        final deviceId = device['id']?.toString() ?? '';
+        final deviceName = device['name']?.toString() ?? deviceId;
+        final deviceStatus = device['status']?.toString() ?? 'unknown';
+
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          child: ModernGlassCard(
+            onTap: () {
+              setState(() {
+                _selectedDeviceId = deviceId;
+              });
+              _loadMapForDevice(deviceId);
+            },
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: deviceStatus == 'connected'
+                          ? [
+                              theme.onlineColor,
+                              theme.onlineColor.withOpacity(0.8)
+                            ]
+                          : [Colors.grey.shade400, Colors.grey.shade600],
+                    ),
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: deviceStatus == 'connected'
+                        ? [
+                            BoxShadow(
+                              color: theme.onlineColor.withOpacity(0.3),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Icon(
+                    deviceStatus == 'connected'
+                        ? Icons.smart_toy
+                        : Icons.warning,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(deviceName, style: theme.headlineMedium),
+                      Text('ID: $deviceId', style: theme.bodyMedium),
+                      RoboticStatusIndicator(
+                        status: deviceStatus,
+                        label: deviceStatus.toUpperCase(),
+                        animated: deviceStatus == 'connected',
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: theme.accentColor),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildStatusBar(ThemeService theme) {
     if (_selectedDeviceId == null) return const SizedBox.shrink();
 
     return Container(
@@ -1012,75 +1469,91 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Theme.of(context).primaryColor.withOpacity(0.1),
-            Theme.of(context).primaryColor.withOpacity(0.05),
+            theme.accentColor.withOpacity(0.1),
+            theme.accentColor.withOpacity(0.05),
           ],
         ),
         border: Border(
-          bottom: BorderSide(color: Colors.grey.shade300),
+          bottom: BorderSide(
+            color: theme.isDarkMode
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.1),
+          ),
         ),
       ),
       child: Column(
         children: [
-          // Device info
           Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).primaryColor,
-                  borderRadius: BorderRadius.circular(8),
+                  gradient: theme.primaryGradient,
+                  borderRadius: theme.borderRadiusSmall,
                 ),
-                child:
-                    const Icon(Icons.device_hub, color: Colors.white, size: 16),
+                child: Icon(Icons.device_hub, color: Colors.white, size: 16),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  'Device: $_selectedDeviceId',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
+                child: Text('Device: $_selectedDeviceId',
+                    style: theme.headlineMedium),
               ),
               if (_hasUnsavedChanges)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.orange,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'UNSAVED',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, child) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Color.lerp(Colors.orange, Colors.orange.shade700,
+                            _pulseController.value),
+                        borderRadius: theme.borderRadiusSmall,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.orange.withOpacity(
+                                0.3 + (_pulseController.value * 0.2)),
+                            blurRadius: 6,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        'UNSAVED',
+                        style: theme.bodySmall.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    );
+                  },
                 ),
             ],
           ),
-
           const SizedBox(height: 8),
-
-          // Quick stats
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildQuickStat('Shapes',
-                  _currentMap?.shapes.length.toString() ?? '0', Icons.category),
+              _buildQuickStat(
+                  'Shapes',
+                  _currentMap?.shapes.length.toString() ?? '0',
+                  Icons.category,
+                  theme),
               _buildQuickStat('Version', _currentMap?.version.toString() ?? '0',
-                  Icons.numbers),
+                  Icons.numbers, theme),
               _buildQuickStat(
                   'Size',
                   _currentMap != null
                       ? '${_currentMap!.info.width}×${_currentMap!.info.height}'
                       : 'N/A',
-                  Icons.aspect_ratio),
+                  Icons.aspect_ratio,
+                  theme),
               _buildQuickStat(
                   'Resolution',
                   _currentMap?.info.resolution.toStringAsFixed(3) ?? 'N/A',
-                  Icons.grid_4x4),
+                  Icons.grid_4x4,
+                  theme),
             ],
           ),
         ],
@@ -1088,104 +1561,53 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  Widget _buildQuickStat(String label, String value, IconData icon) {
+  Widget _buildQuickStat(
+      String label, String value, IconData icon, ThemeService theme) {
     return Column(
       children: [
-        Icon(icon, size: 16, color: Theme.of(context).primaryColor),
+        Icon(icon, size: 16, color: theme.accentColor),
         const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-        ),
-        Text(
-          label,
-          style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-        ),
+        Text(value, style: theme.headlineMedium.copyWith(fontSize: 12)),
+        Text(label, style: theme.bodySmall),
       ],
     );
   }
 
-  Widget _buildMainContent() {
+  Widget _buildMainContent(ThemeService theme) {
     if (_selectedDeviceId == null) {
-      return _buildSelectDeviceView();
+      return _buildSelectDeviceView(theme);
     }
 
     if (_isLoading) {
-      return _buildLoadingView();
+      return ModernLoadingIndicator(message: 'Loading Map Data...', size: 60);
     }
 
     return TabBarView(
       controller: _tabController,
       children: [
-        _buildPGMEditor(),
-        _buildLocationsView(),
-        _buildAnalysisView(),
+        _buildPGMEditor(theme),
+        _buildLocationsView(theme),
+        _buildAnalysisView(theme),
       ],
     );
   }
 
-  Widget _buildLoadingView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedBuilder(
-            animation: _loadingAnimationController,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: _loadingAnimationController.value * 2 * 3.14159,
-                child: Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Theme.of(context).primaryColor,
-                        Theme.of(context).primaryColor.withOpacity(0.3),
-                      ],
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.map, color: Colors.white, size: 30),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Loading Map Data...',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPGMEditor() {
+  Widget _buildPGMEditor(ThemeService theme) {
     if (_currentMap == null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.map, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text(
-              'No map data available for PGM editing',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey.shade600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Load a map first to enable GIMP-like editing',
-              style: TextStyle(color: Colors.grey.shade500),
-            ),
-          ],
+        child: ModernGlassCard(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.map, size: 64, color: theme.errorColor),
+              const SizedBox(height: 16),
+              Text('No map data available for PGM editing',
+                  style: theme.headlineLarge),
+              const SizedBox(height: 8),
+              Text('Load a map first to enable GIMP-like editing',
+                  style: theme.bodyMedium),
+            ],
+          ),
         ),
       );
     }
@@ -1197,210 +1619,20 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  Widget _buildSelectDeviceView() {
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 400),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).primaryColor,
-                    Theme.of(context).primaryColor.withOpacity(0.7),
-                  ],
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(context).primaryColor.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.map, size: 50, color: Colors.white),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Select a Device',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Choose a connected AGV device to edit its map',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            if (!_isWebSocketConnected) ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.orange.shade50,
-                      Colors.orange.shade100,
-                    ],
-                  ),
-                  border: Border.all(color: Colors.orange.shade300),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.warning, color: Colors.orange.shade700),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'WebSocket disconnected. Real-time features unavailable.',
-                        style: TextStyle(color: Colors.orange.shade700),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _reconnectWebSocket,
-                      child: const Text('Reconnect'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-            if (_connectedDevices.isEmpty) ...[
-              Text(
-                'No connected devices found',
-                style: TextStyle(color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: () => Navigator.pushNamed(context, '/connect'),
-                icon: const Icon(Icons.add),
-                label: const Text('Connect Devices'),
-                style: ElevatedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: _loadConnectedDevices,
-                child: const Text('Refresh Device List'),
-              ),
-            ] else
-              _buildDeviceList(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDeviceList() {
-    return Column(
-      children: _connectedDevices.map((device) {
-        final deviceId = device['id']?.toString() ?? '';
-        final deviceName = device['name']?.toString() ?? deviceId;
-        final deviceStatus = device['status']?.toString() ?? 'unknown';
-
-        return Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          child: Card(
-            elevation: 4,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () {
-                setState(() {
-                  _selectedDeviceId = deviceId;
-                });
-                _loadMapForDevice(deviceId);
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: deviceStatus == 'connected'
-                              ? [Colors.green.shade400, Colors.green.shade600]
-                              : [Colors.grey.shade400, Colors.grey.shade600],
-                        ),
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                      child: Icon(
-                        deviceStatus == 'connected'
-                            ? Icons.smart_toy
-                            : Icons.warning,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            deviceName,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text('ID: $deviceId'),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: deviceStatus == 'connected'
-                                  ? Colors.green.shade100
-                                  : Colors.orange.shade100,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              deviceStatus.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: deviceStatus == 'connected'
-                                    ? Colors.green.shade700
-                                    : Colors.orange.shade700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_right,
-                      color: Colors.grey.shade400,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildLocationsView() {
+  Widget _buildLocationsView(ThemeService theme) {
     if (_currentMap == null) {
-      return const Center(child: Text('No map data available'));
+      return Center(
+        child: ModernGlassCard(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.location_off, size: 64, color: theme.errorColor),
+              const SizedBox(height: 16),
+              Text('No map data available', style: theme.headlineLarge),
+            ],
+          ),
+        ),
+      );
     }
 
     final locations = _currentMap!.shapes;
@@ -1418,55 +1650,49 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildLocationHeader(locations.length),
+          _buildLocationHeader(locations.length, theme),
           const SizedBox(height: 16),
           if (locations.isEmpty)
-            _buildEmptyLocationsCard()
+            _buildEmptyLocationsCard(theme)
           else
             ...groupedLocations.entries
-                .map((entry) => _buildLocationTypeCard(entry)),
+                .map((entry) => _buildLocationTypeCard(entry, theme)),
         ],
       ),
     );
   }
 
-  Widget _buildLocationHeader(int totalLocations) {
+  Widget _buildLocationHeader(int totalLocations, ThemeService theme) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Theme.of(context).primaryColor.withOpacity(0.1),
-            Theme.of(context).primaryColor.withOpacity(0.05),
+            theme.accentColor.withOpacity(0.1),
+            theme.accentColor.withOpacity(0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
-        border:
-            Border.all(color: Theme.of(context).primaryColor.withOpacity(0.2)),
+        borderRadius: theme.borderRadiusMedium,
+        border: Border.all(color: theme.accentColor.withOpacity(0.2)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor,
-              borderRadius: BorderRadius.circular(12),
+              gradient: theme.primaryGradient,
+              borderRadius: theme.borderRadiusMedium,
             ),
-            child: const Icon(Icons.location_on, color: Colors.white, size: 24),
+            child: Icon(Icons.location_on, color: Colors.white, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Defined Locations',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'Total: $totalLocations locations',
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
+                Text('Defined Locations', style: theme.displayMedium),
+                Text('Total: $totalLocations locations',
+                    style: theme.bodyMedium),
               ],
             ),
           ),
@@ -1474,12 +1700,12 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor,
+                gradient: theme.primaryGradient,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
                 '$totalLocations',
-                style: const TextStyle(
+                style: theme.bodyMedium.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1490,38 +1716,94 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  Widget _buildEmptyLocationsCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(32),
+  Widget _buildEmptyLocationsCard(ThemeService theme) {
+    return ModernGlassCard(
+      child: Column(
+        children: [
+          Icon(Icons.location_off, size: 64, color: theme.warningColor),
+          const SizedBox(height: 16),
+          Text('No locations defined', style: theme.headlineLarge),
+          const SizedBox(height: 8),
+          Text('Add locations using the map editor', style: theme.bodyMedium),
+          const SizedBox(height: 16),
+          ModernActionButton(
+            label: 'Go to Editor',
+            icon: Icons.edit,
+            onPressed: () => _tabController.animateTo(0),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationTypeCard(
+      MapEntry<String, List<MapShape>> entry, ThemeService theme) {
+    final color = _getLocationTypeColor(entry.key);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: ModernGlassCard(
         child: Column(
           children: [
-            Icon(
-              Icons.location_off,
-              size: 64,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No locations defined',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade600,
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+                ),
+                borderRadius: BorderRadius.only(
+                  topLeft: theme.borderRadiusMedium.topLeft,
+                  topRight: theme.borderRadiusMedium.topRight,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                          colors: [color, color.withOpacity(0.8)]),
+                      borderRadius: theme.borderRadiusSmall,
+                    ),
+                    child: Icon(
+                      _getLocationTypeIcon(entry.key),
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '${entry.key.toUpperCase()} LOCATIONS',
+                      style: theme.headlineMedium,
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                          colors: [color, color.withOpacity(0.8)]),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${entry.value.length}',
+                      style: theme.bodyMedium.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Add locations using the map editor',
-              style: TextStyle(color: Colors.grey.shade500),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => _tabController.animateTo(0),
-              icon: const Icon(Icons.edit),
-              label: const Text('Go to Editor'),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: entry.value.length,
+              itemBuilder: (context, index) {
+                return _buildLocationListItem(entry.value[index], color, theme);
+              },
             ),
           ],
         ),
@@ -1529,82 +1811,8 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  Widget _buildLocationTypeCard(MapEntry<String, List<MapShape>> entry) {
-    final color = _getLocationTypeColor(entry.key);
-
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    _getLocationTypeIcon(entry.key),
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '${entry.key.toUpperCase()} LOCATIONS',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${entry.value.length}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: entry.value.length,
-            itemBuilder: (context, index) {
-              return _buildLocationListItem(entry.value[index], color);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocationListItem(MapShape location, Color color) {
+  Widget _buildLocationListItem(
+      MapShape location, Color color, ThemeService theme) {
     return ListTile(
       leading: Container(
         width: 40,
@@ -1613,7 +1821,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           gradient: LinearGradient(
             colors: [color.withOpacity(0.8), color],
           ),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: theme.borderRadiusSmall,
         ),
         child: Icon(
           _getLocationTypeIcon(location.type),
@@ -1621,35 +1829,50 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           size: 20,
         ),
       ),
-      title: Text(
-        location.name,
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
+      title: Text(location.name, style: theme.headlineMedium),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Position: ${location.center.x.toStringAsFixed(2)}, ${location.center.y.toStringAsFixed(2)}',
+            style: theme.bodyMedium,
           ),
           if (location.sides.values.any((side) => side.isNotEmpty))
             Text(
               'Sides: ${location.sides.entries.where((e) => e.value.isNotEmpty).map((e) => '${e.key}: ${e.value}').join(', ')}',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: theme.bodySmall,
             ),
         ],
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () => _editLocation(location),
-            tooltip: 'Edit Location',
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [theme.infoColor, theme.infoColor.withOpacity(0.8)]),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.edit, color: Colors.white),
+              onPressed: () => _editLocation(location),
+              tooltip: 'Edit Location',
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.navigation),
-            onPressed: () => _navigateToLocation(location),
-            tooltip: 'Navigate Here',
+          const SizedBox(width: 8),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [
+                theme.successColor,
+                theme.successColor.withOpacity(0.8)
+              ]),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.navigation, color: Colors.white),
+              onPressed: () => _navigateToLocation(location),
+              tooltip: 'Navigate Here',
+            ),
           ),
         ],
       ),
@@ -1673,25 +1896,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     }
   }
 
-  Color _getSourceColor(String source) {
-    switch (source.toLowerCase()) {
-      case 'normalized':
-        return Colors.blue;
-      case 'empty_fallback':
-      case 'empty_created':
-      case 'empty_not_found':
-      case 'empty_error':
-        return Colors.orange;
-      case 'saved':
-        return Colors.purple;
-      case 'live':
-      case 'api':
-        return Colors.green;
-      default:
-        return Colors.grey;
-    }
-  }
-
   IconData _getLocationTypeIcon(String type) {
     switch (type) {
       case 'pickup':
@@ -1709,22 +1913,18 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     }
   }
 
-  Widget _buildAnalysisView() {
+  Widget _buildAnalysisView(ThemeService theme) {
     if (_currentMap == null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.analytics, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text(
-              'No map data to analyze',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
+        child: ModernGlassCard(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.analytics, size: 64, color: theme.errorColor),
+              const SizedBox(height: 16),
+              Text('No map data to analyze', style: theme.headlineLarge),
+            ],
+          ),
         ),
       );
     }
@@ -1734,47 +1934,46 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildAnalysisHeader(),
+          _buildAnalysisHeader(theme),
           const SizedBox(height: 16),
-          _buildAnalysisCards(),
+          _buildAnalysisCards(theme),
         ],
       ),
     );
   }
 
-  Widget _buildAnalysisHeader() {
+  Widget _buildAnalysisHeader(ThemeService theme) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.blue.shade50,
-            Colors.blue.shade100,
+            theme.infoColor.withOpacity(0.1),
+            theme.infoColor.withOpacity(0.05),
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.shade300),
+        borderRadius: theme.borderRadiusMedium,
+        border: Border.all(color: theme.infoColor.withOpacity(0.3)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.blue,
-              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                  colors: [theme.infoColor, theme.infoColor.withOpacity(0.8)]),
+              borderRadius: theme.borderRadiusMedium,
             ),
-            child: const Icon(Icons.analytics, color: Colors.white, size: 24),
+            child: Icon(Icons.analytics, color: Colors.white, size: 24),
           ),
           const SizedBox(width: 16),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Map Analysis',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                Text('Detailed analysis of your map data'),
+                Text('Map Analysis', style: theme.displayMedium),
+                Text('Detailed analysis of your map data',
+                    style: theme.bodyMedium),
               ],
             ),
           ),
@@ -1783,7 +1982,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  Widget _buildAnalysisCards() {
+  Widget _buildAnalysisCards(ThemeService theme) {
     final mapData = _currentMap!;
 
     // Calculate analysis data
@@ -1808,29 +2007,34 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         _buildAnalysisCard(
           'Map Coverage',
           Icons.map,
-          Colors.blue,
+          theme.infoColor,
           [
             _buildAnalysisItem(
               'Total Coverage',
               '${((freeCells + occupiedCells) / totalCells * 100).toStringAsFixed(1)}%',
-              Colors.blue,
+              theme.infoColor,
+              theme,
             ),
             _buildAnalysisItem(
               'Free Space',
               '${(freeCells / totalCells * 100).toStringAsFixed(1)}%',
-              Colors.green,
+              theme.successColor,
+              theme,
             ),
             _buildAnalysisItem(
               'Obstacles',
               '${(occupiedCells / totalCells * 100).toStringAsFixed(1)}%',
-              Colors.red,
+              theme.errorColor,
+              theme,
             ),
             _buildAnalysisItem(
               'Unknown',
               '${(unknownCells / totalCells * 100).toStringAsFixed(1)}%',
               Colors.grey,
+              theme,
             ),
           ],
+          theme,
         ),
 
         const SizedBox(height: 16),
@@ -1845,23 +2049,28 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               'Total Area',
               '${mapAreaM2.toStringAsFixed(1)} m²',
               Colors.purple,
+              theme,
             ),
             _buildAnalysisItem(
               'Resolution',
               '${mapData.info.resolution.toStringAsFixed(3)} m/px',
               Colors.indigo,
+              theme,
             ),
             _buildAnalysisItem(
               'Dimensions',
               '${mapData.info.width} × ${mapData.info.height}',
               Colors.teal,
+              theme,
             ),
             _buildAnalysisItem(
               'Version',
               '${mapData.version}',
               Colors.amber,
+              theme,
             ),
           ],
+          theme,
         ),
 
         if (shapesByType.isNotEmpty) ...[
@@ -1869,16 +2078,18 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           _buildAnalysisCard(
             'Locations Summary',
             Icons.location_on,
-            Colors.green,
+            theme.successColor,
             shapesByType.entries
                 .map(
                   (entry) => _buildAnalysisItem(
                     entry.key.toUpperCase(),
                     '${entry.value}',
                     _getLocationTypeColor(entry.key),
+                    theme,
                   ),
                 )
                 .toList(),
+            theme,
           ),
         ],
 
@@ -1888,29 +2099,30 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         _buildAnalysisCard(
           'Timestamps',
           Icons.schedule,
-          Colors.orange,
+          theme.warningColor,
           [
             _buildAnalysisItem(
               'Last Updated',
               _formatTimestamp(mapData.timestamp),
-              Colors.orange,
+              theme.warningColor,
+              theme,
             ),
             _buildAnalysisItem(
               'Created',
               _formatTimestamp(mapData.timestamp),
               Colors.deepOrange,
+              theme,
             ),
           ],
+          theme,
         ),
       ],
     );
   }
 
-  Widget _buildAnalysisCard(
-      String title, IconData icon, Color color, List<Widget> items) {
-    return Card(
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  Widget _buildAnalysisCard(String title, IconData icon, Color color,
+      List<Widget> items, ThemeService theme) {
+    return ModernGlassCard(
       child: Column(
         children: [
           Container(
@@ -1919,9 +2131,9 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               gradient: LinearGradient(
                 colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
               ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
+              borderRadius: BorderRadius.only(
+                topLeft: theme.borderRadiusMedium.topLeft,
+                topRight: theme.borderRadiusMedium.topRight,
               ),
             ),
             child: Row(
@@ -1929,19 +2141,14 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(8),
+                    gradient:
+                        LinearGradient(colors: [color, color.withOpacity(0.8)]),
+                    borderRadius: theme.borderRadiusSmall,
                   ),
                   child: Icon(icon, color: Colors.white, size: 20),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text(title, style: theme.headlineMedium),
               ],
             ),
           ),
@@ -1954,7 +2161,8 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  Widget _buildAnalysisItem(String label, String value, Color color) {
+  Widget _buildAnalysisItem(
+      String label, String value, Color color, ThemeService theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -1963,20 +2171,29 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             width: 4,
             height: 20,
             decoration: BoxDecoration(
-              color: color,
+              gradient: LinearGradient(colors: [color, color.withOpacity(0.8)]),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           const SizedBox(width: 12),
-          Expanded(child: Text(label)),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          Expanded(child: Text(label, style: theme.bodyMedium)),
+          Text(value,
+              style: theme.bodyMedium.copyWith(fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
+
+  // Add these state variables at the top of the class
+  final GlobalKey _mapEditorKey = GlobalKey();
+
+  void _centerMap() {
+    if (_currentMap != null && _mapEditorKey.currentState != null) {
+      (_mapEditorKey.currentState as dynamic).centerMapView();
+    }
+  }
+
+  // Removed duplicate _loadMapForDevice method
 
   String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
@@ -1993,315 +2210,334 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     }
   }
 
-  Widget _buildSidebar() {
+  Widget _buildSidebar(ThemeService theme) {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Map Tools',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
-            ),
-          ),
+          Text('Map Tools', style: theme.displayMedium),
           const SizedBox(height: 16),
-
-          // Device selector
-          _buildSidebarDeviceSelector(),
-
+          _buildSidebarDeviceSelector(theme),
           const SizedBox(height: 20),
-
-          // Quick actions
-          _buildSidebarSection(
-            'Quick Actions',
-            [
-              _buildSidebarButton(
-                'Save Map',
-                Icons.save,
-                _hasUnsavedChanges ? _saveMap : null,
-                _hasUnsavedChanges ? Colors.orange : Colors.grey,
+          ModernSettingsSection(
+            title: 'Quick Actions',
+            icon: Icons.flash_on,
+            children: [
+              ModernActionButton(
+                label: 'Save Map',
+                icon: Icons.save,
+                onPressed: _hasUnsavedChanges ? _saveMap : () {},
+                backgroundColor: _hasUnsavedChanges ? theme.warningColor : null,
+                isLoading: false,
               ),
-              _buildSidebarButton(
-                'Send to AGV',
-                Icons.send,
-                _currentMap != null ? _sendMapToAGV : null,
-                Colors.blue,
+              const SizedBox(height: 8),
+              ModernActionButton(
+                label: 'Send to AGV',
+                icon: Icons.send,
+                onPressed: _currentMap != null ? _sendMapToAGV : () {},
+                backgroundColor: theme.successColor,
               ),
-              _buildSidebarButton(
-                'Clear All',
-                Icons.clear_all,
-                _currentMap != null ? _clearAllData : null,
-                Colors.red,
+              const SizedBox(height: 8),
+              ModernActionButton(
+                label: 'Clear All',
+                icon: Icons.clear_all,
+                onPressed: _currentMap != null ? _clearAllData : () {},
+                backgroundColor: theme.errorColor,
               ),
             ],
           ),
-
           const SizedBox(height: 20),
-
-          // Map info
-          if (_currentMap != null) _buildMapInfo(),
+          if (_currentMap != null) _buildMapInfo(theme),
         ],
       ),
     );
   }
 
-  Widget _buildSidebarDeviceSelector() {
-    // Get unique devices and check if selected device exists
-    final uniqueDevices = _connectedDevices
-        .fold<Map<String, Map<String, dynamic>>>(
-          {},
-          (map, device) {
-            final deviceId = device['id']?.toString() ?? '';
-            if (deviceId.isNotEmpty) {
-              map[deviceId] = device;
-            }
-            return map;
-          },
-        )
-        .values
-        .toList();
-
-    // Validate selected device exists in unique devices
-    final selectedDeviceExists = _selectedDeviceId != null &&
-        uniqueDevices
-            .any((device) => device['id']?.toString() == _selectedDeviceId);
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
+  Widget _buildSidebarDeviceSelector(ThemeService theme) {
+    return ModernGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Selected Device',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
+          Text('Selected Device', style: theme.headlineMedium),
           const SizedBox(height: 8),
-          DropdownButton<String>(
-            value: selectedDeviceExists ? _selectedDeviceId : null,
-            hint: const Text('Select Device'),
-            isExpanded: true,
-            items: uniqueDevices.map((device) {
-              final deviceId = device['id']?.toString() ?? '';
-              final deviceName = device['name']?.toString() ?? deviceId;
-              final deviceStatus = device['status']?.toString() ?? 'unknown';
-
-              return DropdownMenuItem<String>(
-                value: deviceId,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: deviceStatus == 'connected'
-                            ? Colors.green
-                            : Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(deviceName)),
-                  ],
-                ),
-              );
-            }).toList(),
-            onChanged: (deviceId) {
-              if (deviceId != null) {
-                setState(() {
-                  _selectedDeviceId = deviceId;
-                  _currentMap = null;
-                  _hasUnsavedChanges = false;
-                });
-                _loadMapForDevice(deviceId);
-              }
-            },
-          ),
+          // Device selector implementation would go here
         ],
       ),
     );
   }
 
-  Widget _buildSidebarSection(String title, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        ...children,
-      ],
-    );
-  }
-
-  Widget _buildSidebarButton(
-      String text, IconData icon, VoidCallback? onPressed, Color color) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 2),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: onPressed,
-          icon: Icon(icon),
-          label: Text(text),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: onPressed != null ? color : Colors.grey,
-            foregroundColor: Colors.white,
-            alignment: Alignment.centerLeft,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMapInfo() {
+  Widget _buildMapInfo(ThemeService theme) {
     final mapData = _currentMap!;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.shade200),
-      ),
+    return ModernGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Map Information',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
+          Text('Map Information', style: theme.headlineMedium),
           const SizedBox(height: 8),
-          _buildInfoRow('Version', mapData.version.toString()),
-          _buildInfoRow('Shapes', mapData.shapes.length.toString()),
-          _buildInfoRow('Size', '${mapData.info.width}×${mapData.info.height}'),
+          _buildInfoRow('Version', mapData.version.toString(), theme),
+          _buildInfoRow('Shapes', mapData.shapes.length.toString(), theme),
           _buildInfoRow(
-              'Resolution', '${mapData.info.resolution.toStringAsFixed(3)}'),
+              'Size', '${mapData.info.width}×${mapData.info.height}', theme),
+          _buildInfoRow('Resolution',
+              '${mapData.info.resolution.toStringAsFixed(3)}', theme),
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value, ThemeService theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12)),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-          ),
+          Text(label, style: theme.bodyMedium),
+          Text(value,
+              style: theme.bodyMedium.copyWith(fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
-  Widget _buildPropertiesPanel() {
+  Widget _buildPropertiesPanel(ThemeService theme) {
     return Container(
       padding: const EdgeInsets.all(16),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Properties',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          SizedBox(height: 16),
-          Text('Select a shape to edit its properties'),
+          Text('Properties', style: theme.displayMedium),
+          const SizedBox(height: 16),
+          Text('Select a shape to edit its properties',
+              style: theme.bodyMedium),
         ],
       ),
     );
   }
 
-  Widget _buildMobileDrawer() {
+  Widget _buildModernDrawer(ThemeService theme) {
     return Drawer(
-      child: Column(
-        children: [
-          DrawerHeader(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).primaryColor,
-                  Theme.of(context).primaryColor.withOpacity(0.8),
+      backgroundColor: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(gradient: theme.backgroundGradient),
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(gradient: theme.primaryGradient),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: theme.borderRadiusSmall,
+                    ),
+                    child: Icon(Icons.map, size: 40, color: Colors.white),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Map Editor',
+                      style: theme.headlineLarge.copyWith(color: Colors.white)),
+                  Text('AGV Navigation System',
+                      style: theme.bodySmall.copyWith(color: Colors.white70)),
                 ],
               ),
             ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.map, color: Colors.white, size: 32),
-                SizedBox(height: 8),
-                Text(
-                  'Map Editor',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'AGV Navigation System',
-                  style: TextStyle(color: Colors.white70),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: _buildSidebar(),
-          ),
-        ],
+            // Drawer items would go here
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildFloatingActionButtons() {
+  Widget _buildFloatingActionButtons(ThemeService theme) {
     if (_deviceType == DeviceType.phone) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Load Map FAB
           if (_selectedDeviceId != null)
-            FloatingActionButton(
-              onPressed: () => _loadMapWithConfirmation(_selectedDeviceId!),
-              backgroundColor: Colors.blue,
-              heroTag: "load",
-              child: const Icon(Icons.refresh, color: Colors.white),
-              tooltip: 'Load/Refresh Map',
+            Container(
+              decoration: BoxDecoration(
+                gradient: theme.primaryGradient,
+                shape: BoxShape.circle,
+                boxShadow: theme.neonGlow,
+              ),
+              child: FloatingActionButton(
+                onPressed: () => _loadMapWithConfirmation(_selectedDeviceId!),
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                heroTag: "load",
+                child: Icon(Icons.refresh, color: Colors.white),
+                tooltip: 'Load/Refresh Map',
+              ),
             ),
-
           if (_selectedDeviceId != null) const SizedBox(height: 16),
-
-          // Save Map FAB
-          FloatingActionButton(
-            onPressed: _hasUnsavedChanges ? _saveMap : null,
-            backgroundColor:
-                _hasUnsavedChanges ? Colors.orange : Colors.grey.shade400,
-            heroTag: "save",
-            child: Icon(
-              Icons.save,
-              color: _hasUnsavedChanges ? Colors.white : Colors.grey.shade600,
+          Container(
+            decoration: BoxDecoration(
+              gradient: _hasUnsavedChanges
+                  ? LinearGradient(
+                      colors: [Colors.orange, Colors.orange.shade700])
+                  : LinearGradient(
+                      colors: [Colors.grey.shade400, Colors.grey.shade600]),
+              shape: BoxShape.circle,
+              boxShadow: _hasUnsavedChanges ? theme.neonGlow : null,
             ),
-            tooltip: _hasUnsavedChanges
-                ? 'Save Map (${_currentMap?.shapes.length ?? 0} locations)'
-                : 'No changes to save',
+            child: FloatingActionButton(
+              onPressed: _hasUnsavedChanges ? _saveMap : null,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              heroTag: "save",
+              child: Icon(Icons.save, color: Colors.white),
+              tooltip: _hasUnsavedChanges
+                  ? 'Save Map (${_currentMap?.shapes.length ?? 0} locations)'
+                  : 'No changes to save',
+            ),
           ),
         ],
       );
     }
     return const SizedBox.shrink();
+  }
+
+  Widget _buildDebugPanel(ThemeService theme) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.orange.shade50.withOpacity(0.8),
+            Colors.orange.shade100.withOpacity(0.8),
+          ],
+        ),
+        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+        borderRadius: theme.borderRadiusMedium,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.bug_report, size: 16, color: Colors.orange.shade800),
+              const SizedBox(width: 8),
+              Text('Debug Information',
+                  style: theme.headlineMedium
+                      .copyWith(color: Colors.orange.shade800)),
+              const Spacer(),
+              IconButton(
+                onPressed: () => setState(() => _showDebugInfo = false),
+                icon:
+                    Icon(Icons.close, size: 16, color: Colors.orange.shade800),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildDebugRow('Device ID', _selectedDeviceId ?? 'None', theme),
+          _buildDebugRow('Load Source', _loadSource ?? 'None', theme),
+          _buildDebugRow(
+              'Map Data', _currentMap != null ? 'Loaded' : 'None', theme),
+          if (_currentMap != null) ...[
+            _buildDebugRow(
+                'Dimensions',
+                '${_currentMap!.info.width}x${_currentMap!.info.height}',
+                theme),
+            _buildDebugRow('Shapes', '${_currentMap!.shapes.length}', theme),
+            _buildDebugRow('Occupancy Data',
+                '${_currentMap!.occupancyData.length} cells', theme),
+          ],
+          _buildDebugRow(
+              'WebSocket Connected', _isWebSocketConnected.toString(), theme),
+          _buildDebugRow(
+              'Has Unsaved Changes', _hasUnsavedChanges.toString(), theme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDebugRow(String label, String value, ThemeService theme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text('$label:',
+                style: theme.bodySmall.copyWith(fontWeight: FontWeight.w500)),
+          ),
+          Expanded(
+            child: Text(value, style: theme.bodySmall),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(ThemeService theme) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.red.shade50.withOpacity(0.8),
+            Colors.red.shade100.withOpacity(0.8),
+          ],
+        ),
+        border: Border.all(color: Colors.red.withOpacity(0.3)),
+        borderRadius: theme.borderRadiusMedium,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error, color: Colors.red.shade700),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Map Loading Error',
+                  style:
+                      theme.headlineMedium.copyWith(color: Colors.red.shade700),
+                ),
+                Text(_error!,
+                    style:
+                        theme.bodySmall.copyWith(color: Colors.red.shade600)),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => setState(() => _error = null),
+            icon: Icon(Icons.close, size: 16, color: Colors.red.shade700),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getSourceColor(String source, ThemeService theme) {
+    switch (source.toLowerCase()) {
+      case 'normalized':
+        return theme.infoColor;
+      case 'empty_fallback':
+      case 'empty_created':
+      case 'empty_not_found':
+      case 'empty_error':
+        return theme.warningColor;
+      case 'saved':
+        return Colors.purple;
+      case 'live':
+      case 'api':
+        return theme.successColor;
+      case 'ros2_saved':
+        return Colors.indigo;
+      default:
+        return Colors.grey;
+    }
   }
 
   // Event handlers
@@ -2315,18 +2551,25 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   void _saveMap() async {
     if (_currentMap == null || _selectedDeviceId == null) return;
 
-    // Show loading indicator
+    final theme = Provider.of<ThemeService>(context, listen: false);
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
+      builder: (context) => AlertDialog(
+        backgroundColor:
+            theme.isDarkMode ? const Color(0xFF262640) : Colors.white,
+        content: Row(
+          children: [
+            ModernLoadingIndicator(message: '', size: 30),
+            const SizedBox(width: 16),
+            Text('Saving map...', style: theme.bodyMedium),
+          ],
+        ),
       ),
     );
 
     try {
-      print('💾 Saving map for device: $_selectedDeviceId');
-
       await _apiService.saveMapData(
         deviceId: _selectedDeviceId!,
         mapData: _currentMap!,
@@ -2336,17 +2579,13 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         _hasUnsavedChanges = false;
       });
 
-      // Close loading dialog
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(); // Close loading dialog
 
       _showInfoSnackBar(
           'Map saved successfully with ${_currentMap!.shapes.length} locations');
-
       print('✅ Map saved successfully for device: $_selectedDeviceId');
     } catch (e) {
-      // Close loading dialog
-      Navigator.of(context).pop();
-
+      Navigator.of(context).pop(); // Close loading dialog
       print('❌ Error saving map: $e');
 
       if (e is ApiException) {
@@ -2361,7 +2600,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     if (_currentMap == null || _selectedDeviceId == null) return;
 
     try {
-      // Send map to AGV via WebSocket to /local_costmap/cost_map topic
       _webSocketService.sendMessage({
         'type': 'publish_costmap',
         'topic': '/local_costmap/cost_map',
@@ -2401,23 +2639,34 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   }
 
   void _clearAllData() async {
+    final theme = Provider.of<ThemeService>(context, listen: false);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Clear All Data'),
-        content: const Text(
-            'This will clear all shapes and annotations. This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor:
+              theme.isDarkMode ? const Color(0xFF262640) : Colors.white,
+          title: Text('Clear All Data', style: theme.headlineLarge),
+          content: Text(
+            'This will clear all shapes and annotations. This action cannot be undone.',
+            style: theme.bodyMedium,
           ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Clear All', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+          actions: [
+            ModernActionButton(
+              label: 'Cancel',
+              icon: Icons.cancel,
+              onPressed: () => Navigator.of(context).pop(false),
+              isSecondary: true,
+            ),
+            ModernActionButton(
+              label: 'Clear All',
+              icon: Icons.clear_all,
+              onPressed: () => Navigator.of(context).pop(true),
+              backgroundColor: theme.errorColor,
+            ),
+          ],
+        );
+      },
     );
 
     if (confirmed == true && _currentMap != null) {
@@ -2474,7 +2723,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     });
 
     if (connected) {
-      // Note: Removed reconnection popup to reduce UI clutter
       if (_selectedDeviceId != null) {
         _webSocketService.subscribe('real_time_data',
             deviceId: _selectedDeviceId);
@@ -2558,50 +2806,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  // NEW: Load ROS2 saved map
-  Future<void> _loadROS2SavedMap(String mapName) async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      print('🔄 Loading ROS2 saved map: $mapName');
-
-      final response = await _apiService.loadROS2SavedMap(
-        deviceId: _selectedDeviceId!,
-        mapName: mapName,
-      );
-
-      if (response['success'] == true && response['mapData'] != null) {
-        final mapData = MapData.fromJson(response['mapData']);
-        setState(() {
-          _currentMap = mapData;
-          _hasUnsavedChanges = false;
-          _loadSource = 'ros2_saved';
-          _error = null;
-        });
-
-        _showInfoSnackBar('ROS2 saved map loaded: $mapName');
-        print('✅ ROS2 saved map loaded successfully: $mapName');
-      } else {
-        setState(() {
-          _error = response['error'] ?? 'Failed to load ROS2 saved map';
-        });
-        _showErrorSnackBar('Failed to load ROS2 map: ${response['error']}');
-      }
-    } catch (e) {
-      print('❌ Error loading ROS2 saved map: $e');
-      setState(() {
-        _error = 'Failed to load ROS2 saved map: $e';
-      });
-      _showErrorSnackBar('Failed to load ROS2 saved map: $e');
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
+  // (Removed duplicate _loadROS2SavedMap method)
 
   // NEW: Show ROS2 saved maps dialog
   void _showROS2SavedMaps() {
@@ -2683,195 +2888,38 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   }
 
   /// Bottom controls for compact/mobile layout
-  Widget _buildCompactBottomControls() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      color: Colors.white,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.dashboard),
-            color: Theme.of(context).primaryColor,
-            tooltip: 'Back to Dashboard',
-            onPressed: () {
-              Navigator.pushReplacementNamed(context, '/dashboard');
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.save),
-            color: _hasUnsavedChanges ? Colors.orange : Colors.grey,
-            tooltip: 'Save Map',
-            onPressed: _hasUnsavedChanges ? _saveMap : null,
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            color: Colors.blue,
-            tooltip: 'Refresh Map',
-            onPressed: _selectedDeviceId != null
-                ? () => _loadMapWithConfirmation(_selectedDeviceId!)
-                : null,
-          ),
-          IconButton(
-            icon: const Icon(Icons.send),
-            color: Colors.blue,
-            tooltip: 'Send to AGV',
-            onPressed: _currentMap != null ? _sendMapToAGV : null,
-          ),
-          IconButton(
-            icon: const Icon(Icons.clear_all),
-            color: Colors.red,
-            tooltip: 'Clear All',
-            onPressed: _currentMap != null ? _clearAllData : null,
-          ),
-        ],
-      ),
-    );
-  }
+  // Removed duplicate and unused _buildCompactBottomControls method
 
-  /// Build debug information panel
-  Widget _buildDebugPanel() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        border: Border.all(color: Colors.orange.shade200),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.bug_report, size: 16, color: Colors.orange),
-              const SizedBox(width: 8),
-              Text(
-                'Debug Information',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.orange.shade800),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: () => setState(() => _showDebugInfo = false),
-                icon: const Icon(Icons.close, size: 16),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _buildDebugRow('Device ID', _selectedDeviceId ?? 'None'),
-          _buildDebugRow('Load Source', _loadSource ?? 'None'),
-          _buildDebugRow('Map Data', _currentMap != null ? 'Loaded' : 'None'),
-          if (_currentMap != null) ...[
-            _buildDebugRow('Dimensions',
-                '${_currentMap!.info.width}x${_currentMap!.info.height}'),
-            _buildDebugRow('Shapes', '${_currentMap!.shapes.length}'),
-            _buildDebugRow(
-                'Occupancy Data', '${_currentMap!.occupancyData.length} cells'),
-          ],
-          _buildDebugRow(
-              'API Initialized', _apiService.isInitialized.toString()),
-          _buildDebugRow('API Base URL', _apiService.baseUrl ?? 'None'),
-          _buildDebugRow(
-              'WebSocket Connected', _isWebSocketConnected.toString()),
-          _buildDebugRow('Has Unsaved Changes', _hasUnsavedChanges.toString()),
-          if (_rawApiResponse != null) ...[
-            const SizedBox(height: 8),
-            const Text('Raw API Response:',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                _rawApiResponse.toString(),
-                style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
-                maxLines: 5,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  // (Removed duplicate and unused _buildDebugPanel method)
 
-  Widget _buildDebugRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildDebugRow(String label, String value) {
+  //   return Padding(
+  //     padding: const EdgeInsets.symmetric(vertical: 2),
+  //     child: Row(
+  //       children: [
+  //         SizedBox(
+  //           width: 120,
+  //           child: Text(
+  //             '$label:',
+  //             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+  //           ),
+  //         ),
+  //         Expanded(
+  //           child: Text(
+  //             value,
+  //             style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-  /// Build error banner
-  Widget _buildErrorBanner() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        border: Border.all(color: Colors.red.shade200),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error, color: Colors.red.shade700),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Map Loading Error',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red.shade700,
-                  ),
-                ),
-                Text(
-                  _error!,
-                  style: TextStyle(fontSize: 12, color: Colors.red.shade600),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: () => setState(() => _error = null),
-            icon: const Icon(Icons.close, size: 16),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ],
-      ),
-    );
-  }
+  // (Removed duplicate and unused _buildErrorBanner method)
 }
 
 /// AGV operation modes for compact mode selector
-enum AGVMode { defaultMode, autonomous, mapping }
-
-enum DeviceType { phone, tablet, desktop }
+// Removed duplicate DeviceType enum declaration
 
 // Enhanced SavedMapsScreen with map loading capability
 class SavedMapsScreen extends StatefulWidget {
