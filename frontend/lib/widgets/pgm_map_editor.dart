@@ -290,7 +290,12 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
 
         // Auto-center and fit the map when it loads
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _fitToScreen();
+          // Add a small delay to ensure the widget is fully rendered
+          Future.delayed(const Duration(milliseconds: 100), () {
+            if (mounted) {
+              _fitToScreen();
+            }
+          });
         });
       }
     } catch (e) {
@@ -302,6 +307,17 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
     final isSmallScreen = screenSize.width < 768; // Mobile and small tablets
+
+    // Schedule centering if map is loaded but not centered yet
+    if (_mapImage != null && _panOffset == Offset.zero) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (mounted) {
+            _fitToScreen();
+          }
+        });
+      });
+    }
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -1822,6 +1838,8 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
     if (renderBox == null) return;
 
     final size = renderBox.size;
+    print(
+        '🗺️ Fitting map to screen. Canvas size: ${size.width}x${size.height}');
 
     // Add some padding to prevent the map from touching the edges
     final padding = 40.0;
@@ -1842,6 +1860,9 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
       final centerY = (size.height - scaledMapHeight) / 2;
 
       _panOffset = Offset(centerX, centerY);
+
+      print(
+          '🎯 Map centered at offset: (${centerX.toStringAsFixed(1)}, ${centerY.toStringAsFixed(1)}) with scale: ${_scale.toStringAsFixed(2)}');
     });
   }
 
@@ -1852,6 +1873,7 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
     if (renderBox == null) return;
 
     final size = renderBox.size;
+    print('🎯 Centering map. Canvas size: ${size.width}x${size.height}');
 
     setState(() {
       // Center the map in the viewport without changing scale
@@ -1862,7 +1884,15 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
       final centerY = (size.height - scaledMapHeight) / 2;
 
       _panOffset = Offset(centerX, centerY);
+
+      print(
+          '📍 Map recentered at offset: (${centerX.toStringAsFixed(1)}, ${centerY.toStringAsFixed(1)})');
     });
+  }
+
+  // Public method to center the map from external calls
+  void centerMapView() {
+    _centerMap();
   }
 
   void _openMap() async {

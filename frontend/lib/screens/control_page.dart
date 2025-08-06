@@ -1,15 +1,20 @@
 // screens/control_page.dart - Simplified Mobile Layout with Core Controls Only
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import '../services/web_socket_service.dart';
 import '../services/api_service.dart';
+import '../services/theme_service.dart';
 import '../widgets/joystick.dart';
 import '../widgets/live_maping_canvas.dart';
+import '../widgets/modern_ui_components.dart';
 import '../models/map_data.dart';
 import '../models/odom.dart' as odom;
 
+
 enum DeviceType { phone, tablet, desktop }
+enum SnackBarType { success, error, warning, info }
 
 class ControlPage extends StatefulWidget {
   final String deviceId;
@@ -38,6 +43,8 @@ class _ControlPageState extends State<ControlPage>
 
   // Animation controllers
   late AnimationController _statusAnimationController;
+  late AnimationController _cardAnimationController;
+  late AnimationController _joystickGlowController;
   late TabController _tabController;
 
   // Connection state
@@ -109,34 +116,133 @@ class _ControlPageState extends State<ControlPage>
     _setupSubscriptions();
   }
 
-  @override
-  void dispose() {
-    _realTimeDataSubscription?.cancel();
-    _mappingEventsSubscription?.cancel();
-    _controlEventsSubscription?.cancel();
-    _connectionStateSubscription?.cancel();
-    _errorSubscription?.cancel();
-    _statusAnimationController.dispose();
-    _tabController.dispose();
-    super.dispose();
-  }
+@override
+void dispose() {
+  _realTimeDataSubscription?.cancel();
+  _mappingEventsSubscription?.cancel();
+  _controlEventsSubscription?.cancel();
+  _connectionStateSubscription?.cancel();
+  _errorSubscription?.cancel();
+  _statusAnimationController.dispose();
+  _cardAnimationController.dispose();
+  _joystickGlowController.dispose();
+  _tabController.dispose();
+  super.dispose();
+}
 
   // ==========================================
   // INITIALIZATION METHODS
   // ==========================================
 
-  void _initializeAnimations() {
-    _statusAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-
-    _tabController = TabController(
-      length: 2,
-      vsync: this,
+  // Added: Modern AppBar builder to fix missing method error
+  PreferredSizeWidget _buildModernAppBar(ThemeService theme) {
+    return AppBar(
+      title: Text('Live Control - ${widget.deviceId}'),
+      backgroundColor: _mappingActive ? Colors.green : Theme.of(context).primaryColor,
+      elevation: 2,
+      actions: [
+        _buildConnectionIndicator(),
+        if (_mappingActive) _buildMappingIndicator(),
+        IconButton(
+          icon: const Icon(Icons.emergency, color: Colors.red),
+          onPressed: _emergencyStop,
+          tooltip: 'Emergency Stop',
+        ),
+      ],
+      bottom: TabBar(
+        controller: _tabController,
+        indicatorColor: Colors.white,
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.white70,
+        tabs: const [
+          Tab(icon: Icon(Icons.control_camera), text: 'Live Control'),
+          Tab(icon: Icon(Icons.settings), text: 'Settings'),
+        ],
+      ),
     );
   }
 
+void _initializeAnimations() {
+  _statusAnimationController = AnimationController(
+    duration: const Duration(milliseconds: 1000),
+    vsync: this,
+  );
+
+  // NEW: Additional animation controllers
+  _cardAnimationController = AnimationController(
+    duration: const Duration(milliseconds: 800),
+    vsync: this,
+  );
+
+  _joystickGlowController = AnimationController(
+    duration: const Duration(milliseconds: 2000),
+    vsync: this,
+  );
+
+  _tabController = TabController(
+    length: 2,
+    vsync: this,
+  );
+
+  // NEW: Start card animations
+  _cardAnimationController.forward();
+}
+
+// NEW: Enhanced snackbar types
+
+void _showModernSnackBar(String message, SnackBarType type) {
+  final theme = Provider.of<ThemeService>(context, listen: false);
+  Color backgroundColor;
+  IconData icon;
+
+  switch (type) {
+    case SnackBarType.success:
+      backgroundColor = theme.successColor;
+      icon = Icons.check_circle;
+      break;
+    case SnackBarType.error:
+      backgroundColor = theme.errorColor;
+      icon = Icons.error;
+      break;
+    case SnackBarType.warning:
+      backgroundColor = theme.warningColor;
+      icon = Icons.warning;
+      break;
+    case SnackBarType.info:
+      backgroundColor = theme.infoColor;
+      icon = Icons.info;
+      break;
+  }
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          Icon(icon, color: Colors.white, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.bodyMedium.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+      backgroundColor: backgroundColor,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+        borderRadius: theme.borderRadiusMedium,
+      ),
+      margin: const EdgeInsets.all(16),
+      duration: const Duration(seconds: 3),
+    ),
+  );
+}
+
+// Removed duplicate build method to resolve "The name 'build' is already defined" error.
   void _initializeConnection() {
     setState(() {
       _isConnected = _webSocketService.isConnected;
@@ -160,24 +266,28 @@ class _ControlPageState extends State<ControlPage>
     }
   }
 
-  void _setupSubscriptions() {
-    _connectionStateSubscription = _webSocketService.connectionState.listen(
-      (connected) {
-        if (mounted) {
-          setState(() {
-            _isConnected = connected;
-            _connectionStatus = connected ? 'Connected' : 'Disconnected';
-          });
+void _setupSubscriptions() {
+  _connectionStateSubscription = _webSocketService.connectionState.listen(
+    (connected) {
+      if (mounted) {
+        setState(() {
+          _isConnected = connected;
+          _connectionStatus = connected ? 'Connected' : 'Disconnected';
+        });
 
-          if (connected) {
-            _subscribeToTopics();
-            _statusAnimationController.forward();
-          } else {
-            _statusAnimationController.reverse();
-          }
+        if (connected) {
+          _subscribeToTopics();
+          _statusAnimationController.forward();
+          // NEW: Joystick glow animation when connected
+          _joystickGlowController.repeat(reverse: true);
+        } else {
+          _statusAnimationController.reverse();
+          // NEW: Stop glow animation when disconnected
+          _joystickGlowController.stop();
         }
-      },
-    );
+      }
+    },
+  );
 
     _realTimeDataSubscription = _webSocketService.realTimeData.listen((data) {
       if (mounted) {
@@ -199,7 +309,7 @@ class _ControlPageState extends State<ControlPage>
 
     _errorSubscription = _webSocketService.errors.listen((error) {
       if (mounted) {
-        _showSnackBar('WebSocket Error: $error', Colors.red);
+        _showModernSnackBar('WebSocket Error: $error', SnackBarType.error);
       }
     });
   }

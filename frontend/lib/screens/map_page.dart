@@ -1,8 +1,7 @@
-// screens/enhanced_map_page.dart - Modern Robotic Map Editor with Full Theme Integration
+// screens/enhanced_map_page.dart - Fixed Map Positioning & Responsive Design
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-import 'dart:math' as math;
 import '../models/map_data.dart';
 import '../services/api_service.dart';
 import '../services/theme_service.dart';
@@ -36,13 +35,8 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   late AnimationController _loadingAnimationController;
   late AnimationController _pulseController;
   late AnimationController _statusAnimationController;
-  late StreamSubscription _realTimeSubscription;
-  late StreamSubscription _mapEventsSubscription;
-  late StreamSubscription _deviceEventsSubscription;
-  late StreamSubscription _connectionStateSubscription;
 
   // State variables
-  AGVMode _currentMode = AGVMode.defaultMode;
   MapData? _currentMap;
   List<Map<String, dynamic>> _connectedDevices = <Map<String, dynamic>>[];
   String? _selectedDeviceId;
@@ -53,13 +47,15 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   // Enhanced debugging and error handling
   String? _error;
   String? _loadSource;
-  Map<String, dynamic>? _rawApiResponse;
   bool _showDebugInfo = false;
 
   // UI state for responsive design
   DeviceType _deviceType = DeviceType.phone;
   bool _showSidebar = true;
   bool _showPropertiesPanel = false;
+
+  // Map editor key for proper rebuilding
+  final GlobalKey _mapEditorKey = GlobalKey();
 
   @override
   void initState() {
@@ -112,7 +108,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           _showSidebar = true;
         } else if (screenWidth > 768) {
           _deviceType = DeviceType.tablet;
-          _showSidebar = true;
+          _showSidebar = false; // Hide sidebar on tablet to give more map space
         } else {
           _deviceType = DeviceType.phone;
           _showSidebar = false;
@@ -157,26 +153,25 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   }
 
   void _subscribeToUpdates() {
-    _realTimeSubscription = _webSocketService.realTimeData.listen((data) {
+    _webSocketService.realTimeData.listen((data) {
       if (mounted && data['deviceId'] == _selectedDeviceId) {
         _handleRealTimeData(data);
       }
     });
 
-    _mapEventsSubscription = _webSocketService.mapEvents.listen((data) {
+    _webSocketService.mapEvents.listen((data) {
       if (mounted && data['deviceId'] == _selectedDeviceId) {
         _handleMapEvent(data);
       }
     });
 
-    _deviceEventsSubscription = _webSocketService.deviceEvents.listen((event) {
+    _webSocketService.deviceEvents.listen((event) {
       if (mounted) {
         _loadConnectedDevices();
       }
     });
 
-    _connectionStateSubscription =
-        _webSocketService.connectionState.listen((connected) {
+    _webSocketService.connectionState.listen((connected) {
       if (mounted) {
         setState(() {
           _isWebSocketConnected = connected;
@@ -314,14 +309,12 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       setState(() {
         _isLoading = true;
         _error = null;
-        _rawApiResponse = null;
       });
     }
     _loadingAnimationController.repeat();
 
     try {
       final response = await _apiService.getMapData(deviceId);
-      _rawApiResponse = Map<String, dynamic>.from(response);
 
       if (response['success'] == true && response['mapData'] != null) {
         try {
@@ -332,6 +325,11 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               _hasUnsavedChanges = false;
               _loadSource = response['source'] ?? 'api';
               _error = null;
+            });
+
+            // Auto-center the map after loading
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _centerMap();
             });
           }
 
@@ -449,6 +447,11 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           _error = null;
         });
 
+        // Auto-center the map after loading
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _centerMap();
+        });
+
         _showInfoSnackBar('ROS2 saved map loaded: $mapName');
         print('✅ ROS2 saved map loaded successfully: $mapName');
       } else {
@@ -467,6 +470,35 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  // Method to center the map properly
+  void _centerMap() {
+    if (_mapEditorKey.currentState != null) {
+      final state = _mapEditorKey.currentState as dynamic;
+      if (state != null && state.mounted) {
+        try {
+          state.centerMapView();
+        } catch (e) {
+          print('Error centering map: $e');
+        }
+      }
+    }
+  }
+
+  // Method to fit map to screen
+  void _fitMapToScreen() {
+    if (_mapEditorKey.currentState != null) {
+      final state = _mapEditorKey.currentState as dynamic;
+      if (state != null && state.mounted) {
+        try {
+          state
+              .centerMapView(); // Use centerMapView as fallback since _fitToScreen is private
+        } catch (e) {
+          print('Error fitting map to screen: $e');
+        }
+      }
     }
   }
 
@@ -495,12 +527,15 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
 
   PreferredSizeWidget _buildEnhancedAppBar(ThemeService theme) {
     return AppBar(
-      leading: ModernActionButton(
-        label: '',
-        icon: Icons.arrow_back,
-        onPressed: () => Navigator.pushReplacementNamed(context, '/dashboard'),
-        isSecondary: true,
-      ),
+      leading: _deviceType == DeviceType.phone
+          ? null
+          : ModernActionButton(
+              label: '',
+              icon: Icons.arrow_back,
+              onPressed: () =>
+                  Navigator.pushReplacementNamed(context, '/dashboard'),
+              isSecondary: true,
+            ),
       title: ShaderMask(
         shaderCallback: (bounds) => theme.primaryGradient.createShader(bounds),
         child: Row(
@@ -515,40 +550,43 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               child: Icon(Icons.map, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 12),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Map Editor',
-                  style: theme.displayMedium.copyWith(
-                    fontSize: 18,
-                    color: Colors.white,
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Map Editor',
+                    style: theme.displayMedium.copyWith(
+                      fontSize: _deviceType == DeviceType.phone ? 16 : 18,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                if (_currentMap != null)
-                  AnimatedBuilder(
-                    animation: _pulseController,
-                    builder: (context, child) {
-                      return Text(
-                        _hasUnsavedChanges
-                            ? '● ${_currentMap!.shapes.length} locations (unsaved)'
-                            : '${_currentMap!.shapes.length} locations (saved)',
-                        style: theme.bodySmall.copyWith(
-                          color: _hasUnsavedChanges
-                              ? Color.lerp(
-                                  Colors.orange.shade200,
-                                  Colors.orange.shade400,
-                                  _pulseController.value)
-                              : Colors.white70,
-                          fontWeight: _hasUnsavedChanges
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                      );
-                    },
-                  ),
-              ],
+                  if (_currentMap != null && _selectedDeviceId != null)
+                    AnimatedBuilder(
+                      animation: _pulseController,
+                      builder: (context, child) {
+                        return Text(
+                          _hasUnsavedChanges
+                              ? '● ${_currentMap!.shapes.length} locations (unsaved)'
+                              : '${_selectedDeviceId} - ${_currentMap!.shapes.length} locations',
+                          style: theme.bodySmall.copyWith(
+                            color: _hasUnsavedChanges
+                                ? Color.lerp(
+                                    Colors.orange.shade200,
+                                    Colors.orange.shade400,
+                                    _pulseController.value)
+                                : Colors.white70,
+                            fontWeight: _hasUnsavedChanges
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontSize: _deviceType == DeviceType.phone ? 11 : 12,
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
             ),
           ],
         ),
@@ -573,8 +611,39 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         ),
       ),
       actions: [
+        // Map control buttons
+        if (_currentMap != null) ...[
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [Colors.green.shade400, Colors.green.shade600]),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: IconButton(
+              onPressed: _centerMap,
+              icon: Icon(Icons.center_focus_strong,
+                  color: Colors.white, size: 18),
+              tooltip: 'Center Map',
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [Colors.blue.shade400, Colors.blue.shade600]),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: IconButton(
+              onPressed: _fitMapToScreen,
+              icon: Icon(Icons.fit_screen, color: Colors.white, size: 18),
+              tooltip: 'Fit to Screen',
+            ),
+          ),
+        ],
+
         // Data source indicator
-        if (_loadSource != null)
+        if (_loadSource != null && _deviceType != DeviceType.phone)
           Container(
             margin: const EdgeInsets.only(right: 8),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -600,52 +669,30 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.5,
+                fontSize: 10,
               ),
             ),
           ),
 
-        // Debug toggle
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            gradient: _showDebugInfo
-                ? LinearGradient(
-                    colors: [Colors.orange, Colors.orange.shade700])
-                : null,
-            color: _showDebugInfo ? null : Colors.grey.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: IconButton(
-            onPressed: () {
-              setState(() {
-                _showDebugInfo = !_showDebugInfo;
-              });
-            },
-            icon: Icon(
-              Icons.bug_report,
-              color: Colors.white,
-            ),
-            tooltip: 'Toggle Debug Info',
-          ),
-        ),
-
         // Enhanced status indicators
-        _buildStatusIndicator('API', true, theme.onlineColor, theme),
-        const SizedBox(width: 8),
-        _buildStatusIndicator(
-            'WS',
-            _isWebSocketConnected,
-            _isWebSocketConnected ? theme.onlineColor : theme.offlineColor,
-            theme),
-        const SizedBox(width: 16),
+        if (_deviceType != DeviceType.phone) ...[
+          _buildStatusIndicator('API', true, theme.onlineColor, theme),
+          const SizedBox(width: 8),
+          _buildStatusIndicator(
+              'WS',
+              _isWebSocketConnected,
+              _isWebSocketConnected ? theme.onlineColor : theme.offlineColor,
+              theme),
+          const SizedBox(width: 16),
+        ],
 
         // Device selector for larger screens
-        if (_deviceType != DeviceType.phone) _buildDeviceSelector(theme),
+        if (_deviceType == DeviceType.desktop) _buildDeviceSelector(theme),
 
         // Action buttons
         _buildActionButtons(theme),
       ],
-      bottom: _deviceType != DeviceType.phone
+      bottom: _deviceType == DeviceType.desktop
           ? TabBar(
               controller: _tabController,
               indicatorColor: theme.accentColor,
@@ -655,9 +702,9 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                   : Colors.black.withOpacity(0.6),
               indicatorWeight: 3,
               tabs: [
-                Tab(icon: Icon(Icons.brush), text: 'PGM Editor'),
-                Tab(icon: Icon(Icons.list), text: 'Locations'),
-                Tab(icon: Icon(Icons.analytics), text: 'Analysis'),
+                Tab(icon: Icon(Icons.brush, size: 20), text: 'PGM Editor'),
+                Tab(icon: Icon(Icons.list, size: 20), text: 'Locations'),
+                Tab(icon: Icon(Icons.analytics, size: 20), text: 'Analysis'),
               ],
             )
           : null,
@@ -794,39 +841,41 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   Widget _buildActionButtons(ThemeService theme) {
     return Row(
       children: [
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            gradient: _hasUnsavedChanges
-                ? LinearGradient(
-                    colors: [Colors.orange.shade400, Colors.orange.shade600])
-                : null,
-            color: _hasUnsavedChanges ? null : Colors.grey.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: _hasUnsavedChanges ? theme.neonGlow : null,
+        if (_deviceType != DeviceType.phone) ...[
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(
+              gradient: _hasUnsavedChanges
+                  ? LinearGradient(
+                      colors: [Colors.orange.shade400, Colors.orange.shade600])
+                  : null,
+              color: _hasUnsavedChanges ? null : Colors.grey.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: _hasUnsavedChanges ? theme.neonGlow : null,
+            ),
+            child: IconButton(
+              icon: Icon(Icons.save, color: Colors.white, size: 18),
+              onPressed: _hasUnsavedChanges ? () => _saveMap() : null,
+              tooltip: 'Save Map',
+            ),
           ),
-          child: IconButton(
-            icon: Icon(Icons.save, color: Colors.white),
-            onPressed: _hasUnsavedChanges ? () => _saveMap() : null,
-            tooltip: 'Save Map',
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [Colors.blue.shade400, Colors.blue.shade600]),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: theme.elevationSmall,
+            ),
+            child: IconButton(
+              icon: Icon(Icons.refresh, color: Colors.white, size: 18),
+              onPressed: _selectedDeviceId != null
+                  ? () => _loadMapWithConfirmation(_selectedDeviceId!)
+                  : null,
+              tooltip: 'Refresh Map',
+            ),
           ),
-        ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-                colors: [Colors.blue.shade400, Colors.blue.shade600]),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: theme.elevationSmall,
-          ),
-          child: IconButton(
-            icon: Icon(Icons.refresh, color: Colors.white),
-            onPressed: _selectedDeviceId != null
-                ? () => _loadMapWithConfirmation(_selectedDeviceId!)
-                : null,
-            tooltip: 'Refresh Map',
-          ),
-        ),
+        ],
         _buildMenuButton(theme),
       ],
     );
@@ -841,48 +890,73 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         boxShadow: theme.elevationSmall,
       ),
       child: PopupMenuButton(
-        icon: Icon(Icons.more_vert, color: Colors.white),
+        icon: Icon(Icons.more_vert, color: Colors.white, size: 18),
         color: theme.isDarkMode ? const Color(0xFF262640) : Colors.white,
         itemBuilder: (context) => [
           PopupMenuItem(
             child: ListTile(
-              leading: Icon(Icons.folder, color: theme.accentColor),
-              title: Text('Saved Maps', style: theme.bodyMedium),
+              leading: Icon(Icons.folder, color: theme.accentColor, size: 18),
+              title: Text('Saved Maps',
+                  style: theme.bodyMedium.copyWith(fontSize: 12)),
               dense: true,
             ),
             onTap: () => _showSavedMaps(),
           ),
           PopupMenuItem(
             child: ListTile(
-              leading: Icon(Icons.rocket_launch, color: theme.accentColor),
-              title: Text('ROS2 Saved Maps', style: theme.bodyMedium),
+              leading:
+                  Icon(Icons.rocket_launch, color: theme.accentColor, size: 18),
+              title: Text('ROS2 Saved Maps',
+                  style: theme.bodyMedium.copyWith(fontSize: 12)),
               dense: true,
             ),
             onTap: () => _showROS2SavedMaps(),
           ),
+          if (_currentMap != null) ...[
+            PopupMenuItem(
+              child: ListTile(
+                leading: Icon(Icons.center_focus_strong,
+                    color: theme.successColor, size: 18),
+                title: Text('Center Map',
+                    style: theme.bodyMedium.copyWith(fontSize: 12)),
+                dense: true,
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                _centerMap();
+              },
+            ),
+            PopupMenuItem(
+              child: ListTile(
+                leading:
+                    Icon(Icons.fit_screen, color: theme.infoColor, size: 18),
+                title: Text('Fit to Screen',
+                    style: theme.bodyMedium.copyWith(fontSize: 12)),
+                dense: true,
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                _fitMapToScreen();
+              },
+            ),
+          ],
           PopupMenuItem(
             child: ListTile(
-              leading: Icon(Icons.clear_all, color: theme.errorColor),
-              title: Text('Clear All', style: theme.bodyMedium),
+              leading: Icon(Icons.clear_all, color: theme.errorColor, size: 18),
+              title: Text('Clear All',
+                  style: theme.bodyMedium.copyWith(fontSize: 12)),
               dense: true,
             ),
             onTap: _clearAllData,
           ),
           PopupMenuItem(
             child: ListTile(
-              leading: Icon(Icons.send, color: theme.successColor),
-              title: Text('Send to AGV', style: theme.bodyMedium),
+              leading: Icon(Icons.send, color: theme.successColor, size: 18),
+              title: Text('Send to AGV',
+                  style: theme.bodyMedium.copyWith(fontSize: 12)),
               dense: true,
             ),
             onTap: _sendMapToAGV,
-          ),
-          PopupMenuItem(
-            child: ListTile(
-              leading: Icon(Icons.info, color: theme.infoColor),
-              title: Text('Connection Info', style: theme.bodyMedium),
-              dense: true,
-            ),
-            onTap: _showConnectionInfo,
           ),
         ],
       ),
@@ -900,7 +974,27 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
 
         // Main responsive content
         Expanded(
-          child: _buildMainResponsiveContent(theme),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Update device type based on actual constraints
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                final newDeviceType = constraints.maxWidth > 1200
+                    ? DeviceType.desktop
+                    : constraints.maxWidth > 768
+                        ? DeviceType.tablet
+                        : DeviceType.phone;
+
+                if (newDeviceType != _deviceType) {
+                  setState(() {
+                    _deviceType = newDeviceType;
+                    _showSidebar = newDeviceType == DeviceType.desktop;
+                  });
+                }
+              });
+
+              return _buildMainResponsiveContent(theme);
+            },
+          ),
         ),
       ],
     );
@@ -923,7 +1017,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         // Sidebar
         if (_showSidebar)
           Container(
-            width: 300,
+            width: 280,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -951,40 +1045,12 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
 
         // Main content
         Expanded(
-          child: Column(
+          child: TabBarView(
+            controller: _tabController,
             children: [
-              // Tab bar
-              Container(
-                decoration: BoxDecoration(
-                  gradient: theme.glassMorphism.gradient,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: theme.isDarkMode
-                          ? Colors.white.withOpacity(0.1)
-                          : Colors.black.withOpacity(0.1),
-                    ),
-                  ),
-                ),
-                child: TabBar(
-                  controller: _tabController,
-                  labelColor: theme.accentColor,
-                  unselectedLabelColor: theme.isDarkMode
-                      ? Colors.white.withOpacity(0.6)
-                      : Colors.black.withOpacity(0.6),
-                  indicatorColor: theme.accentColor,
-                  indicatorWeight: 3,
-                  tabs: [
-                    Tab(icon: Icon(Icons.brush), text: 'PGM Editor'),
-                    Tab(icon: Icon(Icons.list), text: 'Locations'),
-                    Tab(icon: Icon(Icons.analytics), text: 'Analysis'),
-                  ],
-                ),
-              ),
-
-              // Content
-              Expanded(
-                child: _buildMainContent(theme),
-              ),
+              _buildPGMEditor(theme),
+              _buildLocationsView(theme),
+              _buildAnalysisView(theme),
             ],
           ),
         ),
@@ -992,7 +1058,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         // Properties panel
         if (_showPropertiesPanel)
           Container(
-            width: 280,
+            width: 260,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -1008,9 +1074,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                       ],
               ),
               border: Border(
-                left: BorderSide(
-                  color: theme.accentColor.withOpacity(0.3),
-                ),
+                left: BorderSide(color: theme.accentColor.withOpacity(0.3)),
               ),
             ),
             child: _buildPropertiesPanel(theme),
@@ -1022,21 +1086,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   Widget _buildTabletLayout(ThemeService theme) {
     return Column(
       children: [
-        // Status bar
-        _buildStatusBar(theme),
-
-        // Content
-        Expanded(
-          child: _buildMainContent(theme),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPhoneLayout(ThemeService theme) {
-    return Column(
-      children: [
-        // Compact mode selector for mobile
+        // Tab selector for tablet
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
@@ -1050,32 +1100,80 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             ),
           ),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Text('Mode: ', style: theme.headlineMedium),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildCompactModeButton(
-                          'Default', AGVMode.defaultMode, theme),
-                      const SizedBox(width: 8),
-                      _buildCompactModeButton(
-                          'Auto', AGVMode.autonomous, theme),
-                      const SizedBox(width: 8),
-                      _buildCompactModeButton('Map', AGVMode.mapping, theme),
-                    ],
-                  ),
+              _buildTabButton('Editor', Icons.brush, 0, theme),
+              _buildTabButton('Locations', Icons.list, 1, theme),
+              _buildTabButton('Analysis', Icons.analytics, 2, theme),
+            ],
+          ),
+        ),
+
+        // Status bar
+        if (_selectedDeviceId != null) _buildStatusBar(theme),
+
+        // Content
+        Expanded(
+          child: IndexedStack(
+            index: _tabController.index,
+            children: [
+              _buildPGMEditor(theme),
+              _buildLocationsView(theme),
+              _buildAnalysisView(theme),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTabButton(
+      String label, IconData icon, int index, ThemeService theme) {
+    final isSelected = _tabController.index == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => _tabController.animateTo(index),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            gradient: isSelected ? theme.primaryGradient : null,
+            color: isSelected ? null : Colors.transparent,
+            borderRadius: theme.borderRadiusSmall,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? Colors.white : theme.accentColor,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: theme.bodySmall.copyWith(
+                  color: isSelected ? Colors.white : theme.accentColor,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPhoneLayout(ThemeService theme) {
+    return Column(
+      children: [
+        // Compact device selector for mobile
+        if (_connectedDevices.isNotEmpty) _buildCompactDeviceSelector(theme),
 
         // Compact status bar
         if (_selectedDeviceId != null) _buildCompactStatusBar(theme),
 
-        // Main content with better space usage
+        // Main content
         Expanded(
           child: _selectedDeviceId == null
               ? _buildSelectDeviceView(theme)
@@ -1085,50 +1183,14 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                   : _buildCompactMapEditor(theme),
         ),
 
-        // Compact bottom controls
-        _buildCompactBottomControls(theme),
+        // Bottom navigation for phone
+        if (_selectedDeviceId != null && _currentMap != null)
+          _buildPhoneBottomNavigation(theme),
       ],
     );
   }
 
-  Widget _buildCompactModeButton(
-      String label, AGVMode mode, ThemeService theme) {
-    final isSelected = _currentMode == mode;
-    return Container(
-      height: 32,
-      decoration: BoxDecoration(
-        gradient: isSelected ? theme.primaryGradient : null,
-        color: isSelected
-            ? null
-            : theme.isDarkMode
-                ? Colors.white.withOpacity(0.1)
-                : Colors.black.withOpacity(0.1),
-        borderRadius: theme.borderRadiusSmall,
-        boxShadow: isSelected ? theme.neonGlow : null,
-      ),
-      child: ElevatedButton(
-        onPressed: () => _setMode(mode),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          foregroundColor: isSelected ? Colors.white : theme.accentColor,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          minimumSize: const Size(60, 32),
-          shape: RoundedRectangleBorder(borderRadius: theme.borderRadiusSmall),
-        ),
-        child: Text(label,
-            style: theme.bodySmall.copyWith(fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
-
-  void _setMode(AGVMode mode) {
-    setState(() {
-      _currentMode = mode;
-    });
-  }
-
-  Widget _buildCompactStatusBar(ThemeService theme) {
+  Widget _buildCompactDeviceSelector(ThemeService theme) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -1143,20 +1205,69 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       ),
       child: Row(
         children: [
+          Icon(Icons.device_hub, color: theme.accentColor, size: 16),
+          const SizedBox(width: 8),
+          Text('Device: ', style: theme.bodyMedium.copyWith(fontSize: 12)),
+          Expanded(
+            child: DropdownButton<String>(
+              value: _selectedDeviceId,
+              isDense: true,
+              isExpanded: true,
+              underline: Container(),
+              style: theme.bodyMedium.copyWith(fontSize: 12),
+              items: _connectedDevices.map((device) {
+                final deviceId = device['id']?.toString() ?? '';
+                final deviceName = device['name']?.toString() ?? deviceId;
+                return DropdownMenuItem<String>(
+                  value: deviceId,
+                  child: Text(deviceName, style: TextStyle(fontSize: 12)),
+                );
+              }).toList(),
+              onChanged: (deviceId) {
+                if (deviceId != null) {
+                  setState(() {
+                    _selectedDeviceId = deviceId;
+                    _currentMap = null;
+                    _hasUnsavedChanges = false;
+                  });
+                  _loadMapForDevice(deviceId);
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactStatusBar(ThemeService theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        gradient: theme.glassMorphism.gradient,
+        border: Border(
+          bottom: BorderSide(
+            color: theme.isDarkMode
+                ? Colors.white.withOpacity(0.1)
+                : Colors.black.withOpacity(0.1),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
           Container(
-            padding: const EdgeInsets.all(4),
+            padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               gradient: theme.primaryGradient,
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.device_hub, size: 16, color: Colors.white),
+            child: Icon(Icons.map, size: 12, color: Colors.white),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              _selectedDeviceId!,
-              style: theme.headlineMedium.copyWith(fontSize: 14),
-              overflow: TextOverflow.ellipsis,
+              '${_currentMap?.shapes.length ?? 0} locations',
+              style: theme.bodySmall.copyWith(fontSize: 11),
             ),
           ),
           if (_hasUnsavedChanges)
@@ -1169,28 +1280,54 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                   decoration: BoxDecoration(
                     color: Color.lerp(Colors.orange, Colors.orange.shade700,
                         _pulseController.value),
-                    borderRadius: theme.borderRadiusSmall,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.orange
-                            .withOpacity(0.3 + (_pulseController.value * 0.2)),
-                        blurRadius: 4,
-                        spreadRadius: 1,
-                      ),
-                    ],
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     'UNSAVED',
                     style: theme.bodySmall.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
+                      fontSize: 9,
                     ),
                   ),
                 );
               },
             ),
+          const SizedBox(width: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildMiniStatusIndicator('API', true, theme.onlineColor, theme),
+              const SizedBox(width: 4),
+              _buildMiniStatusIndicator(
+                  'WS',
+                  _isWebSocketConnected,
+                  _isWebSocketConnected
+                      ? theme.onlineColor
+                      : theme.offlineColor,
+                  theme),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStatusIndicator(
+      String label, bool connected, Color color, ThemeService theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 8,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -1202,18 +1339,20 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.map_outlined, size: 64, color: theme.errorColor),
-              const SizedBox(height: 16),
-              Text('No map data available', style: theme.headlineLarge),
+              Icon(Icons.map_outlined, size: 48, color: theme.errorColor),
+              const SizedBox(height: 12),
+              Text('No map data available', style: theme.headlineMedium),
               Text('Load a map to start editing', style: theme.bodyMedium),
             ],
           ),
         ),
       );
     }
+
     return Container(
       decoration: BoxDecoration(gradient: theme.backgroundGradient),
       child: EnhancedPGMMapEditor(
+        key: _mapEditorKey,
         mapData: _currentMap,
         onMapChanged: _onMapChanged,
         deviceId: _selectedDeviceId,
@@ -1221,7 +1360,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  Widget _buildCompactBottomControls(ThemeService theme) {
+  Widget _buildPhoneBottomNavigation(ThemeService theme) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -1237,12 +1376,10 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
+          _buildCompactControlButton(Icons.center_focus_strong, 'Center',
+              theme.successColor, _centerMap, theme),
           _buildCompactControlButton(
-              Icons.dashboard,
-              'Dashboard',
-              theme.infoColor,
-              () => Navigator.pushReplacementNamed(context, '/dashboard'),
-              theme),
+              Icons.fit_screen, 'Fit', theme.infoColor, _fitMapToScreen, theme),
           _buildCompactControlButton(
               Icons.save,
               'Save',
@@ -1251,16 +1388,14 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               theme),
           _buildCompactControlButton(
               Icons.refresh,
-              'Refresh',
+              'Reload',
               theme.accentColor,
               _selectedDeviceId != null
                   ? () => _loadMapWithConfirmation(_selectedDeviceId!)
                   : null,
               theme),
-          _buildCompactControlButton(Icons.send, 'Send', theme.successColor,
-              _currentMap != null ? _sendMapToAGV : null, theme),
-          _buildCompactControlButton(Icons.clear_all, 'Clear', theme.errorColor,
-              _currentMap != null ? _clearAllData : null, theme),
+          _buildCompactControlButton(Icons.more_vert, 'More', theme.accentColor,
+              () => _showPhoneOptionsMenu(theme), theme),
         ],
       ),
     );
@@ -1274,21 +1409,75 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             ? LinearGradient(colors: [color, color.withOpacity(0.8)])
             : null,
         color: onPressed == null ? Colors.grey.withOpacity(0.3) : null,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: onPressed != null
-            ? [
-                BoxShadow(
-                  color: color.withOpacity(0.3),
-                  blurRadius: 4,
-                  spreadRadius: 1,
-                ),
-              ]
-            : null,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: IconButton(
-        icon: Icon(icon, color: Colors.white),
+        icon: Icon(icon, color: Colors.white, size: 18),
         onPressed: onPressed,
         tooltip: tooltip,
+      ),
+    );
+  }
+
+  void _showPhoneOptionsMenu(ThemeService theme) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          gradient: theme.backgroundGradient,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.folder, color: theme.accentColor),
+              title: Text('Saved Maps'),
+              onTap: () {
+                Navigator.pop(context);
+                _showSavedMaps();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.rocket_launch, color: theme.accentColor),
+              title: Text('ROS2 Saved Maps'),
+              onTap: () {
+                Navigator.pop(context);
+                _showROS2SavedMaps();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.send, color: theme.successColor),
+              title: Text('Send to AGV'),
+              onTap: () {
+                Navigator.pop(context);
+                _sendMapToAGV();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.clear_all, color: theme.errorColor),
+              title: Text('Clear All'),
+              onTap: () {
+                Navigator.pop(context);
+                _clearAllData();
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }
@@ -1296,8 +1485,10 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   Widget _buildSelectDeviceView(ThemeService theme) {
     return Center(
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 400),
-        padding: const EdgeInsets.all(24),
+        constraints: BoxConstraints(
+          maxWidth: _deviceType == DeviceType.phone ? double.infinity : 400,
+        ),
+        padding: EdgeInsets.all(_deviceType == DeviceType.phone ? 16 : 24),
         child: ModernGlassCard(
           showGlow: true,
           glowColor: theme.accentColor,
@@ -1305,8 +1496,8 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 100,
-                height: 100,
+                width: _deviceType == DeviceType.phone ? 80 : 100,
+                height: _deviceType == DeviceType.phone ? 80 : 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
@@ -1318,21 +1509,27 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                   ),
                   boxShadow: theme.neonGlow,
                 ),
-                child: Icon(Icons.map, size: 50, color: theme.accentColor),
+                child: Icon(Icons.map,
+                    size: _deviceType == DeviceType.phone ? 40 : 50,
+                    color: theme.accentColor),
               ),
-              const SizedBox(height: 24),
-              Text('Select a Device',
-                  style: theme.displayLarge.copyWith(fontSize: 28)),
+              SizedBox(height: _deviceType == DeviceType.phone ? 16 : 24),
+              Text(
+                'Select a Device',
+                style: theme.displayLarge.copyWith(
+                    fontSize: _deviceType == DeviceType.phone ? 24 : 28),
+              ),
               const SizedBox(height: 8),
               Text(
                 'Choose a connected AGV device to edit its map',
-                style: theme.bodyLarge,
+                style: theme.bodyLarge.copyWith(
+                    fontSize: _deviceType == DeviceType.phone ? 14 : 16),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
+              SizedBox(height: _deviceType == DeviceType.phone ? 24 : 32),
               if (!_isWebSocketConnected) ...[
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -1345,12 +1542,13 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.warning, color: Colors.orange.shade700),
-                      const SizedBox(width: 12),
+                      Icon(Icons.warning,
+                          color: Colors.orange.shade700, size: 16),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'WebSocket disconnected. Real-time features unavailable.',
-                          style: theme.bodyMedium
+                          style: theme.bodySmall
                               .copyWith(color: Colors.orange.shade700),
                         ),
                       ),
@@ -1363,22 +1561,15 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
               ],
               if (_connectedDevices.isEmpty) ...[
-                Text('No connected devices found', style: theme.bodyLarge),
-                const SizedBox(height: 16),
-                ModernActionButton(
-                  label: 'Connect Devices',
-                  icon: Icons.add,
-                  onPressed: () => Navigator.pushNamed(context, '/connect'),
-                ),
-                const SizedBox(height: 8),
+                Text('No connected devices found', style: theme.bodyMedium),
+                const SizedBox(height: 12),
                 ModernActionButton(
                   label: 'Refresh Device List',
                   icon: Icons.refresh,
                   onPressed: _loadConnectedDevices,
-                  isSecondary: true,
                 ),
               ] else
                 _buildDeviceList(theme),
@@ -1408,8 +1599,8 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             child: Row(
               children: [
                 Container(
-                  width: 50,
-                  height: 50,
+                  width: _deviceType == DeviceType.phone ? 40 : 50,
+                  height: _deviceType == DeviceType.phone ? 40 : 50,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: deviceStatus == 'connected'
@@ -1419,7 +1610,8 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                             ]
                           : [Colors.grey.shade400, Colors.grey.shade600],
                     ),
-                    borderRadius: BorderRadius.circular(25),
+                    borderRadius: BorderRadius.circular(
+                        _deviceType == DeviceType.phone ? 20 : 25),
                     boxShadow: deviceStatus == 'connected'
                         ? [
                             BoxShadow(
@@ -1435,15 +1627,26 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                         ? Icons.smart_toy
                         : Icons.warning,
                     color: Colors.white,
+                    size: _deviceType == DeviceType.phone ? 20 : 24,
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(deviceName, style: theme.headlineMedium),
-                      Text('ID: $deviceId', style: theme.bodyMedium),
+                      Text(
+                        deviceName,
+                        style: theme.headlineMedium.copyWith(
+                            fontSize:
+                                _deviceType == DeviceType.phone ? 14 : 16),
+                      ),
+                      Text(
+                        'ID: $deviceId',
+                        style: theme.bodySmall.copyWith(
+                            fontSize:
+                                _deviceType == DeviceType.phone ? 11 : 12),
+                      ),
                       RoboticStatusIndicator(
                         status: deviceStatus,
                         label: deviceStatus.toUpperCase(),
@@ -1573,25 +1776,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  Widget _buildMainContent(ThemeService theme) {
-    if (_selectedDeviceId == null) {
-      return _buildSelectDeviceView(theme);
-    }
-
-    if (_isLoading) {
-      return ModernLoadingIndicator(message: 'Loading Map Data...', size: 60);
-    }
-
-    return TabBarView(
-      controller: _tabController,
-      children: [
-        _buildPGMEditor(theme),
-        _buildLocationsView(theme),
-        _buildAnalysisView(theme),
-      ],
-    );
-  }
-
   Widget _buildPGMEditor(ThemeService theme) {
     if (_currentMap == null) {
       return Center(
@@ -1612,10 +1796,14 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
       );
     }
 
-    return EnhancedPGMMapEditor(
-      mapData: _currentMap,
-      onMapChanged: _onMapChanged,
-      deviceId: _selectedDeviceId,
+    return Container(
+      decoration: BoxDecoration(gradient: theme.backgroundGradient),
+      child: EnhancedPGMMapEditor(
+        key: _mapEditorKey,
+        mapData: _currentMap,
+        onMapChanged: _onMapChanged,
+        deviceId: _selectedDeviceId,
+      ),
     );
   }
 
@@ -2184,17 +2372,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     );
   }
 
-  // Add these state variables at the top of the class
-  final GlobalKey _mapEditorKey = GlobalKey();
-
-  void _centerMap() {
-    if (_currentMap != null && _mapEditorKey.currentState != null) {
-      (_mapEditorKey.currentState as dynamic).centerMapView();
-    }
-  }
-
-  // Removed duplicate _loadMapForDevice method
-
   String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
     final difference = now.difference(timestamp);
@@ -2224,6 +2401,20 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             title: 'Quick Actions',
             icon: Icons.flash_on,
             children: [
+              ModernActionButton(
+                label: 'Center Map',
+                icon: Icons.center_focus_strong,
+                onPressed: _currentMap != null ? _centerMap : () {},
+                backgroundColor: theme.successColor,
+              ),
+              const SizedBox(height: 8),
+              ModernActionButton(
+                label: 'Fit to Screen',
+                icon: Icons.fit_screen,
+                onPressed: _currentMap != null ? _fitMapToScreen : () {},
+                backgroundColor: theme.infoColor,
+              ),
+              const SizedBox(height: 8),
               ModernActionButton(
                 label: 'Save Map',
                 icon: Icons.save,
@@ -2261,7 +2452,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         children: [
           Text('Selected Device', style: theme.headlineMedium),
           const SizedBox(height: 8),
-          // Device selector implementation would go here
+          Text(_selectedDeviceId ?? 'None selected', style: theme.bodyMedium),
         ],
       ),
     );
@@ -2733,55 +2924,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     }
   }
 
-  void _showConnectionInfo() async {
-    try {
-      final info = await _apiService.getConnectionInfo();
-
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Connection Information'),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildConnectionInfoRow(
-                    'Status', info['connected'] ? 'Connected' : 'Disconnected'),
-                _buildConnectionInfoRow('Base URL', info['baseUrl']),
-                _buildConnectionInfoRow('API URL', info['apiBaseUrl']),
-                _buildConnectionInfoRow('WebSocket URL', info['websocketUrl']),
-                if (info['serverInfo'] != null) ...[
-                  const SizedBox(height: 16),
-                  const Text('Server Info:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  _buildConnectionInfoRow(
-                      'Server Status', info['serverInfo']['status']),
-                ],
-                if (info['error'] != null) ...[
-                  const SizedBox(height: 16),
-                  const Text('Error:',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, color: Colors.red)),
-                  Text(info['error'],
-                      style: const TextStyle(color: Colors.red)),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      _showErrorSnackBar('Failed to get connection info: $e');
-    }
-  }
-
   void _showSavedMaps() {
     if (_selectedDeviceId == null) {
       _showErrorSnackBar('Please select a device first');
@@ -2823,30 +2965,6 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             _loadROS2SavedMap(mapName);
           },
         ),
-      ),
-    );
-  }
-
-  Widget _buildConnectionInfoRow(String label, String value, {Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              '$label:',
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(color: color),
-            ),
-          ),
-        ],
       ),
     );
   }

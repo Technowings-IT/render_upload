@@ -2,8 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/theme_service.dart';
-
-// 🚀 Modern Glass Card with Glow Effect
 class ModernGlassCard extends StatelessWidget {
   final Widget child;
   final double? width;

@@ -71,7 +71,10 @@ class _SplashScreenState extends State<SplashScreen>
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) =>
-              const LoginScreen(),
+              EnhancedLoginScreen(
+                isDarkMode: false, // Set to your desired initial value
+                onThemeToggle: (bool value) {}, // Provide a callback function
+              ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
               opacity: animation,

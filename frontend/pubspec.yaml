@@ -105,7 +105,7 @@ flutter:
 
   # Assets
   assets:
-    # - assets/images/
+    - assets/login_logo.png
     # - assets/icons/
     - assets/app_logo.png
     - assets/TW_WHITE.png
