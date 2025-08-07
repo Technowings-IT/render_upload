@@ -66,8 +66,8 @@ async function startAllScripts() {
         
         // Step 2: Start slam.sh
         console.log('\n🗺️ Starting slam.sh...');
-        const slamResult = await executeScriptDirect('slam.sh', 'new_slam_map_' + Date.now());
-        console.log('✅ SLAM started:', slamResult);
+        const slAMResult = await executeScriptDirect('slam.sh', 'new_slam_map_' + Date.now());
+        console.log('✅ SLAM started:', slAMResult);
         
         // Wait a moment
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -75,7 +75,7 @@ async function startAllScripts() {
         // Step 3: Start nav2.sh (if desired)
         console.log('\n🚀 Starting nav2.sh...');
         try {
-            const navResult = await executeScriptDirect('nav2.sh', '/home/piros/fleet-management-system/ros_ws/src/amr/maps/map_1750065869.yaml params_file:=/home/piros/fleet-management-system/ros_ws/src/amr/config/nav2_params1.yaml use_sim_time:=False');
+            const navResult = await executeScriptDirect('nav2.sh', '/home/piros/fleet-management-system/ros_ws/src/AMR/maps/map_1750065869.yaml params_file:=/home/piros/fleet-management-system/ros_ws/src/AMR/config/nav2_params1.yaml use_sim_time:=False');
             console.log('✅ Navigation started:', navResult);
         } catch (navError) {
             console.log('⚠️ Navigation failed:', navError.message);

@@ -1,4 +1,4 @@
-// screens/dashboard_screen.dart - FIXED with Complete Order Management Integration
+// screens/dashboard_screen.dart - UPDATED with Simple Coordinate Order Creator
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -9,10 +9,7 @@ import '../models/map_data.dart';
 import 'profile_screen.dart';
 import 'map_page.dart'; // Your existing map page
 import 'control_page.dart';
-import '../widgets/enhanced_order_creation_dialog.dart';
-import '../widgets/order_table_widget.dart';
-import '../widgets/fleet_management_widget.dart';
-import '../widgets/interactive_map_order_creator.dart';
+import '../widgets/simple_coordinates_order_creator.dart';
 
 // ✅ ADD this extension for string capitalization
 extension StringCapitalization on String {
@@ -161,8 +158,14 @@ class _DashboardScreenState extends State<DashboardScreen>
       case 'order_created':
       case 'order_status_changed':
       case 'order_completed':
+      case 'coordinate_order_failure': // ✅ NEW: Handle coordinate order failures
         _loadOrdersForAllDevices();
         _loadSystemStats();
+        // ✅ NEW: Show restart popup for coordinate order failures
+        if (event['type'] == 'coordinate_order_failure' &&
+            event['showRestartPopup'] == true) {
+          _showCoordinateOrderRestartDialog(event);
+        }
         break;
     }
   }
@@ -174,6 +177,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
     });
   }
+
+  // ... (Keep all your existing data loading methods unchanged until order creation methods)
 
   Future<void> _loadDevices() async {
     try {
@@ -320,37 +325,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           },
         },
         'data': [],
-        'shapes': [
-          // Add some sample stations for testing
-          {
-            'id': 'station_pickup_1',
-            'name': 'pickup_1',
-            'type': 'pickup',
-            'points': [
-              {'x': -10.0, 'y': -5.0, 'z': 0.0},
-              {'x': -8.0, 'y': -5.0, 'z': 0.0},
-              {'x': -8.0, 'y': -3.0, 'z': 0.0},
-              {'x': -10.0, 'y': -3.0, 'z': 0.0},
-            ],
-            'sides': {'left': '', 'right': '', 'front': '', 'back': ''},
-            'color': 'FF00FF00', // Green
-            'createdAt': DateTime.now().toIso8601String(),
-          },
-          {
-            'id': 'station_drop_1',
-            'name': 'drop_1',
-            'type': 'drop',
-            'points': [
-              {'x': 8.0, 'y': 5.0, 'z': 0.0},
-              {'x': 10.0, 'y': 5.0, 'z': 0.0},
-              {'x': 10.0, 'y': 7.0, 'z': 0.0},
-              {'x': 8.0, 'y': 7.0, 'z': 0.0},
-            ],
-            'sides': {'left': '', 'right': '', 'front': '', 'back': ''},
-            'color': 'FF0000FF', // Blue
-            'createdAt': DateTime.now().toIso8601String(),
-          },
-        ],
+        'shapes': [],
         'version': 1,
       };
 
@@ -371,10 +346,58 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<void> _loadOrdersForAllDevices() async {
     for (final device in _connectedDevices) {
       try {
+        // Load regular orders
         final orders = await _apiService.getOrders(device['id']);
+
+        // ✅ ENHANCED: Also load simple coordinate orders
+        List<Map<String, dynamic>> allOrders = List.from(orders);
+
+        try {
+          final simpleOrdersResponse =
+              await _apiService.getSimpleOrders(device['id']);
+          if (simpleOrdersResponse['success'] == true &&
+              simpleOrdersResponse['orders'] != null) {
+            final simpleOrders = simpleOrdersResponse['orders'] as List;
+
+            // Add simple orders to the list with proper formatting
+            for (final simpleOrder in simpleOrders) {
+              allOrders.add({
+                'id': simpleOrder['id'],
+                'name': simpleOrder['name'],
+                'deviceId': device['id'],
+                'deviceName': device['name'],
+                'status': simpleOrder['status'] ?? 'pending',
+                'coordinates': simpleOrder['coordinates'] ?? [],
+                'currentCoordinate': simpleOrder['currentCoordinate'] ?? 0,
+                'createdAt': simpleOrder['createdAt'],
+                'completedAt': simpleOrder['completedAt'],
+                'type': 'coordinate', // Mark as coordinate order
+                'progress': {
+                  'currentStep': simpleOrder['currentCoordinate'] ?? 0,
+                  'percentage': simpleOrder['coordinates']?.isNotEmpty == true
+                      ? ((simpleOrder['currentCoordinate'] ?? 0) /
+                              simpleOrder['coordinates'].length *
+                              100)
+                          .round()
+                      : 0,
+                },
+              });
+            }
+
+            print(
+                '✅ Loaded ${simpleOrders.length} simple coordinate orders for ${device['id']}');
+          }
+        } catch (simpleOrderError) {
+          print(
+              '⚠️ Simple orders not available for ${device['id']}: $simpleOrderError');
+          // Continue with regular orders only
+        }
+
         setState(() {
-          _deviceOrders[device['id']] = orders;
+          _deviceOrders[device['id']] = allOrders;
         });
+
+        print('✅ Total orders loaded for ${device['id']}: ${allOrders.length}');
       } catch (e) {
         print('❌ Error loading orders for ${device['id']}: $e');
       }
@@ -482,26 +505,14 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ✅ FIXED: Complete fleet management navigation
-  void _navigateToCompleteFleetManagement() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CompleteFleetManagementWidget(
-          availableMaps: _availableMaps,
-          availableDevices: _connectedDevices,
-        ),
-      ),
-    );
-  }
-
-  // ✅ FIXED: Show station-based order creation dialog
-  void _showCreateOrderDialog() {
+  // ✅ SIMPLIFIED: Simple coordinate order creation only
+  void _showSimpleCoordinateOrderCreator() {
     if (_connectedDevices.isEmpty) {
       _showErrorSnackBar('No devices available. Connect a device first.');
       return;
     }
 
-    print('🎯 Opening order creation dialog...');
+    print('🎯 Opening simple coordinate order creator...');
     print(
         '🔗 Available devices: ${_connectedDevices.map((d) => '${d['name']}(${d['id']})').join(', ')}');
     print('🗺️ Available maps: ${_availableMaps.keys.join(', ')}');
@@ -516,152 +527,50 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
 
     if (selectedDeviceId == null) {
-      _showErrorSnackBar('No map data available. Create a map with stations first.');
-      return;
-    }
-
-    // ✅ FIXED: Show the enhanced order creation dialog
-    showDialog(
-      context: context,
-      builder: (context) => EnhancedOrderCreationDialog(
-        deviceId: selectedDeviceId!,
-        mapData: _availableMaps[selectedDeviceId]!,
-        onOrderCreated: (orderData) {
-          print('✅ Order created: ${orderData['name']}');
-          _createOrder(orderData);
-        },
-      ),
-    );
-  }
-
-  /// 🆕 NEW: Show order creation options
-  void _showOrderCreationOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Create Order',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 20),
-
-            // Station-Based Order Creation Option
-            ListTile(
-              leading: Container(
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.list_alt, color: Colors.green),
-              ),
-              title: Text('Station-Based Order'),
-              subtitle: Text('Select from and to stations with dropdowns'),
-              trailing: Icon(Icons.arrow_forward_ios),
-              onTap: () {
-                Navigator.pop(context);
-                _showCreateOrderDialog();
-              },
-            ),
-
-            Divider(),
-
-            // Interactive Map Creator Option
-            ListTile(
-              leading: Container(
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.map, color: Colors.blue),
-              ),
-              title: Text('Interactive Map Creator'),
-              subtitle: Text('Visually place waypoints on the map'),
-              trailing: Icon(Icons.arrow_forward_ios),
-              onTap: () {
-                Navigator.pop(context);
-                _showInteractiveMapOrderCreator();
-              },
-            ),
-
-            Divider(),
-
-            // Complete Fleet Management Option  
-            ListTile(
-              leading: Container(
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.purple.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.dashboard, color: Colors.purple),
-              ),
-              title: Text('Complete Fleet Management'),
-              subtitle: Text('Full order and station management dashboard'),
-              trailing: Icon(Icons.arrow_forward_ios),
-              onTap: () {
-                Navigator.pop(context);
-                _navigateToCompleteFleetManagement();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 🆕 NEW: Launch Interactive Map Order Creator
-  void _showInteractiveMapOrderCreator() {
-    if (_connectedDevices.isEmpty) {
-      _showErrorSnackBar('No devices available. Connect a device first.');
-      return;
-    }
-
-    // Find the first device with a map
-    String? selectedDeviceId;
-    MapData? selectedMapData;
-
-    for (final device in _connectedDevices) {
-      final deviceId = device['id'] as String;
-      if (_availableMaps.containsKey(deviceId)) {
-        selectedDeviceId = deviceId;
-        selectedMapData = _availableMaps[deviceId];
-        break;
-      }
-    }
-
-    if (selectedDeviceId == null || selectedMapData == null) {
       _showErrorSnackBar('No map data available. Create a map first.');
       return;
     }
 
-    print('🎯 Opening Interactive Map Order Creator...');
-    print('🤖 Selected device: $selectedDeviceId');
-    print('🗺️ Map data available: ${selectedMapData.shapes.length} shapes');
-
+    // ✅ SIMPLIFIED: Show only the simple coordinate order creator
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => InteractiveMapOrderCreator(
+        builder: (context) => SimpleCoordinateOrderCreator(
           deviceId: selectedDeviceId!,
-          mapData: selectedMapData!,
+          mapData: _availableMaps[selectedDeviceId]!,
           onOrderCreated: (orderData) {
-            print('✅ Order created via interactive map: ${orderData['name']}');
-            _createOrder(orderData);
+            print('✅ Simple coordinate order created: ${orderData['name']}');
+            _handleSimpleOrderCreated(orderData);
           },
         ),
       ),
     );
   }
 
+  // ✅ NEW: Handle simple coordinate order creation
+  Future<void> _handleSimpleOrderCreated(Map<String, dynamic> orderData) async {
+    try {
+      print('📝 Processing simple coordinate order: ${orderData['name']}');
+
+      // The order is already created by the SimpleCoordinateOrderCreator
+      // Just refresh our data and show success message
+
+      _showSuccessSnackBar(
+          '✅ Coordinate order "${orderData['name']}" created successfully with ${(orderData['coordinates'] as List).length} coordinates!');
+
+      // Refresh orders and stats
+      await Future.wait([
+        _loadOrdersForAllDevices(),
+        _loadSystemStats(),
+      ]);
+    } catch (e) {
+      _showErrorSnackBar('❌ Error processing coordinate order: $e');
+    }
+  }
+
   void _showCreateOrderForDevice(String deviceId) {
     if (!_availableMaps.containsKey(deviceId)) {
       _showErrorSnackBar(
-          'No map available for this device. Create a map with stations first.');
+          'No map available for this device. Create a map first.');
       return;
     }
 
@@ -670,42 +579,105 @@ class _DashboardScreenState extends State<DashboardScreen>
       orElse: () => {'id': deviceId, 'name': deviceId},
     );
 
-    // Show choice dialog: Traditional or Interactive
+    print(
+        '📱 Creating coordinate order for device: ${device['name']} ($deviceId)');
+
+    // ✅ SIMPLIFIED: Direct to coordinate order creator
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => SimpleCoordinateOrderCreator(
+          deviceId: deviceId,
+          mapData: _availableMaps[deviceId]!,
+          onOrderCreated: (orderData) {
+            print(
+                '✅ Coordinate order created for device $deviceId: ${orderData['name']}');
+            _handleSimpleOrderCreated(orderData);
+          },
+        ),
+      ),
+    );
+  }
+
+  // ✅ NEW: Show restart dialog for coordinate order failures
+  void _showCoordinateOrderRestartDialog(Map<String, dynamic> event) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text('❌ Order Execution Failed'),
+        content: Text(
+          'Navigation to coordinate ${event['failedCoordinate']} failed:\n\n${event['error']}\n\nWould you like to restart the order from the beginning?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              await _restartCoordinateOrder(event['orderId']);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: Text('Restart Order'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Show delete order confirmation dialog
+  void _showDeleteOrderDialog(Map<String, dynamic> order) {
+    final orderName = order['name'] ?? 'Unnamed Order';
+    final orderType = (order['coordinates'] as List?)?.isNotEmpty == true
+        ? 'coordinate order'
+        : 'order';
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Create Order for ${device['name']}'),
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Delete Order'),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Choose order creation method:'),
-            SizedBox(height: 16),
-
-            // Traditional method
-            Card(
-              child: ListTile(
-                leading: Icon(Icons.list, color: Colors.blue),
-                title: Text('Station-Based Order'),
-                subtitle: Text('Select from pre-defined stations'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _showTraditionalOrderCreation(deviceId, device);
-                },
+            Text(
+              'Are you sure you want to delete this $orderType?',
+              style: TextStyle(fontSize: 16),
+            ),
+            SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Order: $orderName',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text('Device: ${order['deviceName'] ?? order['deviceId']}'),
+                  Text(
+                      'Status: ${(order['status'] ?? 'pending').toUpperCase()}'),
+                ],
               ),
             ),
-
-            SizedBox(height: 8),
-
-            // Interactive method
-            Card(
-              child: ListTile(
-                leading: Icon(Icons.touch_app, color: Colors.green),
-                title: Text('Interactive Map Order'),
-                subtitle: Text('Click on map to add coordinates'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _showInteractiveOrderCreation(deviceId);
-                },
+            SizedBox(height: 12),
+            Text(
+              '⚠️ This action cannot be undone!',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
@@ -715,90 +687,141 @@ class _DashboardScreenState extends State<DashboardScreen>
             onPressed: () => Navigator.of(context).pop(),
             child: Text('Cancel'),
           ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _deleteOrder(order);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Delete'),
+          ),
         ],
       ),
     );
   }
 
-  // ✅ FIXED: Show traditional order creation with proper dialog
-  void _showTraditionalOrderCreation(
-      String deviceId, Map<String, dynamic> device) {
-    showDialog(
-      context: context,
-      builder: (context) => EnhancedOrderCreationDialog(
-        deviceId: deviceId,
-        mapData: _availableMaps[deviceId]!,
-        onOrderCreated: (orderData) {
-          print('✅ Order created for device $deviceId: ${orderData['name']}');
-          _createOrder(orderData);
-        },
-      ),
-    );
-  }
-
-  void _showInteractiveOrderCreation(String deviceId) {
-    if (!_availableMaps.containsKey(deviceId)) {
-      _showErrorSnackBar('No map available for this device.');
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => InteractiveMapOrderCreator(
-          deviceId: deviceId,
-          mapData: _availableMaps[deviceId]!,
-          onOrderCreated: (order) {
-            _createOrder(order);
-            Navigator.of(context).pop(); // Go back to dashboard
-          },
-        ),
-      ),
-    );
-  }
-
-  // ✅ FIXED: Create order with proper API integration
-  Future<void> _createOrder(Map<String, dynamic> orderData) async {
+  // ✅ NEW: Delete order
+  Future<void> _deleteOrder(Map<String, dynamic> order) async {
     try {
-      print('📝 Creating order: ${orderData['name']} for device: ${orderData['deviceId']}');
-      
-      // Ensure waypoints are in the correct format
-      final waypoints = (orderData['waypoints'] as List<dynamic>? ?? [])
-          .map<Map<String, dynamic>>((wp) => {
-                'name': wp['name'] ?? 'Waypoint',
-                'type': wp['type'] ?? 'waypoint',
-                'position': {
-                  'x': (wp['position']?['x'] ?? wp['coordinates']?['x'] ?? 0.0).toDouble(),
-                  'y': (wp['position']?['y'] ?? wp['coordinates']?['y'] ?? 0.0).toDouble(),
-                  'z': (wp['position']?['z'] ?? wp['coordinates']?['z'] ?? 0.0).toDouble(),
-                },
-                'orientation': (wp['orientation'] ?? 0.0).toDouble(),
-                'metadata': wp['metadata'] ?? {},
-              })
-          .toList();
+      final orderId = order['id'];
+      final deviceId = order['deviceId'];
+      final coordinates = order['coordinates'] as List? ?? [];
+      final isCoordinateOrder = coordinates.isNotEmpty;
 
-      final response = await _apiService.createOrder(
-        deviceId: orderData['deviceId'],
-        name: orderData['name'] ?? 'New Order',
-        waypoints: waypoints,
-        priority: orderData['priority'] ?? 0,
-        description: orderData['description'] ?? 'Created from dashboard',
-      );
+      if (orderId == null || deviceId == null) {
+        _showErrorSnackBar('Invalid order or device ID');
+        return;
+      }
+
+      print(
+          '🗑️ Deleting ${isCoordinateOrder ? 'coordinate' : 'regular'} order: $orderId from device: $deviceId');
+
+      Map<String, dynamic> response;
+
+      if (isCoordinateOrder) {
+        // Delete coordinate order from simple orders API
+        response = await _apiService.deleteSimpleOrder(deviceId, orderId);
+      } else {
+        // Delete regular order from orders API
+        response = await _apiService.deleteOrder(deviceId, orderId);
+      }
 
       if (response['success'] == true) {
+        print('✅ Order deleted successfully from backend');
+
+        // ✅ FIXED: Force immediate UI update by calling setState
+        setState(() {
+          // Remove the order from local state immediately for instant UI response
+          if (_deviceOrders.containsKey(deviceId)) {
+            _deviceOrders[deviceId]!.removeWhere((o) => o['id'] == orderId);
+            print(
+                '🔄 Removed order from local state: ${_deviceOrders[deviceId]!.length} orders remaining');
+          }
+        });
+
         _showSuccessSnackBar(
-            '✅ Order "${orderData['name']}" created successfully with ${waypoints.length} waypoints!');
-        
-        // Refresh orders and stats
-        await Future.wait([
-          _loadOrdersForAllDevices(),
-          _loadSystemStats(),
-        ]);
+            '✅ Order "${order['name']}" deleted successfully!');
+
+        // ✅ FIXED: Refresh data from backend to ensure consistency
+        try {
+          await _loadOrdersForAllDevices();
+          await _loadSystemStats();
+          print('🔄 Backend data refreshed successfully');
+        } catch (refreshError) {
+          print('⚠️ Error refreshing data after deletion: $refreshError');
+          // UI is already updated, so this is not critical
+        }
       } else {
-        _showErrorSnackBar('❌ Failed to create order: ${response['error']}');
+        _showErrorSnackBar('❌ Failed to delete order: ${response['error']}');
       }
     } catch (e) {
-      _showErrorSnackBar('❌ Error creating order: $e');
+      print('❌ Error deleting order: $e');
+      _showErrorSnackBar('❌ Error deleting order: $e');
+    }
+  }
+
+  // ✅ NEW: Restart coordinate order
+  Future<void> _restartCoordinateOrder(String orderId) async {
+    try {
+      final response = await _apiService.restartOrder(orderId: orderId);
+
+      if (response['success'] == true) {
+        _showSuccessSnackBar('✅ Order restarted successfully!');
+        await _loadOrdersForAllDevices();
+      } else {
+        _showErrorSnackBar('❌ Failed to restart order: ${response['error']}');
+      }
+    } catch (e) {
+      _showErrorSnackBar('❌ Error restarting order: $e');
+    }
+  }
+
+  // ✅ NEW: Start coordinate order execution
+  Future<void> _startCoordinateOrder(Map<String, dynamic> order) async {
+    try {
+      final orderId = order['id'];
+      if (orderId == null) {
+        _showErrorSnackBar('Invalid order ID');
+        return;
+      }
+
+      print('🚀 Starting coordinate order: $orderId');
+
+      final response = await _apiService.startOrderExecution(orderId: orderId);
+
+      if (response['success'] == true) {
+        _showSuccessSnackBar('✅ Coordinate order started successfully!');
+        await _loadOrdersForAllDevices();
+        await _loadSystemStats();
+      } else {
+        _showErrorSnackBar('❌ Failed to start order: ${response['error']}');
+      }
+    } catch (e) {
+      print('❌ Error starting coordinate order: $e');
+      _showErrorSnackBar('❌ Error starting order: $e');
+    }
+  }
+
+  // ✅ NEW: Stop coordinate order execution
+  Future<void> _stopCoordinateOrderExecution(Map<String, dynamic> order) async {
+    try {
+      print('🛑 Stopping coordinate order execution');
+
+      final response = await _apiService.stopOrderExecution();
+
+      if (response['success'] == true) {
+        _showSuccessSnackBar('✅ Order execution stopped');
+        await _loadOrdersForAllDevices();
+        await _loadSystemStats();
+      } else {
+        _showErrorSnackBar('❌ Failed to stop execution: ${response['error']}');
+      }
+    } catch (e) {
+      print('❌ Error stopping execution: $e');
+      _showErrorSnackBar('❌ Error stopping execution: $e');
     }
   }
 
@@ -856,16 +879,34 @@ class _DashboardScreenState extends State<DashboardScreen>
               SizedBox(height: 8),
               Text('Priority: ${order['priority'] ?? 0}'),
               SizedBox(height: 8),
-              Text('Sequence Steps: ${order['waypoints']?.length ?? 0}'),
-              if (order['createdAt'] != null) ...[
-                SizedBox(height: 8),
-                Text('Created: ${order['createdAt']}'),
+              // ✅ UPDATED: Show coordinates instead of waypoints
+              if (order['coordinates'] != null) ...[
+                Text('Coordinates: ${(order['coordinates'] as List).length}'),
+                SizedBox(height: 16),
+                Text('Coordinate Sequence:',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                ...(order['coordinates'] as List<dynamic>)
+                    .asMap()
+                    .entries
+                    .map((entry) {
+                  final index = entry.key + 1;
+                  final coord = entry.value;
+                  return Text(
+                      '$index. ${coord['name']} (${coord['x'].toStringAsFixed(2)}, ${coord['y'].toStringAsFixed(2)})');
+                }).toList(),
+              ] else if (order['waypoints'] != null) ...[
+                Text('Sequence Steps: ${order['waypoints']?.length ?? 0}'),
+                if (order['createdAt'] != null) ...[
+                  SizedBox(height: 8),
+                  Text('Created: ${order['createdAt']}'),
+                ],
+                SizedBox(height: 16),
+                Text('Waypoints:',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                ...(order['waypoints'] as List<dynamic>? ?? [])
+                    .map((wp) => Text('• ${wp['name']} (${wp['type']})'))
+                    .toList(),
               ],
-              SizedBox(height: 16),
-              Text('Waypoints:', style: TextStyle(fontWeight: FontWeight.bold)),
-              ...(order['waypoints'] as List<dynamic>? ?? []).map((wp) => 
-                Text('• ${wp['name']} (${wp['type']})')
-              ).toList(),
             ],
           ),
         ),
@@ -928,7 +969,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Emergency Stop'),
-        content: Text('Stop all active orders and AGV movement immediately?'),
+        content: Text('Stop all active orders and AMR movement immediately?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -1005,6 +1046,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       case 'pending':
         return Colors.orange;
       case 'active':
+      case 'executing': // ✅ NEW: Add executing status
         return Colors.blue;
       case 'completed':
         return Colors.green;
@@ -1024,6 +1066,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       case 'pending':
         return Icons.pending;
       case 'active':
+      case 'executing': // ✅ NEW: Add executing status
         return Icons.play_circle;
       case 'completed':
         return Icons.check_circle;
@@ -1092,7 +1135,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('AGV Fleet Dashboard'),
+        title: Text('AMR Fleet Dashboard'),
         backgroundColor: Theme.of(context).primaryColor,
         elevation: 2,
         actions: [
@@ -1182,14 +1225,14 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget? _buildFloatingActionButton() {
     switch (_currentTabIndex) {
-      case 2: // Orders tab
-        return FloatingActionButton.extended(
-          onPressed: () => _showOrderCreationOptions(),
-          icon: Icon(Icons.add),
-          label: Text('Create Order'),
-          backgroundColor: Colors.green,
-          heroTag: "create_order",
-        );
+      // case 2: // Orders tab
+      //   return FloatingActionButton.extended(
+      //     onPressed: () => _showSimpleCoordinateOrderCreator(), // ✅ SIMPLIFIED
+      //     icon: Icon(Icons.add),
+      //     label: Text('Create Order'),
+      //     backgroundColor: Colors.green,
+      //     heroTag: "create_order",
+      //   );
       case 1: // Devices tab
         return FloatingActionButton(
           onPressed: () => Navigator.pushNamed(context, '/connect'),
@@ -1288,7 +1331,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ✅ FIXED: Orders tab with proper integration
+  // ✅ SIMPLIFIED: Orders tab with coordinate order creation
   Widget _buildOrdersTab() {
     return Column(
       children: [
@@ -1320,37 +1363,38 @@ class _DashboardScreenState extends State<DashboardScreen>
                             color: Colors.green.shade700,
                           ),
                         ),
-                        Text(
-                          'Create station-based orders with dropdowns and interactive map',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.green.shade600,
-                          ),
-                        ),
+                        // Text(
+                        //   'Coordinate orders are executed automatically in sequence',
+                        //   style: TextStyle(
+                        //     fontSize: 14,
+                        //     color: Colors.green.shade600,
+                        //   ),
+                        // ),
                       ],
                     ),
                   ),
                   Row(
                     children: [
                       ElevatedButton.icon(
-                        onPressed: _showCreateOrderDialog,
-                        icon: Icon(Icons.list_alt, size: 18),
-                        label: Text('Station Order'),
+                        onPressed:
+                            _showSimpleCoordinateOrderCreator, // ✅ SIMPLIFIED
+                        icon: Icon(Icons.touch_app, size: 18),
+                        label: Text('Create Coordinate Order'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
                         ),
                       ),
                       SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        onPressed: _navigateToCompleteFleetManagement,
-                        icon: Icon(Icons.dashboard, size: 18),
-                        label: Text('Fleet Mgmt'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purple,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
+                      // ElevatedButton.icon(
+                      //   onPressed: _navigateToCompleteFleetManagement,
+                      //   icon: Icon(Icons.dashboard, size: 18),
+                      //   label: Text('Fleet Mgmt'),
+                      //   style: ElevatedButton.styleFrom(
+                      //     backgroundColor: Colors.purple,
+                      //     foregroundColor: Colors.white,
+                      //   ),
+                      // ),
                     ],
                   ),
                 ],
@@ -1400,7 +1444,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                         ),
                         Text(
-                          'Manage maps and station locations for order creation',
+                          'Manage maps for coordinate-based order creation',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.purple.shade600,
@@ -1632,6 +1676,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  // ✅ SIMPLIFIED: Quick actions for coordinate orders only
   Widget _buildQuickActions() {
     return Card(
       child: Padding(
@@ -1649,23 +1694,17 @@ class _DashboardScreenState extends State<DashboardScreen>
               runSpacing: 8,
               children: [
                 _buildQuickActionButton(
-                  'Station Order',
-                  Icons.list_alt,
+                  'Create Coordinate Order',
+                  Icons.touch_app,
                   Colors.green,
-                  _showCreateOrderDialog,
+                  _showSimpleCoordinateOrderCreator, // ✅ SIMPLIFIED
                 ),
-                _buildQuickActionButton(
-                  'Interactive Order',
-                  Icons.map,
-                  Colors.blue,
-                  _showInteractiveMapOrderCreator,
-                ),
-                _buildQuickActionButton(
-                  'Fleet Management',
-                  Icons.dashboard,
-                  Colors.purple,
-                  _navigateToCompleteFleetManagement,
-                ),
+                // _buildQuickActionButton(
+                //   'Fleet Management',
+                //   Icons.dashboard,
+                //   Colors.purple,
+                //   _navigateToCompleteFleetManagement,
+                // ),
                 _buildQuickActionButton(
                   'Emergency Stop',
                   Icons.emergency,
@@ -1710,7 +1749,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           _buildStatDivider(),
           Expanded(
               child: _buildOrderStatItem(
-                  'Active', stats['active'] ?? 0, Colors.blue)),
+                  'Active',
+                  (stats['active'] ?? 0) + (stats['executing'] ?? 0),
+                  Colors.blue)), // ✅ Include executing
           _buildStatDivider(),
           Expanded(
               child: _buildOrderStatItem(
@@ -1757,8 +1798,10 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildMapStatsRow() {
     final totalMaps = _availableMaps.length;
-    final mapsWithStations = _availableMaps.values.where((map) => map.shapes.isNotEmpty).length;
-    final totalStations = _availableMaps.values.fold(0, (sum, map) => sum + map.shapes.length);
+    final mapsWithShapes =
+        _availableMaps.values.where((map) => map.shapes.isNotEmpty).length;
+    final totalShapes =
+        _availableMaps.values.fold(0, (sum, map) => sum + map.shapes.length);
 
     return Container(
       padding: EdgeInsets.all(12),
@@ -1769,16 +1812,15 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Row(
         children: [
           Expanded(
-              child: _buildOrderStatItem(
-                  'Maps', totalMaps, Colors.purple)),
+              child: _buildOrderStatItem('Maps', totalMaps, Colors.purple)),
           _buildStatDivider(),
           Expanded(
               child: _buildOrderStatItem(
-                  'With Stations', mapsWithStations, Colors.blue)),
+                  'With Shapes', mapsWithShapes, Colors.blue)),
           _buildStatDivider(),
           Expanded(
               child: _buildOrderStatItem(
-                  'Total Stations', totalStations, Colors.green)),
+                  'Total Shapes', totalShapes, Colors.green)),
           _buildStatDivider(),
           Expanded(
               child: _buildOrderStatItem(
@@ -1854,7 +1896,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             SizedBox(height: 8),
             Text(_connectedDevices.isEmpty
-                ? 'Connect your AGV devices to get started'
+                ? 'Connect your AMR devices to get started'
                 : 'Try changing the filter'),
             SizedBox(height: 16),
             ElevatedButton(
@@ -1881,9 +1923,11 @@ class _DashboardScreenState extends State<DashboardScreen>
     final isOnline = device['status'] == 'connected';
     final hasMap = _availableMaps.containsKey(deviceId);
     final orderCount = _deviceOrders[deviceId]?.length ?? 0;
-    final activeOrders =
-        _deviceOrders[deviceId]?.where((o) => o['status'] == 'active').length ??
-            0;
+    final activeOrders = _deviceOrders[deviceId]
+            ?.where(
+                (o) => o['status'] == 'active' || o['status'] == 'executing')
+            .length ??
+        0;
 
     return Card(
       margin: EdgeInsets.symmetric(vertical: 4),
@@ -1980,8 +2024,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () => _showCreateOrderForDevice(deviceId),
-                      icon: Icon(Icons.add_task, size: 16),
-                      label: Text('Create Order'),
+                      icon: Icon(Icons.touch_app, size: 16), // ✅ UPDATED icon
+                      label: Text('Create Coordinate Order'), // ✅ UPDATED label
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
@@ -2071,38 +2115,25 @@ class _DashboardScreenState extends State<DashboardScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.assignment, size: 64, color: Colors.grey),
+            Icon(Icons.touch_app,
+                size: 64, color: Colors.grey), // ✅ UPDATED icon
             SizedBox(height: 16),
             Text(
-              'No Orders Created Yet',
+              'No Coordinate Orders Created Yet',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8),
-            Text('Create your first station-based order to get started'),
+            Text(
+                'Create your first coordinate order by tapping on the map'), // ✅ UPDATED text
             SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _showCreateOrderDialog,
-                  icon: Icon(Icons.list_alt),
-                  label: Text('Station Order'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-                SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: _navigateToCompleteFleetManagement,
-                  icon: Icon(Icons.dashboard),
-                  label: Text('Fleet Management'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
+            ElevatedButton.icon(
+              onPressed: _showSimpleCoordinateOrderCreator, // ✅ SIMPLIFIED
+              icon: Icon(Icons.touch_app),
+              label: Text('Create Coordinate Order'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+              ),
             ),
           ],
         ),
@@ -2122,7 +2153,13 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildDetailedOrderCard(Map<String, dynamic> order) {
     final status = order['status'] ?? 'pending';
     final statusColor = _getOrderStatusColor(status);
+
+    // ✅ UPDATED: Handle both coordinates and waypoints
+    final coordinates = order['coordinates'] as List? ?? [];
     final waypoints = order['waypoints'] as List? ?? [];
+    final totalPoints =
+        coordinates.isNotEmpty ? coordinates.length : waypoints.length;
+
     final progress = order['progress'] as Map<String, dynamic>? ?? {};
 
     return Card(
@@ -2132,16 +2169,39 @@ class _DashboardScreenState extends State<DashboardScreen>
           backgroundColor: statusColor,
           child: Icon(_getOrderStatusIcon(status), color: Colors.white),
         ),
-        title: Text(
-          order['name'] ?? 'Order',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                order['name'] ?? 'Order',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            if (coordinates.isNotEmpty)
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade300),
+                ),
+                child: Text(
+                  'COORDINATE ORDER',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade700,
+                  ),
+                ),
+              ),
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Device: ${order['deviceName'] ?? order['deviceId']}'),
             Text(
-                'Waypoints: ${waypoints.length} • ${progress['percentage'] ?? 0}% complete'),
+                '${coordinates.isNotEmpty ? 'Coordinates' : 'Waypoints'}: $totalPoints • ${progress['percentage'] ?? 0}% complete'),
             SizedBox(height: 4),
             LinearProgressIndicator(
               value: (progress['percentage'] ?? 0) / 100.0,
@@ -2150,28 +2210,27 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ],
         ),
-        trailing: Container(
-          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: statusColor,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            status.toUpperCase(),
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+        trailing: _buildOrderActionButton(order),
         children: [
           Container(
             padding: EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (waypoints.isNotEmpty) ...[
+                if (coordinates.isNotEmpty) ...[
+                  Text(
+                    'Coordinate Sequence:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  ...coordinates.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final coordinate = entry.value;
+                    return _buildCoordinateSequenceItem(index + 1, coordinate,
+                        index < (order['currentCoordinate'] ?? 0));
+                  }),
+                  SizedBox(height: 16),
+                ] else if (waypoints.isNotEmpty) ...[
                   Text(
                     'Order Waypoints:',
                     style: TextStyle(fontWeight: FontWeight.bold),
@@ -2186,6 +2245,77 @@ class _DashboardScreenState extends State<DashboardScreen>
                   SizedBox(height: 16),
                 ],
                 _buildOrderActionButtons(order),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Build coordinate sequence item
+  Widget _buildCoordinateSequenceItem(
+      int step, Map<String, dynamic> coordinate, bool isCompleted) {
+    final name = coordinate['name'] ?? 'Coordinate $step';
+    final x = coordinate['x']?.toStringAsFixed(2) ?? '0.00';
+    final y = coordinate['y']?.toStringAsFixed(2) ?? '0.00';
+
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 2),
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color:
+            isCompleted ? Colors.green.withOpacity(0.2) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isCompleted ? Colors.green : Colors.grey.shade300,
+          width: isCompleted ? 2 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: isCompleted ? Colors.green : Colors.grey.shade400,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: isCompleted
+                  ? Icon(Icons.check, color: Colors.white, size: 16)
+                  : Text(
+                      step.toString(),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+            ),
+          ),
+          SizedBox(width: 12),
+          Icon(Icons.place, color: Colors.blue, size: 20),
+          SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isCompleted ? Colors.green : Colors.black87,
+                  ),
+                ),
+                Text(
+                  'COORDINATE ($x, $y)',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
           ),
@@ -2266,53 +2396,181 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildOrderActionButtons(Map<String, dynamic> order) {
     final status = order['status'] ?? 'pending';
+    final coordinates = order['coordinates'] as List? ?? [];
+    final isCoordinateOrder = coordinates.isNotEmpty;
+    final canDelete = status == 'pending' ||
+        status == 'completed' ||
+        status == 'failed' ||
+        status == 'cancelled';
 
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () => _showOrderDetails(order),
-            icon: Icon(Icons.info),
-            label: Text('Details'),
+        // Primary action buttons row
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _showOrderDetails(order),
+                icon: Icon(Icons.info),
+                label: Text('Details'),
+              ),
+            ),
+            SizedBox(width: 8),
+            if (status == 'pending')
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: isCoordinateOrder
+                      ? () => _startCoordinateOrder(order)
+                      : () => _executeOrder(order),
+                  icon: Icon(Icons.play_arrow),
+                  label: Text(isCoordinateOrder ? 'Start' : 'Execute'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            if (status == 'active' || status == 'executing')
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: isCoordinateOrder
+                      ? () => _stopCoordinateOrderExecution(order)
+                      : () => _pauseOrder(order),
+                  icon: Icon(isCoordinateOrder ? Icons.stop : Icons.pause),
+                  label: Text(isCoordinateOrder ? 'Stop' : 'Pause'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        isCoordinateOrder ? Colors.red : Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            if (status == 'paused')
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: isCoordinateOrder
+                      ? () => _startCoordinateOrder(order)
+                      : () => _executeOrder(order),
+                  icon: Icon(Icons.play_arrow),
+                  label: Text('Resume'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+            if (status == 'failed' && isCoordinateOrder)
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _restartCoordinateOrder(order['id']),
+                  icon: Icon(Icons.refresh),
+                  label: Text('Restart'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ),
+          ],
+        ),
+
+        // Delete button row (only for eligible orders)
+        if (canDelete) ...[
+          SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _showDeleteOrderDialog(order),
+              icon: Icon(Icons.delete, color: Colors.red),
+              label: Text(
+                'Delete Order',
+                style: TextStyle(color: Colors.red),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.red),
+                backgroundColor: Colors.red.shade50,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ✅ NEW: Single action button for order card trailing
+  Widget _buildOrderActionButton(Map<String, dynamic> order) {
+    final status = order['status'] ?? 'pending';
+    final statusColor = _getOrderStatusColor(status);
+    final coordinates = order['coordinates'] as List? ?? [];
+    final isCoordinateOrder = coordinates.isNotEmpty;
+    final canDelete = status == 'pending' ||
+        status == 'completed' ||
+        status == 'failed' ||
+        status == 'cancelled';
+
+    // Show status badge and quick action button
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: statusColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            status.toUpperCase(),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         SizedBox(width: 8),
         if (status == 'pending')
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () => _executeOrder(order),
-              icon: Icon(Icons.play_arrow),
-              label: Text('Execute'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
+          ElevatedButton.icon(
+            onPressed: isCoordinateOrder
+                ? () => _startCoordinateOrder(order)
+                : () => _executeOrder(order),
+            icon: Icon(Icons.play_arrow, size: 16),
+            label: Text('Start', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              minimumSize: Size(70, 32),
             ),
           ),
-        if (status == 'active')
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () => _pauseOrder(order),
-              icon: Icon(Icons.pause),
-              label: Text('Pause'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-              ),
+        if (status == 'executing')
+          ElevatedButton.icon(
+            onPressed: isCoordinateOrder
+                ? () => _stopCoordinateOrderExecution(order)
+                : () => _pauseOrder(order),
+            icon: Icon(isCoordinateOrder ? Icons.stop : Icons.pause, size: 16),
+            label: Text(isCoordinateOrder ? 'Stop' : 'Pause',
+                style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isCoordinateOrder ? Colors.red : Colors.orange,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              minimumSize: Size(70, 32),
             ),
           ),
-        if (status == 'paused')
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () => _executeOrder(order),
-              icon: Icon(Icons.play_arrow),
-              label: Text('Resume'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
+        if (canDelete) ...[
+          SizedBox(width: 4),
+          IconButton(
+            onPressed: () => _showDeleteOrderDialog(order),
+            icon: Icon(Icons.delete, color: Colors.red, size: 20),
+            padding: EdgeInsets.all(4),
+            constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+            tooltip: 'Delete Order',
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.red.shade50,
+              shape: CircleBorder(),
             ),
           ),
+        ],
       ],
     );
   }
@@ -2330,7 +2588,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8),
-            Text('Create maps and define stations for order creation'),
+            Text(
+                'Create maps for coordinate-based order creation'), // ✅ UPDATED text
             SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () => Navigator.push(
@@ -2366,13 +2625,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       orElse: () => {'name': deviceId, 'id': deviceId},
     );
 
-    final stationCounts = <String, int>{};
+    final shapeCounts = <String, int>{};
     for (final shape in mapData.shapes) {
-      stationCounts[shape.type] = (stationCounts[shape.type] ?? 0) + 1;
+      shapeCounts[shape.type] = (shapeCounts[shape.type] ?? 0) + 1;
     }
-
-    final totalStations =
-        stationCounts.values.fold(0, (sum, count) => sum + count);
 
     return Card(
       margin: EdgeInsets.symmetric(vertical: 4),
@@ -2396,11 +2652,11 @@ class _DashboardScreenState extends State<DashboardScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Size: ${mapData.info.width}×${mapData.info.height}'),
-            Text('Stations: $totalStations available for orders'),
-            if (stationCounts.isNotEmpty)
+            Text('Available for coordinate order creation'), // ✅ UPDATED text
+            if (shapeCounts.isNotEmpty)
               Wrap(
                 spacing: 4,
-                children: stationCounts.entries.map((entry) {
+                children: shapeCounts.entries.map((entry) {
                   final color = _getStationTypeColor(entry.key);
                   return Chip(
                     label: Text(
@@ -2420,12 +2676,12 @@ class _DashboardScreenState extends State<DashboardScreen>
             IconButton(
               onPressed: () => _navigateToMap({'id': deviceId}),
               icon: Icon(Icons.edit),
-              tooltip: 'Edit Map & Stations',
+              tooltip: 'Edit Map',
             ),
             IconButton(
               onPressed: () => _showCreateOrderForDevice(deviceId),
-              icon: Icon(Icons.add_task),
-              tooltip: 'Create Order',
+              icon: Icon(Icons.touch_app), // ✅ UPDATED icon
+              tooltip: 'Create Coordinate Order', // ✅ UPDATED tooltip
             ),
           ],
         ),
@@ -2437,7 +2693,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     final activeOrders = <Map<String, dynamic>>[];
     _deviceOrders.forEach((deviceId, orders) {
       for (final order in orders) {
-        if (order['status'] == 'active' || order['status'] == 'pending') {
+        if (order['status'] == 'active' ||
+            order['status'] == 'pending' ||
+            order['status'] == 'executing') {
           activeOrders.add({
             ...order,
             'deviceId': deviceId,

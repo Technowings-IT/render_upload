@@ -21,7 +21,7 @@ class ROS2ScriptManager extends EventEmitter {
         
         // Raspberry Pi SSH configuration - can be updated via updatePiConfig
         this.piConfig = {
-            host: '192.168.0.64',
+            host: '192.168.0.81',
             username: 'piros',
             password: 'piros',
             port: 22
@@ -233,7 +233,7 @@ class ROS2ScriptManager extends EventEmitter {
                         
                     case 'navigation':
                         scriptName = 'nav2.sh';
-                        args = options.mapPath || '/home/piros/fleet-management-system/ros_ws/src/amr/maps/map_1750065869.yaml params_file:=/home/piros/fleet-management-system/ros_ws/src/amr/config/nav2_params1.yaml use_sim_time:=False';
+                        args = options.mapPath || '/home/piros/fleet-management-system/ros_ws/src/AMR/maps/map_1750065869.yaml params_file:=/home/piros/fleet-management-system/ros_ws/src/AMR/config/nav2_params1.yaml use_sim_time:=False';
                         break;
                         
                     case 'kill':
@@ -433,22 +433,78 @@ class ROS2ScriptManager extends EventEmitter {
         this.log(`Handling script command: ${command} with options: ${JSON.stringify(options)}`);
         
         try {
+            let result;
             switch (command) {
                 case 'start_robot_control':
-                    return await this.startRobotControl();
+                    result = await this.startRobotControl();
+                    break;
                     
                 case 'start_slam':
-                    return await this.startSLAM(options);
+                    result = await this.startSLAM(options);
+                    break;
                     
                 case 'start_navigation':
-                    return await this.startNavigation(options.mapPath, options);
+                    result = await this.startNavigation(options.mapPath, options);
+                    break;
+                    
+                case 'stop_robot_control':
+                    result = await this.stopProcess('robot_control');
+                    break;
+                    
+                case 'stop_slam':
+                    result = await this.stopProcess('slam');
+                    break;
+                    
+                case 'stop_navigation':
+                    result = await this.stopProcess('navigation');
+                    break;
                     
                 case 'stop_all_scripts':
-                    return await this.killAllRosProcesses();
+                    result = await this.killAllRosProcesses();
+                    break;
+                    
+                case 'kill_all_processes':
+                    result = await this.killAllRosProcesses();
+                    break;
+                    
+                case 'emergency_stop':
+                    result = await this.emergencyStop();
+                    break;
+                    
+                case 'get_status':
+                    result = this.getProcessStatus();
+                    break;
+                    
+                case 'get_detailed_status':
+                    result = this.getDetailedStatus();
+                    break;
+                    
+                case 'check_pi_status':
+                    result = await this.checkPiStatus();
+                    break;
+                    
+                case 'test_ssh_connectivity':
+                    result = await this.testSSHConnectivity();
+                    break;
+                    
+                case 'restart_robot_control':
+                    result = await this.restart('robot_control', options);
+                    break;
+                    
+                case 'restart_slam':
+                    result = await this.restart('slam', options);
+                    break;
+                    
+                case 'restart_navigation':
+                    result = await this.restart('navigation', options);
+                    break;
                     
                 default:
                     throw new Error(`Unknown script command: ${command}`);
             }
+            
+            this.log(`✅ Script command '${command}' executed successfully`);
+            return result;
         } catch (error) {
             this.log(`Script command failed: ${error.message}`);
             throw error;
@@ -872,7 +928,7 @@ class ROS2ScriptManager extends EventEmitter {
     // DEPLOYMENT TO RASPBERRY PI
     // ==========================================
 
-    async deployMapToRaspberryPi(mapName, piAddress = '192.168.0.64') {
+    async deployMapToRaspberryPi(mapName, piAddress = '192.168.0.81') {
         try {
             await this.log(`Deploying map ${mapName} to Raspberry Pi: ${piAddress}`);
             
@@ -884,7 +940,7 @@ class ROS2ScriptManager extends EventEmitter {
             await fs.access(pgmPath);
             
             // Copy files to Pi using SCP
-            const piMapDir = '/home/piros/fleet-management-system/ros_ws/src/amr/maps/';
+            const piMapDir = '/home/piros/fleet-management-system/ros_ws/src/AMR/maps/';
             const targetYamlPath = `${piMapDir}${mapName}.yaml`;
             const targetPgmPath = `${piMapDir}${mapName}.pgm`;
             

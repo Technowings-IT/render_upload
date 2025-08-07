@@ -126,7 +126,25 @@
         },
         "saveTimestamp": 1753166252114
       }
+    },
+    {
+      "name": "rnd_map",
+      "filePath": "/home/vidit-agrawal/ AMR-fleet-management /backend/storage/maps/piros_rnd_map.json",
+      "savedAt": "2025-08-07T12:39:29.507Z",
+      "fileSize": "102.17 KB",
+      "shapes": 1,
+      "mapType": "complete",
+      "metadata": {
+        "totalShapes": 1,
+        "hasOccupancyData": true,
+        "mapDimensions": {
+          "width": 164,
+          "height": 148,
+          "resolution": 0.05000000074505806
+        },
+        "saveTimestamp": 1754570369507
+      }
     }
   ],
-  "lastUpdated": "2025-07-22T06:37:32.128Z"
+  "lastUpdated": "2025-08-07T12:39:29.509Z"
 }

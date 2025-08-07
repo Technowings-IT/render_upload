@@ -52,7 +52,7 @@ echo ""
 echo "📦 CHECKING REQUIRED PACKAGES..."
 echo "--------------------------------"
 
-required_packages=("nav2_bringup" "slam_toolbox" "amr")
+required_packages=("nav2_bringup" "slam_toolbox" "AMR")
 
 for package in "${required_packages[@]}"; do
     if ros2 pkg list | grep -q "^$package$"; then
@@ -105,7 +105,7 @@ echo "🚀 CHECKING LAUNCH FILES..."
 echo "---------------------------"
 
 launch_files=(
-    "amr ros2_control_robot.launch.py"
+    "AMR ros2_control_robot.launch.py"
     "nav2_bringup bringup_launch.py"
     "slam_toolbox online_async_launch.py"
 )
@@ -125,7 +125,7 @@ echo ""
 echo "🗺️ CHECKING MAP FILES..."
 echo "------------------------"
 
-map_dir="/home/piros/fleet-management-system/ros_ws/src/amr/maps"
+map_dir="/home/piros/fleet-management-system/ros_ws/src/AMR/maps"
 if [ -d "$map_dir" ]; then
     echo "✅ Map directory exists: $map_dir"
     
@@ -158,8 +158,8 @@ echo "⚙️ CHECKING CONFIG FILES..."
 echo "---------------------------"
 
 config_files=(
-    "/home/piros/fleet-management-system/ros_ws/src/amr/config/nav2_params1.yaml"
-    "/home/piros/fleet-management-system/ros_ws/src/amr/config/mapper_params_online_async.yaml"
+    "/home/piros/fleet-management-system/ros_ws/src/AMR/config/nav2_params1.yaml"
+    "/home/piros/fleet-management-system/ros_ws/src/AMR/config/mapper_params_online_async.yaml"
 )
 
 for config_file in "${config_files[@]}"; do
@@ -284,11 +284,11 @@ if [ ! -d "/fleet-management-system/ros_ws/install" ]; then
     recommendations+=("Build your workspace: cd /fleet-management-system/ros_ws && colcon build")
 fi
 
-if ! ros2 pkg list | grep -q "amr"; then
-    recommendations+=("The 'amr' package is not found - check your workspace build")
+if ! ros2 pkg list | grep -q "AMR"; then
+    recommendations+=("The 'AMR' package is not found - check your workspace build")
 fi
 
-if [ ! -d "/home/piros/fleet-management-system/ros_ws/src/amr/maps" ]; then
+if [ ! -d "/home/piros/fleet-management-system/ros_ws/src/AMR/maps" ]; then
     recommendations+=("Create maps directory and add map files")
 fi
 

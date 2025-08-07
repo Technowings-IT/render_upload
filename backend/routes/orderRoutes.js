@@ -604,6 +604,66 @@ router.get('/:deviceId/:orderId/execution_status', async (req, res) => {
 });
 
 /**
+ * Delete an order
+ * DELETE /api/orders/:deviceId/:orderId
+ */
+router.delete('/:deviceId/:orderId', async (req, res) => {
+    try {
+        const { deviceId, orderId } = req.params;
+        
+        console.log(`🗑️ Deleting order: ${orderId} for device: ${deviceId}`);
+        
+        const orders = await loadOrders();
+        const orderIndex = orders.findIndex(o => o.id === orderId && o.deviceId === deviceId);
+        
+        if (orderIndex === -1) {
+            return res.status(404).json({
+                success: false,
+                error: 'Order not found'
+            });
+        }
+        
+        const order = orders[orderIndex];
+        
+        // Check if order can be deleted (not currently executing)
+        if (order.status === 'active' || order.status === 'executing') {
+            return res.status(400).json({
+                success: false,
+                error: 'Cannot delete an order that is currently executing. Stop the order first.'
+            });
+        }
+        
+        // Remove the order from the array
+        orders.splice(orderIndex, 1);
+        await saveOrders(orders);
+        
+        console.log(`✅ Order deleted successfully: ${orderId}`);
+        
+        res.json({
+            success: true,
+            message: 'Order deleted successfully',
+            deletedOrder: {
+                id: order.id,
+                name: order.name,
+                status: order.status,
+                deviceId: order.deviceId
+            },
+            timestamp: new Date().toISOString()
+        });
+        
+        // Broadcast order deletion
+        broadcastOrderUpdate(deviceId, orderId, 'deleted');
+        
+    } catch (error) {
+        console.error('❌ Error deleting order:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
  * Batch execute multiple orders
  * POST /api/orders/:deviceId/batch_execute
  */

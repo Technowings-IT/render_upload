@@ -67,11 +67,12 @@ class _OrdersTableWidgetState extends State<OrdersTableWidget> {
 
       print('📋 Orders response type: ${response.runtimeType}');
       print('📋 Response map success: ${responseMap['success']}');
-      print('📋 Orders count: ${(responseMap['orders'] as List?)?.length ?? 0}');
+      print(
+          '📋 Orders count: ${(responseMap['orders'] as List?)?.length ?? 0}');
 
       if (responseMap['success'] == true) {
         final ordersData = responseMap['orders'];
-        
+
         if (ordersData is List) {
           setState(() {
             _orders = List<Map<String, dynamic>>.from(ordersData);
@@ -79,7 +80,8 @@ class _OrdersTableWidgetState extends State<OrdersTableWidget> {
           });
           print('✅ Loaded ${_orders.length} orders successfully');
         } else {
-          throw Exception('Orders data is not a list: ${ordersData.runtimeType}');
+          throw Exception(
+              'Orders data is not a list: ${ordersData.runtimeType}');
         }
       } else {
         throw Exception(responseMap['error'] ?? 'Failed to load orders');
@@ -807,8 +809,8 @@ class _OrdersTableWidgetState extends State<OrdersTableWidget> {
   // Action methods
   Future<void> _executeOrder(Map<String, dynamic> order) async {
     try {
-      final response =
-          await _apiService.executeOrder(deviceId: order['deviceId'], orderId: order['id']);
+      final response = await _apiService.executeOrder(
+          deviceId: order['deviceId'], orderId: order['id']);
 
       if (response['success'] == true) {
         _showMessage('Order execution started', Colors.green);

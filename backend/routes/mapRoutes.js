@@ -24,12 +24,12 @@ const upload = multer({
 // SSH CONFIGURATION - Add to your config.js
 // ==========================================
 const SSH_CONFIG = {
-    host: process.env.RASPBERRY_PI_HOST || '192.168.0.64', // Default Pi IP
+    host: process.env.RASPBERRY_PI_HOST || '192.168.0.81', // Default Pi IP
     port: process.env.RASPBERRY_PI_PORT || 22,
     username: process.env.RASPBERRY_PI_USER || 'piros',
     password: process.env.RASPBERRY_PI_PASSWORD || 'piros',
     // Or use privateKey: require('fs').readFileSync('/path/to/private/key')
-    mapDirectory: process.env.RASPBERRY_PI_MAP_DIR || '/home/piros/fleet-management-system/ros_ws/src/amr/maps',
+    mapDirectory: process.env.RASPBERRY_PI_MAP_DIR || '/home/piros/fleet-management-system/ros_ws/src/AMR/maps',
     rosLaunchScript: process.env.RASPBERRY_PI_ROS_SCRIPT || '/home/piros/scripts/nav2.sh'
 };
 
@@ -1268,7 +1268,7 @@ async function deployMapToRaspberryPi(sshConfig, files, autoLoad = true, fullNav
     // Update SSH config with correct map directory
     const updatedSSHConfig = {
         ...sshConfig,
-        mapDirectory: '/home/piros/fleet-management-system/ros_ws/src/amr/maps/'
+        mapDirectory: '/home/piros/fleet-management-system/ros_ws/src/AMR/maps/'
     };
     
     try {
@@ -1429,7 +1429,7 @@ function transferFile(localPath, remotePath, sshConfig) {
         const { spawn } = require('child_process');
         
         // Target directory on Pi
-        const piMapDirectory = '/home/piros/fleet-management-system/ros_ws/src/amr/maps/';
+        const piMapDirectory = '/home/piros/fleet-management-system/ros_ws/src/AMR/maps/';
         const fullRemotePath = remotePath.startsWith('/') ? remotePath : `${piMapDirectory}${remotePath}`;
         
         const remoteHost = `${sshConfig.username}@${sshConfig.host}`;
@@ -1511,7 +1511,7 @@ function transferFileWithRsync(localPath, remotePath, sshConfig) {
         const { spawn } = require('child_process');
         
         // Target directory on Pi
-        const piMapDirectory = '/home/piros/fleet-management-system/ros_ws/src/amr/maps/';
+        const piMapDirectory = '/home/piros/fleet-management-system/ros_ws/src/AMR/maps/';
         const fullRemotePath = remotePath.startsWith('/') ? remotePath : `${piMapDirectory}${remotePath}`;
         
         const remoteHost = `${sshConfig.username}@${sshConfig.host}`;

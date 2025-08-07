@@ -224,7 +224,7 @@ function publishJoystick(normalizedX, normalizedY, deadman = false, maxLinearSpe
 }
 
 /**
- * ✅ ENHANCED: Goal publishing with better validation
+ * ✅ ENHANCED: Goal publishing with Twist message for /target_pose
  */
 function publishGoalWithId(x, y, orientation = 0, goalId = null) {
     try {
@@ -237,38 +237,25 @@ function publishGoalWithId(x, y, orientation = 0, goalId = null) {
             throw new Error(`Invalid coordinates: x=${x}, y=${y}, orientation=${orientation}`);
         }
         
-        const publisher = getOrCreatePublisher('/target_pose', 'geometry_msgs/msg/PoseStamped');
+        const publisher = getOrCreatePublisher('/target_pose', 'geometry_msgs/msg/Twist');
         
         const now = new Date();
         
         // ✅ ENHANCED: Generate goal ID with counter
         const finalGoalId = goalId || `goal_${Date.now()}_${++goalCounter}`;
         
-        // ✅ ENHANCED: Create quaternion from yaw orientation
-        const yaw = orientation;
-        const qz = Math.sin(yaw / 2);
-        const qw = Math.cos(yaw / 2);
-        
+        // ✅ CUSTOM: Create Twist message with x, y, and angular velocity for target_pose
+        // Since your ROS code expects Twist, we'll encode position in linear and orientation in angular
         const goalMsg = {
-            header: {
-                stamp: { 
-                    sec: Math.floor(now.getTime() / 1000), 
-                    nanosec: (now.getTime() % 1000) * 1000000 
-                },
-                frame_id: 'map'  // ✅ CRITICAL: Use map frame for navigation
+            linear: { 
+                x: parseFloat(x),    // Target X position
+                y: parseFloat(y),    // Target Y position
+                z: 0.0               // Not used for 2D navigation
             },
-            pose: {
-                position: { 
-                    x: parseFloat(x), 
-                    y: parseFloat(y), 
-                    z: 0.0 
-                },
-                orientation: {
-                    x: 0.0,
-                    y: 0.0,
-                    z: qz,  // ✅ ENHANCED: Z component of quaternion for yaw rotation
-                    w: qw   // ✅ ENHANCED: W component of quaternion
-                }
+            angular: { 
+                x: 0.0,              // Not used
+                y: 0.0,              // Not used
+                z: parseFloat(orientation)  // Target orientation (yaw)
             }
         };
         
@@ -291,7 +278,7 @@ function publishGoalWithId(x, y, orientation = 0, goalId = null) {
         console.log(`🎯 Published goal to /target_pose [${publishers['/target_pose']?.messageCount || 1}]:`);
         console.log(`   Goal ID: ${finalGoalId}`);
         console.log(`   Position: x=${x}m, y=${y}m, orientation=${orientation}rad (${(orientation * 180 / Math.PI).toFixed(1)}°)`);
-        console.log(`   Frame: map | Quaternion: z=${qz.toFixed(3)}, w=${qw.toFixed(3)}`);
+        console.log(`   Message Type: geometry_msgs/msg/Twist`);
         
         return { 
             success: true, 
@@ -299,11 +286,10 @@ function publishGoalWithId(x, y, orientation = 0, goalId = null) {
             x: parseFloat(x), 
             y: parseFloat(y), 
             orientation: orientation,
-            quaternion: { x: 0.0, y: 0.0, z: qz, w: qw }, // ✅ NEW
+            messageType: 'geometry_msgs/msg/Twist',
             messageCount: publishers['/target_pose']?.messageCount || 1,
             timestamp: now.toISOString(),
-            topic: '/target_pose',
-            frame: 'map' // ✅ NEW
+            topic: '/target_pose'
         };
         
     } catch (error) {
@@ -621,6 +607,13 @@ function clearActiveGoals() {
     return { cleared: count };
 }
 
+/**
+ * ✅ COMPATIBILITY: Legacy publishGoal function wrapper
+ */
+function publishGoal(x, y, orientation = 0) {
+    return publishGoalWithId(x, y, orientation);
+}
+
 // ✅ ENHANCED: Updated module exports
 module.exports = {
     initializePublishers,
@@ -628,7 +621,7 @@ module.exports = {
     getCurrentMaxSpeeds,  
     publishVelocity,
     publishJoystick,
-    // publishGoal,                    // Legacy compatibility
+    publishGoal,                    // ✅ FIXED: Legacy compatibility
     publishGoalWithId,              // ✅ Main goal publishing function
     publishMoveBaseGoal,            // ✅ NEW: Alternative goal publishing
     cancelCurrentGoal,      

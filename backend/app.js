@@ -13,6 +13,9 @@ const { initializeWebSocketServer } = require('./websocket/clientConnection');
 const EnhancedMessageHandler = require('./websocket/messageHandler');
 const messageHandler = new EnhancedMessageHandler();
 
+
+const simpleCoordinateRoutes = require('./routes/simple_coordinate_order');
+
 // FIXED: Import ROS2ScriptManager correctly
 const ROS2ScriptManager = require('./ros/utils/ros2ScriptManager');
 
@@ -141,6 +144,7 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use('/api/simple-orders', simpleCoordinateRoutes);
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -910,7 +914,7 @@ async function initializeApplication() {
                         id: 'piros', // Changed to match your device name
                         name: 'Primary AMR',
                         type: 'differential_drive',
-                        ipAddress: '192.168.0.64', // Your AMR's IP
+                        ipAddress: '192.168.0.81', // Your AMR's IP
                         capabilities: config.DEVICE.CAPABILITIES,
                         autoConnected: true
                     };

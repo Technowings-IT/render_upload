@@ -62,7 +62,7 @@ ws.on('message', function message(data) {
                     deviceId: 'piros',
                     command: 'start_navigation',
                     options: {
-                        mapPath: '/home/piros/fleet-management-system/ros_ws/src/amr/maps/map_1750065869.yaml'
+                        mapPath: '/home/piros/fleet-management-system/ros_ws/src/AMR/maps/map_1750065869.yaml'
                     }
                 };
                 ws.send(JSON.stringify(navCommand));

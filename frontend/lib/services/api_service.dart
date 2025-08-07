@@ -3172,6 +3172,201 @@ class ApiService {
     // Fallback - assume first connected device if extraction fails
     return 'piros'; // or throw an exception
   }
+
+  // ==========================================
+  // SIMPLE COORDINATE ORDER MANAGEMENT
+  // ==========================================
+
+  /// ✅ CREATE SIMPLE COORDINATE ORDER
+  Future<Map<String, dynamic>> createSimpleCoordinateOrder({
+    required String deviceId,
+    required String name,
+    required List<Map<String, dynamic>> coordinates,
+  }) async {
+    _ensureInitialized();
+    try {
+      print(
+          '📝 Creating simple coordinate order: $name with ${coordinates.length} coordinates');
+
+      final response = await _post('/api/simple-orders/create', {
+        'deviceId': deviceId,
+        'name': name,
+        'coordinates': coordinates,
+      });
+
+      if (response['success'] == true) {
+        print('✅ Simple coordinate order created successfully');
+        return response;
+      } else {
+        throw ApiException(
+            response['error'] ?? 'Failed to create simple coordinate order');
+      }
+    } catch (e) {
+      print('❌ Error creating simple coordinate order: $e');
+      if (e is ApiException) rethrow;
+      throw ApiException('Failed to create simple coordinate order: $e');
+    }
+  }
+
+  /// ✅ START ORDER EXECUTION
+  Future<Map<String, dynamic>> startOrderExecution({
+    required String orderId,
+  }) async {
+    _ensureInitialized();
+    try {
+      print('🚀 Starting execution for order: $orderId');
+
+      final response = await _post('/api/simple-orders/$orderId/start', {});
+
+      if (response['success'] == true) {
+        print('✅ Order execution started successfully');
+        return response;
+      } else {
+        throw ApiException(
+            response['error'] ?? 'Failed to start order execution');
+      }
+    } catch (e) {
+      print('❌ Error starting order execution: $e');
+      if (e is ApiException) rethrow;
+      throw ApiException('Failed to start order execution: $e');
+    }
+  }
+
+  /// ✅ PUBLISH GOAL TO TARGET_POSE
+  Future<Map<String, dynamic>> publishGoalToTargetPose({
+    required String deviceId,
+    required double x,
+    required double y,
+    required double orientation,
+  }) async {
+    _ensureInitialized();
+    try {
+      print('🎯 Publishing goal to /target_pose: ($x, $y) @ ${orientation}rad');
+
+      final response = await _post('/api/control/devices/$deviceId/goal', {
+        'x': x,
+        'y': y,
+        'orientation': orientation,
+      });
+
+      if (response['success'] == true) {
+        print('✅ Goal published to /target_pose successfully');
+        return response;
+      } else {
+        throw ApiException(response['error'] ?? 'Failed to publish goal');
+      }
+    } catch (e) {
+      print('❌ Error publishing goal: $e');
+      if (e is ApiException) rethrow;
+      throw ApiException('Failed to publish goal: $e');
+    }
+  }
+
+  /// ✅ GET EXECUTION STATUS
+  Future<Map<String, dynamic>> getExecutionStatus() async {
+    _ensureInitialized();
+    try {
+      final response = await _get('/api/simple-orders/execution-status');
+      return response;
+    } catch (e) {
+      print('❌ Error getting execution status: $e');
+      if (e is ApiException) rethrow;
+      throw ApiException('Failed to get execution status: $e');
+    }
+  }
+
+  /// ✅ STOP ORDER EXECUTION
+  Future<Map<String, dynamic>> stopOrderExecution() async {
+    _ensureInitialized();
+    try {
+      print('🛑 Stopping order execution');
+
+      final response = await _post('/api/simple-orders/stop-execution', {});
+
+      if (response['success'] == true) {
+        print('✅ Order execution stopped successfully');
+        return response;
+      } else {
+        throw ApiException(response['error'] ?? 'Failed to stop execution');
+      }
+    } catch (e) {
+      print('❌ Error stopping execution: $e');
+      if (e is ApiException) rethrow;
+      throw ApiException('Failed to stop execution: $e');
+    }
+  }
+
+  /// ✅ RESTART ORDER
+  Future<Map<String, dynamic>> restartOrder({
+    required String orderId,
+  }) async {
+    _ensureInitialized();
+    try {
+      print('🔄 Restarting order: $orderId');
+
+      final response = await _post('/api/simple-orders/$orderId/restart', {});
+
+      if (response['success'] == true) {
+        print('✅ Order restarted successfully');
+        return response;
+      } else {
+        throw ApiException(response['error'] ?? 'Failed to restart order');
+      }
+    } catch (e) {
+      print('❌ Error restarting order: $e');
+      if (e is ApiException) rethrow;
+      throw ApiException('Failed to restart order: $e');
+    }
+  }
+
+  /// ✅ GET SIMPLE ORDERS FOR DEVICE
+  Future<Map<String, dynamic>> getSimpleOrders(String deviceId) async {
+    _ensureInitialized();
+    try {
+      print('📋 Getting simple orders for device: $deviceId');
+
+      final response = await _get('/api/simple-orders/$deviceId');
+
+      if (response['success'] == true) {
+        print('✅ Loaded ${response['orders']?.length ?? 0} simple orders');
+        return response;
+      } else {
+        throw ApiException(response['error'] ?? 'Failed to load simple orders');
+      }
+    } catch (e) {
+      print('❌ Error loading simple orders: $e');
+      // Return partial success with empty orders list for graceful handling
+      return {
+        'success': false,
+        'error': e.toString(),
+        'orders': [],
+      };
+    }
+  }
+
+  /// ✅ DELETE SIMPLE COORDINATE ORDER
+  Future<Map<String, dynamic>> deleteSimpleOrder(
+      String deviceId, String orderId) async {
+    _ensureInitialized();
+    try {
+      print(
+          '🗑️ Deleting simple coordinate order: $orderId for device: $deviceId');
+
+      final response = await _delete('/api/simple-orders/$deviceId/$orderId');
+
+      if (response['success'] == true) {
+        print('✅ Simple coordinate order deleted successfully');
+        return response;
+      } else {
+        throw ApiException(
+            response['error'] ?? 'Failed to delete simple coordinate order');
+      }
+    } catch (e) {
+      print('❌ Error deleting simple coordinate order: $e');
+      throw ApiException('Failed to delete simple coordinate order: $e');
+    }
+  }
+
   // ==========================================
   // SYSTEM STATUS
   // ==========================================

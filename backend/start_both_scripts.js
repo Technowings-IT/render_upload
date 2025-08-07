@@ -21,10 +21,10 @@ async function startBothScripts() {
         
         // Step 2: Start SLAM
         console.log('\n🗺️ Step 2: Starting SLAM...');
-        const slamResult = await manager.startSLAM({ 
+        const slAMResult = await manager.startSLAM({ 
             mapName: 'new_slam_map_' + Date.now() 
         });
-        console.log('✅ SLAM Result:', JSON.stringify(slamResult, null, 2));
+        console.log('✅ SLAM Result:', JSON.stringify(slAMResult, null, 2));
         
         // Wait a bit for SLAM to start
         console.log('\n⏳ Waiting 3 seconds for SLAM to initialize...');

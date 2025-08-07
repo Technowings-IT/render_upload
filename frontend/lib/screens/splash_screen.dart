@@ -72,8 +72,8 @@ class _SplashScreenState extends State<SplashScreen>
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) =>
               EnhancedLoginScreen(
-                // isDarkMode: false, // Set to your desired initial value
-              ),
+                  // isDarkMode: false, // Set to your desired initial value
+                  ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
               opacity: animation,
@@ -237,7 +237,8 @@ class _SplashScreenState extends State<SplashScreen>
                                   ],
                                 ),
                                 child: Container(
-                                  padding: EdgeInsets.all(dimensions.logoPadding * 0.75),
+                                  padding: EdgeInsets.all(
+                                      dimensions.logoPadding * 0.75),
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     gradient: LinearGradient(
@@ -250,7 +251,9 @@ class _SplashScreenState extends State<SplashScreen>
                                     ),
                                     border: Border.all(
                                       color: Colors.redAccent.withOpacity(0.3),
-                                      width: deviceType == DeviceType.desktop ? 3 : 2,
+                                      width: deviceType == DeviceType.desktop
+                                          ? 3
+                                          : 2,
                                     ),
                                   ),
                                   child: Image.asset(
@@ -291,7 +294,8 @@ class _SplashScreenState extends State<SplashScreen>
                                 style: TextStyle(
                                   fontSize: dimensions.titleSize,
                                   fontWeight: FontWeight.bold,
-                                  letterSpacing: deviceType == DeviceType.desktop ? 4 : 3,
+                                  letterSpacing:
+                                      deviceType == DeviceType.desktop ? 4 : 3,
                                   color: Colors.white,
                                 ),
                               ),
@@ -299,7 +303,8 @@ class _SplashScreenState extends State<SplashScreen>
                             SizedBox(height: dimensions.spacing / 6),
                             Container(
                               height: deviceType == DeviceType.desktop ? 3 : 2,
-                              width: deviceType == DeviceType.desktop ? 120 : 100,
+                              width:
+                                  deviceType == DeviceType.desktop ? 120 : 100,
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
                                   colors: [
@@ -317,7 +322,8 @@ class _SplashScreenState extends State<SplashScreen>
                               style: TextStyle(
                                 color: Colors.white70,
                                 fontSize: dimensions.subtitleSize,
-                                letterSpacing: deviceType == DeviceType.desktop ? 2 : 1.5,
+                                letterSpacing:
+                                    deviceType == DeviceType.desktop ? 2 : 1.5,
                                 fontWeight: FontWeight.w300,
                               ),
                             ),
@@ -353,7 +359,10 @@ class _SplashScreenState extends State<SplashScreen>
                                     color: Colors.white,
                                     fontSize: dimensions.subtitleSize,
                                     fontWeight: FontWeight.w500,
-                                    letterSpacing: deviceType == DeviceType.desktop ? 1.5 : 1.2,
+                                    letterSpacing:
+                                        deviceType == DeviceType.desktop
+                                            ? 1.5
+                                            : 1.2,
                                   ),
                                 ),
                                 SizedBox(width: dimensions.spacing / 5),
@@ -368,7 +377,8 @@ class _SplashScreenState extends State<SplashScreen>
                               width: dimensions.progressWidth,
                               height: dimensions.progressHeight,
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(dimensions.progressHeight / 2),
+                                borderRadius: BorderRadius.circular(
+                                    dimensions.progressHeight / 2),
                                 color: Colors.white.withOpacity(0.1),
                               ),
                               child: Stack(
@@ -376,10 +386,12 @@ class _SplashScreenState extends State<SplashScreen>
                                   // Background glow
                                   Container(
                                     decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(dimensions.progressHeight / 2),
+                                      borderRadius: BorderRadius.circular(
+                                          dimensions.progressHeight / 2),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.redAccent.withOpacity(0.3),
+                                          color:
+                                              Colors.redAccent.withOpacity(0.3),
                                           blurRadius: dimensions.glowBlur / 5,
                                           spreadRadius: 1,
                                         ),
@@ -391,9 +403,11 @@ class _SplashScreenState extends State<SplashScreen>
                                     animation: _progressController,
                                     builder: (context, child) {
                                       return Container(
-                                        width: dimensions.progressWidth * _progressController.value,
+                                        width: dimensions.progressWidth *
+                                            _progressController.value,
                                         decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(dimensions.progressHeight / 2),
+                                          borderRadius: BorderRadius.circular(
+                                              dimensions.progressHeight / 2),
                                           gradient: const LinearGradient(
                                             colors: [
                                               Colors.redAccent,
@@ -483,7 +497,8 @@ class _SplashScreenState extends State<SplashScreen>
         return Row(
           children: List.generate(3, (index) {
             final delay = index * 0.3;
-            final opacity = ((_pulseController.value + delay) % 1.0) > 0.5 ? 1.0 : 0.3;
+            final opacity =
+                ((_pulseController.value + delay) % 1.0) > 0.5 ? 1.0 : 0.3;
             return Container(
               margin: EdgeInsets.symmetric(horizontal: dimensions.spacing / 30),
               child: Opacity(
@@ -504,12 +519,14 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  Widget _buildBackgroundParticle(int index, SplashResponsiveDimensions dimensions) {
+  Widget _buildBackgroundParticle(
+      int index, SplashResponsiveDimensions dimensions) {
     final random = (index * 12345) % 1000;
     final screenSize = MediaQuery.of(context).size;
     final left = (random % 100) / 100 * screenSize.width;
     final top = ((random ~/ 100) % 100) / 100 * screenSize.height;
-    final size = dimensions.particleBaseSize + (random % dimensions.particleVariance);
+    final size =
+        dimensions.particleBaseSize + (random % dimensions.particleVariance);
 
     return Positioned(
       left: left,
@@ -517,7 +534,8 @@ class _SplashScreenState extends State<SplashScreen>
       child: AnimatedBuilder(
         animation: _pulseController,
         builder: (context, child) {
-          final opacity = 0.1 + ((_pulseController.value + (index * 0.1)) % 1.0) * 0.2;
+          final opacity =
+              0.1 + ((_pulseController.value + (index * 0.1)) % 1.0) * 0.2;
           return Opacity(
             opacity: opacity,
             child: Container(

@@ -1,21 +1,20 @@
 [
   {
     "id": "piros",
-    "name": "Primary AMR",
+    "name": "mirai-x",
     "type": "differential_drive",
-    "ipAddress": "192.168.0.64",
+    "ipAddress": "192.168.0.81",
     "capabilities": [
       "mapping",
       "navigation",
-      "remote_control",
-      "autonomous",
-      "obstacle_avoidance",
-      "battery_monitoring"
+      "remote_control"
     ],
     "autoConnected": true,
     "connectedAt": "2025-08-07T09:48:11.396Z",
     "lastConnected": "2025-08-07T09:48:11.396Z",
-    "status": "connected",
-    "lastSaved": "2025-08-07T09:48:11.396Z"
+    "status": "disconnected",
+    "lastSaved": "2025-08-07T09:48:11.396Z",
+    "lastStartup": "2025-08-07T13:12:36.645Z",
+    "lastSeen": "2025-08-07T12:22:11.803Z"
   }
 ]

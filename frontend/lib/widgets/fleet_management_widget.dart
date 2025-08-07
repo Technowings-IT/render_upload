@@ -2,9 +2,9 @@
 import 'package:flutter/material.dart';
 import '../models/map_data.dart';
 import '../services/api_service.dart';
-import 'enhanced_order_creation_dialog.dart';
+// import 'enhanced_order_creation_dialog.dart';
 import 'order_table_widget.dart';
-import 'interactive_map_order_creator.dart';
+// import 'interactive_map_order_creator.dart';
 
 class CompleteFleetManagementWidget extends StatefulWidget {
   final String? deviceId; // null for all devices view
@@ -102,7 +102,7 @@ class _CompleteFleetManagementWidgetState
               children: [
                 _buildOrdersView(),
                 _buildStationsView(),
-                _buildMapView(),
+                // _buildMapView(),
               ],
             ),
           ),
@@ -457,42 +457,42 @@ class _CompleteFleetManagementWidgetState
     );
   }
 
-  Widget _buildMapView() {
-    if (widget.availableMaps.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.map_outlined, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'No Maps Available',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            Text('Load device maps to view station layout'),
-          ],
-        ),
-      );
-    }
+  // Widget _buildMapView() {
+  //   if (widget.availableMaps.isEmpty) {
+  //     return Center(
+  //       child: Column(
+  //         mainAxisAlignment: MainAxisAlignment.center,
+  //         children: [
+  //           Icon(Icons.map_outlined, size: 64, color: Colors.grey),
+  //           SizedBox(height: 16),
+  //           Text(
+  //             'No Maps Available',
+  //             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+  //           ),
+  //           Text('Load device maps to view station layout'),
+  //         ],
+  //       ),
+  //     );
+  //   }
 
-    final deviceId = _selectedDeviceId == 'all'
-        ? widget.availableMaps.keys.first
-        : _selectedDeviceId;
-    final mapData = widget.availableMaps[deviceId];
+  //   final deviceId = _selectedDeviceId == 'all'
+  //       ? widget.availableMaps.keys.first
+  //       : _selectedDeviceId;
+  //   final mapData = widget.availableMaps[deviceId];
 
-    if (mapData == null) {
-      return Center(child: Text('No map data for selected device'));
-    }
+  //   if (mapData == null) {
+  //     return Center(child: Text('No map data for selected device'));
+  //   }
 
-    return InteractiveMapOrderCreator(
-      deviceId: deviceId!,
-      mapData: mapData,
-      onOrderCreated: (orderData) {
-        _loadOrders();
-        _showMessage('Order created successfully!', Colors.green);
-      },
-    );
-  }
+  //   // return InteractiveMapOrderCreator(
+  //   //   deviceId: deviceId!,
+  //   //   mapData: mapData,
+  //   //   onOrderCreated: (orderData) {
+  //   //     _loadOrders();
+  //   //     _showMessage('Order created successfully!', Colors.green);
+  //   //   },
+  //   // );
+  // }
 
   Widget _buildFloatingActionButtons() {
     return Column(
@@ -564,17 +564,17 @@ class _CompleteFleetManagementWidgetState
       return;
     }
 
-    showDialog(
-      context: context,
-      builder: (context) => EnhancedOrderCreationDialog(
-        deviceId: selectedDeviceId!,
-        mapData: mapData,
-        onOrderCreated: (orderData) {
-          _loadOrders();
-          _showMessage('Order created successfully!', Colors.green);
-        },
-      ),
-    );
+    // showDialog(
+    //   context: context,
+    //   builder: (context) => EnhancedOrderCreationDialog(
+    //     deviceId: selectedDeviceId!,
+    //     mapData: mapData,
+    //     onOrderCreated: (orderData) {
+    //       _loadOrders();
+    //       _showMessage('Order created successfully!', Colors.green);
+    //     },
+    //   ),
+    // );
   }
 
   void _showInteractiveMapDialog() {
@@ -588,18 +588,18 @@ class _CompleteFleetManagementWidgetState
       return;
     }
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => InteractiveMapOrderCreator(
-          deviceId: selectedDeviceId!,
-          mapData: mapData,
-          onOrderCreated: (orderData) {
-            _loadOrders();
-            _showMessage('Order created successfully!', Colors.green);
-          },
-        ),
-      ),
-    );
+    // Navigator.of(context).push(
+    //   MaterialPageRoute(
+    //     builder: (context) => InteractiveMapOrderCreator(
+    //       deviceId: selectedDeviceId!,
+    //       mapData: mapData,
+    //       onOrderCreated: (orderData) {
+    //         _loadOrders();
+    //         _showMessage('Order created successfully!', Colors.green);
+    //       },
+    //     ),
+    //   ),
+    // );
   }
 
   void _showEmergencyStopDialog() {
