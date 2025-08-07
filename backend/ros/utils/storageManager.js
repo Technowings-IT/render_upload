@@ -1,4 +1,4 @@
-// utils/storageManager.js - Persistent Storage Manager for AGV Fleet Data
+// utils/storageManager.js - Persistent Storage Manager for AMR Fleet Data
 const fs = require('fs-extra');
 const path = require('path');
 const config = require('../../config');

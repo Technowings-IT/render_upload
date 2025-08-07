@@ -1,11 +1,11 @@
 [Unit]
-Description=AGV Fleet Management Backend
+Description=AMR Fleet Management Backend
 After=network.target
 
 [Service]
 Type=simple
 User=$USER
-WorkingDirectory=/path/to/your/agv-fleet-backend
+WorkingDirectory=/path/to/your/AMR-fleet-backend
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=ROS_DOMAIN_ID=0
@@ -14,8 +14,8 @@ Restart=always
 RestartSec=10
 
 # Logging
-StandardOutput=append:/path/to/your/agv-fleet-backend/storage/logs/systemd.log
-StandardError=append:/path/to/your/agv-fleet-backend/storage/logs/systemd-error.log
+StandardOutput=append:/path/to/your/AMR-fleet-backend/storage/logs/systemd.log
+StandardError=append:/path/to/your/AMR-fleet-backend/storage/logs/systemd-error.log
 
 [Install]
 WantedBy=multi-user.target

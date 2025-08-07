@@ -7,33 +7,35 @@ import 'api_service.dart';
 import 'web_socket_service.dart';
 
 class SmartConnectionService {
-  static final SmartConnectionService _instance = SmartConnectionService._internal();
+  static final SmartConnectionService _instance =
+      SmartConnectionService._internal();
   factory SmartConnectionService() => _instance;
   SmartConnectionService._internal();
 
   final ApiService _apiService = ApiService();
   final WebSocketService _webSocketService = WebSocketService();
-  
+
   // Connection state
   bool _isConnected = false;
   String? _connectedBackendUrl;
   String? _connectedWebSocketUrl;
   Map<String, dynamic>? _backendInfo;
-  
+
   // Discovery state
   bool _isDiscovering = false;
   List<Map<String, dynamic>> _discoveredBackends = [];
-  
+
   // Stream controllers
-  final StreamController<List<Map<String, dynamic>>> _backendsController = 
+  final StreamController<List<Map<String, dynamic>>> _backendsController =
       StreamController<List<Map<String, dynamic>>>.broadcast();
-  final StreamController<String> _connectionStatusController = 
+  final StreamController<String> _connectionStatusController =
       StreamController<String>.broadcast();
-  final StreamController<bool> _isConnectedController = 
+  final StreamController<bool> _isConnectedController =
       StreamController<bool>.broadcast();
 
   // Public streams
-  Stream<List<Map<String, dynamic>>> get discoveredBackends => _backendsController.stream;
+  Stream<List<Map<String, dynamic>>> get discoveredBackends =>
+      _backendsController.stream;
   Stream<String> get connectionStatus => _connectionStatusController.stream;
   Stream<bool> get isConnectedStream => _isConnectedController.stream;
 
@@ -48,7 +50,7 @@ class SmartConnectionService {
   // AUTO-DISCOVERY METHODS
   // ==========================================
 
-  /// Discover AGV backends on the current network
+  /// Discover AMR backends on the current network
   Future<List<Map<String, dynamic>>> discoverBackends({
     Duration timeout = const Duration(seconds: 15),
     bool useKnownIPs = true,
@@ -61,10 +63,10 @@ class SmartConnectionService {
 
     _isDiscovering = true;
     _discoveredBackends.clear();
-    _updateConnectionStatus('Discovering AGV backends...');
+    _updateConnectionStatus('Discovering AMR backends...');
 
     try {
-      print('🔍 Starting AGV backend discovery...');
+      print('🔍 Starting AMR backend discovery...');
 
       // Get device's current network info
       final networkInfo = await _getDeviceNetworkInfo();
@@ -77,19 +79,19 @@ class SmartConnectionService {
 
       final List<Future<List<Map<String, dynamic>>>> discoveryTasks = [];
 
-      // 1. Check known/common AGV backend IPs first
+      // 1. Check known/common AMR backend IPs first
       if (useKnownIPs) {
         discoveryTasks.add(_discoverKnownBackends(subnet));
       }
 
-      // 2. Scan network for AGV backends
+      // 2. Scan network for AMR backends
       if (useNetworkScan) {
         discoveryTasks.add(_scanNetworkForBackends(subnet, timeout));
       }
 
       // Wait for all discovery methods to complete
       final results = await Future.wait(discoveryTasks, eagerError: false);
-      
+
       // Combine and deduplicate results
       final allBackends = <Map<String, dynamic>>[];
       for (final backendList in results) {
@@ -97,7 +99,7 @@ class SmartConnectionService {
       }
 
       _discoveredBackends = _deduplicateBackends(allBackends);
-      
+
       // Sort by connection quality/response time
       _discoveredBackends.sort((a, b) {
         final aTime = a['responseTime'] as int? ?? 999999;
@@ -105,11 +107,11 @@ class SmartConnectionService {
         return aTime.compareTo(bTime);
       });
 
-      print('✅ Discovery complete. Found ${_discoveredBackends.length} AGV backends');
+      print(
+          '✅ Discovery complete. Found ${_discoveredBackends.length} AMR backends');
       _backendsController.add(_discoveredBackends);
-      
-      return _discoveredBackends;
 
+      return _discoveredBackends;
     } catch (e) {
       print('❌ Discovery error: $e');
       _updateConnectionStatus('Discovery failed: $e');
@@ -119,20 +121,21 @@ class SmartConnectionService {
     }
   }
 
-  /// Discover known/common AGV backend IPs
-  Future<List<Map<String, dynamic>>> _discoverKnownBackends(String subnet) async {
-    print('🎯 Checking known AGV backend IPs...');
-    
+  /// Discover known/common AMR backend IPs
+  Future<List<Map<String, dynamic>>> _discoverKnownBackends(
+      String subnet) async {
+    print('🎯 Checking known AMR backend IPs...');
+
     final backends = <Map<String, dynamic>>[];
-    
-    // Common AGV backend IP patterns
+
+    // Common AMR backend IP patterns
     final knownIPs = [
-      '${subnet}.79',    // Your current laptop
-      '${subnet}.136',   // Your current AGV
-      '${subnet}.100',   // Common backend IP
-      '${subnet}.101',   // Common backend IP
-      '${subnet}.110',   // Common backend IP
-      '${subnet}.200',   // High-range IP
+      '${subnet}.79', // Your current laptop
+      '${subnet}.136', // Your current AMR
+      '${subnet}.100', // Common backend IP
+      '${subnet}.101', // Common backend IP
+      '${subnet}.110', // Common backend IP
+      '${subnet}.200', // High-range IP
     ];
 
     for (final ip in knownIPs) {
@@ -150,16 +153,17 @@ class SmartConnectionService {
     return backends;
   }
 
-  /// Scan network for AGV backends
-  Future<List<Map<String, dynamic>>> _scanNetworkForBackends(String subnet, Duration timeout) async {
-    print('🔍 Scanning network for AGV backends...');
-    
+  /// Scan network for AMR backends
+  Future<List<Map<String, dynamic>>> _scanNetworkForBackends(
+      String subnet, Duration timeout) async {
+    print('🔍 Scanning network for AMR backends...');
+
     final backends = <Map<String, dynamic>>[];
-    
+
     // Define scan ranges (to avoid scanning entire subnet)
     final scanRanges = [
-      {'start': 70, 'end': 90},   // Common device range
-      {'start': 100, 'end': 120}, // Common server range  
+      {'start': 70, 'end': 90}, // Common device range
+      {'start': 100, 'end': 120}, // Common server range
       {'start': 200, 'end': 220}, // High-end range
     ];
 
@@ -168,9 +172,9 @@ class SmartConnectionService {
     for (final range in scanRanges) {
       for (int i = range['start']!; i <= range['end']!; i++) {
         final ip = '$subnet.$i';
-        
+
         scanTasks.add(_scanIPForBackend(ip, backends));
-        
+
         // Process in batches to avoid overwhelming network
         if (scanTasks.length >= 10) {
           await Future.wait(scanTasks, eagerError: false);
@@ -189,8 +193,9 @@ class SmartConnectionService {
     return backends;
   }
 
-  /// Test if an IP has an AGV backend
-  Future<void> _scanIPForBackend(String ip, List<Map<String, dynamic>> backends) async {
+  /// Test if an IP has an AMR backend
+  Future<void> _scanIPForBackend(
+      String ip, List<Map<String, dynamic>> backends) async {
     try {
       final backend = await _testBackendAtIP(ip);
       if (backend != null) {
@@ -202,27 +207,27 @@ class SmartConnectionService {
     }
   }
 
-  /// Test a specific IP for AGV backend
+  /// Test a specific IP for AMR backend
   Future<Map<String, dynamic>?> _testBackendAtIP(String ip) async {
-    final ports = [3000, 8080, 80]; // Common AGV backend ports
-    
+    final ports = [3000, 8080, 80]; // Common AMR backend ports
+
     for (final port in ports) {
       try {
         final stopwatch = Stopwatch()..start();
-        
+
         final response = await http.get(
           Uri.parse('http://$ip:$port/health'),
           headers: {'Accept': 'application/json'},
         ).timeout(Duration(seconds: 3));
-        
+
         stopwatch.stop();
 
         if (response.statusCode == 200) {
           try {
             final data = json.decode(response.body);
-            
-            // Check if this looks like an AGV fleet backend
-            if (_isAGVBackend(data)) {
+
+            // Check if this looks like an AMR fleet backend
+            if (_isAMRBackend(data)) {
               return {
                 'id': 'backend_${ip.replaceAll('.', '_')}',
                 'name': _extractBackendName(data, ip),
@@ -260,20 +265,20 @@ class SmartConnectionService {
         // Continue to next port
       }
     }
-    
+
     return null;
   }
 
-  /// Check if response data indicates AGV backend
-  bool _isAGVBackend(Map<String, dynamic> data) {
+  /// Check if response data indicates AMR backend
+  bool _isAMRBackend(Map<String, dynamic> data) {
     final dataStr = data.toString().toLowerCase();
     return data['success'] == true ||
-           data['status'] == 'healthy' ||
-           dataStr.contains('agv') ||
-           dataStr.contains('fleet') ||
-           dataStr.contains('robot') ||
-           dataStr.contains('ros') ||
-           data.containsKey('services');
+        data['status'] == 'healthy' ||
+        dataStr.contains('AMR') ||
+        dataStr.contains('fleet') ||
+        dataStr.contains('robot') ||
+        dataStr.contains('ros') ||
+        data.containsKey('services');
   }
 
   /// Extract backend name from health data
@@ -282,7 +287,7 @@ class SmartConnectionService {
       return data['serverInfo']['name'];
     }
     if (data['services']?['ros2'] != null) {
-      return 'AGV Fleet Backend';
+      return 'AMR Fleet Backend';
     }
     return 'Backend at $ip';
   }
@@ -290,7 +295,7 @@ class SmartConnectionService {
   /// Extract capabilities from health data
   List<String> _extractCapabilities(Map<String, dynamic> data) {
     final capabilities = <String>[];
-    
+
     if (data['services']?['ros2'] != null) capabilities.add('ROS2');
     if (data['services']?['webSocket'] != null) capabilities.add('WebSocket');
     if (data['services']?['storage'] != null) capabilities.add('Storage');
@@ -298,15 +303,15 @@ class SmartConnectionService {
     if (data['capabilities'] != null) {
       capabilities.addAll(List<String>.from(data['capabilities']));
     }
-    
+
     return capabilities.toSet().toList(); // Remove duplicates
   }
 
   /// Extract device count from health data
   int _extractDeviceCount(Map<String, dynamic> data) {
-    return data['services']?['storage']?['devicesCount'] ?? 
-           data['devices']?['total'] ?? 
-           0;
+    return data['services']?['storage']?['devicesCount'] ??
+        data['devices']?['total'] ??
+        0;
   }
 
   /// Extract ROS2 status from health data
@@ -326,20 +331,19 @@ class SmartConnectionService {
   Future<bool> connectToBestBackend() async {
     try {
       _updateConnectionStatus('Finding best backend...');
-      
+
       // Discover backends if not already done
       if (_discoveredBackends.isEmpty) {
         await discoverBackends();
       }
 
       if (_discoveredBackends.isEmpty) {
-        throw Exception('No AGV backends found on network');
+        throw Exception('No AMR backends found on network');
       }
 
       // Try to connect to the best backend (first in sorted list)
       final bestBackend = _discoveredBackends.first;
       return await connectToBackend(bestBackend);
-
     } catch (e) {
       print('❌ Error connecting to best backend: $e');
       _updateConnectionStatus('Connection failed: $e');
@@ -352,12 +356,12 @@ class SmartConnectionService {
     try {
       final httpUrl = backend['httpUrl'] as String;
       final wsUrl = backend['webSocketUrl'] as String;
-      
+
       _updateConnectionStatus('Connecting to ${backend['name']}...');
-      
+
       // Initialize API service with this backend
       _apiService.setBaseUrl(httpUrl);
-      
+
       // Test API connection
       final apiConnected = await _apiService.testConnection();
       if (!apiConnected) {
@@ -369,7 +373,7 @@ class SmartConnectionService {
         wsUrl,
         deviceId: 'flutter_app',
         deviceInfo: {
-          'name': 'Flutter AGV Controller',
+          'name': 'Flutter AMR Controller',
           'type': 'mobile_client',
           'platform': Platform.isAndroid ? 'android' : 'ios',
           'version': '1.0.0',
@@ -385,16 +389,15 @@ class SmartConnectionService {
       _connectedBackendUrl = httpUrl;
       _connectedWebSocketUrl = wsUrl;
       _backendInfo = backend;
-      
+
       _updateConnectionStatus('Connected to ${backend['name']}');
       _isConnectedController.add(true);
-      
+
       print('✅ Successfully connected to backend: ${backend['name']}');
       print('   HTTP: $httpUrl');
       print('   WebSocket: $wsUrl');
-      
-      return true;
 
+      return true;
     } catch (e) {
       print('❌ Error connecting to backend: $e');
       _updateConnectionStatus('Connection failed: $e');
@@ -407,19 +410,18 @@ class SmartConnectionService {
   Future<void> disconnect() async {
     try {
       _updateConnectionStatus('Disconnecting...');
-      
+
       _webSocketService.disconnect();
-      
+
       _isConnected = false;
       _connectedBackendUrl = null;
       _connectedWebSocketUrl = null;
       _backendInfo = null;
-      
+
       _updateConnectionStatus('Disconnected');
       _isConnectedController.add(false);
-      
+
       print('🔌 Disconnected from backend');
-      
     } catch (e) {
       print('❌ Error during disconnect: $e');
     }
@@ -434,10 +436,11 @@ class SmartConnectionService {
     try {
       for (final interface in await NetworkInterface.list()) {
         for (final addr in interface.addresses) {
-          if (addr.type == InternetAddressType.IPv4 && 
-              !addr.isLoopback && 
-              !addr.address.startsWith('169.254')) { // Skip link-local
-            
+          if (addr.type == InternetAddressType.IPv4 &&
+              !addr.isLoopback &&
+              !addr.address.startsWith('169.254')) {
+            // Skip link-local
+
             final ip = addr.address;
             final parts = ip.split('.');
             if (parts.length == 4) {
@@ -458,10 +461,11 @@ class SmartConnectionService {
   }
 
   /// Remove duplicate backends
-  List<Map<String, dynamic>> _deduplicateBackends(List<Map<String, dynamic>> backends) {
+  List<Map<String, dynamic>> _deduplicateBackends(
+      List<Map<String, dynamic>> backends) {
     final seen = <String>{};
     final unique = <Map<String, dynamic>>[];
-    
+
     for (final backend in backends) {
       final key = '${backend['ipAddress']}:${backend['port']}';
       if (!seen.contains(key)) {
@@ -469,7 +473,7 @@ class SmartConnectionService {
         unique.add(backend);
       }
     }
-    
+
     return unique;
   }
 

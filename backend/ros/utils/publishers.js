@@ -12,6 +12,10 @@ let currentMaxSpeeds = {
     angular: 2.0
 };
 
+// ✅ ADD: Active goal tracking at the top of the file
+let activeGoals = new Map(); // goalId -> goal info
+let goalCounter = 0;
+
 // Initialize with the node from ros_connection.js
 function initializePublishers(node) {
     rosNode = node;
@@ -44,13 +48,17 @@ function createEssentialPublishers() {
         // Create cmd_vel_joystick publisher immediately for joystick control
         getOrCreatePublisher('/cmd_vel_joystick', 'geometry_msgs/msg/Twist');
         
-        // Create map publisher for map editing
-        // getOrCreatePublisher('/map', 'nav_msgs/msg/OccupancyGrid');
+        // ✅ CRITICAL: Create target_pose publisher for navigation orders
+        getOrCreatePublisher('/target_pose', 'geometry_msgs/msg/Twist');
         
-        // Create goal publisher for navigation
-        getOrCreatePublisher('/target_pose', 'geometry_msgs/msg/PoseStamped');
+        // ✅ NEW: Create additional navigation publishers
+        getOrCreatePublisher('/move_base_simple/goal', 'geometry_msgs/msg/PoseStamped');
+        getOrCreatePublisher('/navigate_to_pose/_action/send_goal', 'nav2_msgs/action/NavigateToPose');
         
-        console.log('✅ Essential publishers created');
+        // ✅ NEW: Create cancel goal publisher
+        getOrCreatePublisher('/navigate_to_pose/_action/cancel_goal', 'action_msgs/msg/CancelGoal');
+        
+        console.log('✅ Essential publishers created including target_pose and navigation topics');
         
     } catch (error) {
         console.error('❌ Error creating essential publishers:', error);
@@ -224,12 +232,106 @@ function publishGoalWithId(x, y, orientation = 0, goalId = null) {
             throw new Error('Publishers not initialized');
         }
         
+        // ✅ NEW: Validate coordinates
+        if (!isFinite(x) || !isFinite(y) || !isFinite(orientation)) {
+            throw new Error(`Invalid coordinates: x=${x}, y=${y}, orientation=${orientation}`);
+        }
+        
         const publisher = getOrCreatePublisher('/target_pose', 'geometry_msgs/msg/PoseStamped');
         
         const now = new Date();
         
-        // Generate goal ID if not provided
-        const finalGoalId = goalId || `goal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // ✅ ENHANCED: Generate goal ID with counter
+        const finalGoalId = goalId || `goal_${Date.now()}_${++goalCounter}`;
+        
+        // ✅ ENHANCED: Create quaternion from yaw orientation
+        const yaw = orientation;
+        const qz = Math.sin(yaw / 2);
+        const qw = Math.cos(yaw / 2);
+        
+        const goalMsg = {
+            header: {
+                stamp: { 
+                    sec: Math.floor(now.getTime() / 1000), 
+                    nanosec: (now.getTime() % 1000) * 1000000 
+                },
+                frame_id: 'map'  // ✅ CRITICAL: Use map frame for navigation
+            },
+            pose: {
+                position: { 
+                    x: parseFloat(x), 
+                    y: parseFloat(y), 
+                    z: 0.0 
+                },
+                orientation: {
+                    x: 0.0,
+                    y: 0.0,
+                    z: qz,  // ✅ ENHANCED: Z component of quaternion for yaw rotation
+                    w: qw   // ✅ ENHANCED: W component of quaternion
+                }
+            }
+        };
+        
+        publisher.publish(goalMsg);
+        
+        if (publishers['/target_pose']) {
+            publishers['/target_pose'].messageCount++;
+        }
+        
+        // ✅ NEW: Store active goal for tracking
+        activeGoals.set(finalGoalId, {
+            goalId: finalGoalId,
+            x: parseFloat(x),
+            y: parseFloat(y),
+            orientation: orientation,
+            publishedAt: now.toISOString(),
+            status: 'sent'
+        });
+        
+        console.log(`🎯 Published goal to /target_pose [${publishers['/target_pose']?.messageCount || 1}]:`);
+        console.log(`   Goal ID: ${finalGoalId}`);
+        console.log(`   Position: x=${x}m, y=${y}m, orientation=${orientation}rad (${(orientation * 180 / Math.PI).toFixed(1)}°)`);
+        console.log(`   Frame: map | Quaternion: z=${qz.toFixed(3)}, w=${qw.toFixed(3)}`);
+        
+        return { 
+            success: true, 
+            goalId: finalGoalId,
+            x: parseFloat(x), 
+            y: parseFloat(y), 
+            orientation: orientation,
+            quaternion: { x: 0.0, y: 0.0, z: qz, w: qw }, // ✅ NEW
+            messageCount: publishers['/target_pose']?.messageCount || 1,
+            timestamp: now.toISOString(),
+            topic: '/target_pose',
+            frame: 'map' // ✅ NEW
+        };
+        
+    } catch (error) {
+        console.error('❌ Failed to publish goal to target_pose:', error);
+        return { 
+            success: false, 
+            error: error.message,
+            timestamp: new Date().toISOString(),
+            topic: '/target_pose'
+        };
+    }
+}
+
+/**
+ * ✅ NEW: Publish to move_base_simple/goal as alternative
+ */
+function publishMoveBaseGoal(x, y, orientation = 0) {
+    try {
+        if (!isInitialized) {
+            throw new Error('Publishers not initialized');
+        }
+        
+        const publisher = getOrCreatePublisher('/move_base_simple/goal', 'geometry_msgs/msg/PoseStamped');
+        
+        const now = new Date();
+        const yaw = orientation;
+        const qz = Math.sin(yaw / 2);
+        const qw = Math.cos(yaw / 2);
         
         const goalMsg = {
             header: {
@@ -248,60 +350,51 @@ function publishGoalWithId(x, y, orientation = 0, goalId = null) {
                 orientation: {
                     x: 0.0,
                     y: 0.0,
-                    z: Math.sin(orientation / 2),
-                    w: Math.cos(orientation / 2)
+                    z: qz,
+                    w: qw
                 }
             }
         };
         
         publisher.publish(goalMsg);
         
-        if (publishers['/target_pose']) {
-            publishers['/target_pose'].messageCount++;
+        if (publishers['/move_base_simple/goal']) {
+            publishers['/move_base_simple/goal'].messageCount++;
         }
         
-        console.log(`🎯 Published tracked goal to /target_pose [${publishers['/target_pose']?.messageCount || 1}]:`);
-        console.log(`   Goal ID: ${finalGoalId}`);
-        console.log(`   Position: x=${x}, y=${y}, orientation=${orientation}`);
+        console.log(`🎯 Published goal to /move_base_simple/goal: (${x}, ${y}) @ ${orientation}rad`);
         
-        return { 
-            success: true, 
-            goalId: finalGoalId,
-            x: parseFloat(x), 
-            y: parseFloat(y), 
+        return {
+            success: true,
+            x: parseFloat(x),
+            y: parseFloat(y),
             orientation: orientation,
-            messageCount: publishers['/target_pose']?.messageCount || 1,
-            timestamp: new Date().toISOString(),
-            topic: '/target_pose'
+            topic: '/move_base_simple/goal',
+            messageCount: publishers['/move_base_simple/goal']?.messageCount || 1,
+            timestamp: new Date().toISOString()
         };
         
     } catch (error) {
-        console.error('❌ Failed to publish tracked goal:', error);
-        return { 
-            success: false, 
+        console.error('❌ Failed to publish move_base goal:', error);
+        return {
+            success: false,
             error: error.message,
-            timestamp: new Date().toISOString(),
-            topic: '/target_pose'
+            topic: '/move_base_simple/goal',
+            timestamp: new Date().toISOString()
         };
     }
 }
 
 /**
- * ✅ ENHANCED: Updated original publishGoal to use tracking version
- */
-function publishGoal(x, y, orientation = 0) {
-    // Use the tracking version with auto-generated goal ID
-    return publishGoalWithId(x, y, orientation);
-}
-
-/**
- * ✅ NEW: Cancel current navigation goal
+ * ✅ ENHANCED: Updated cancelCurrentGoal with better error handling
  */
 function cancelCurrentGoal() {
     try {
         if (!isInitialized) {
             throw new Error('Publishers not initialized');
         }
+        
+        let cancelResults = [];
         
         // Method 1: Try to publish cancel to action cancel topic
         try {
@@ -320,20 +413,31 @@ function cancelCurrentGoal() {
             };
             
             cancelPublisher.publish(cancelMsg);
-            console.log('🛑 Published navigation goal cancellation');
+            cancelResults.push({ method: 'action_cancel', success: true });
+            console.log('🛑 Published navigation goal cancellation to action topic');
             
         } catch (cancelError) {
             console.warn('⚠️ Could not publish to cancel topic:', cancelError.message);
+            cancelResults.push({ method: 'action_cancel', success: false, error: cancelError.message });
         }
         
-        // Method 2: Emergency stop as fallback
-        const emergencyResult = emergencyStop();
+        // Method 2: Emergency stop as additional safety
+        try {
+            const emergencyResult = emergencyStop();
+            cancelResults.push({ method: 'emergency_stop', success: emergencyResult.success });
+        } catch (emergencyError) {
+            cancelResults.push({ method: 'emergency_stop', success: false, error: emergencyError.message });
+        }
+        
+        // ✅ NEW: Clear active goals
+        const clearedGoals = activeGoals.size;
+        activeGoals.clear();
         
         return {
             success: true,
             message: 'Navigation goal cancellation attempted',
-            methods: ['cancel_topic', 'emergency_stop'],
-            emergencyStopResult: emergencyResult,
+            methods: cancelResults, // ✅ ENHANCED
+            clearedGoals: clearedGoals, // ✅ NEW
             timestamp: new Date().toISOString()
         };
         
@@ -348,22 +452,33 @@ function cancelCurrentGoal() {
 }
 
 /**
- * ✅ NEW: Get navigation goal status
+ * ✅ ENHANCED: Updated getNavigationStatus with more details
  */
 function getNavigationStatus() {
     try {
         const stats = getPublisherStats();
         const targetPoseStats = stats.publishers['/target_pose'];
+        const moveBaseStats = stats.publishers['/move_base_simple/goal']; // ✅ NEW
         
         return {
             success: true,
             isInitialized: isInitialized,
-            targetPosePublisher: {
-                available: !!targetPoseStats,
-                messageCount: targetPoseStats?.messageCount || 0,
-                createdAt: targetPoseStats?.createdAt
+            publishers: { // ✅ ENHANCED
+                target_pose: {
+                    available: !!targetPoseStats,
+                    messageCount: targetPoseStats?.messageCount || 0,
+                    createdAt: targetPoseStats?.createdAt
+                },
+                move_base: { // ✅ NEW
+                    available: !!moveBaseStats,
+                    messageCount: moveBaseStats?.messageCount || 0,
+                    createdAt: moveBaseStats?.createdAt
+                }
             },
-            lastPublished: targetPoseStats ? new Date(targetPoseStats.createdAt) : null,
+            activeGoals: { // ✅ NEW
+                count: activeGoals.size,
+                goals: Array.from(activeGoals.values())
+            },
             timestamp: new Date().toISOString()
         };
         
@@ -376,204 +491,32 @@ function getNavigationStatus() {
         };
     }
 }
-/**
- * ✅ ENHANCED: Map publishing with proper OccupancyGrid format
- */
-// function publishMap(deviceId, mapData) {
-//     try {
-//         if (!isInitialized) {
-//             throw new Error('Publishers not initialized');
-//         }
-        
-//         const publisher = getOrCreatePublisher('/map', 'nav_msgs/msg/OccupancyGrid');
-        
-//         // Convert your mapData to proper ROS OccupancyGrid format
-//         const rosMapMsg = convertToOccupancyGrid(mapData);
-        
-//         publisher.publish(rosMapMsg);
-        
-//         if (publishers['/map']) {
-//             publishers['/map'].messageCount++;
-//         }
-        
-//         console.log(`🗺️ Published map [${publishers['/map'].messageCount}] for device ${deviceId} to /map`);
-        
-//         return { 
-//             success: true, 
-//             deviceId: deviceId,
-//             mapSize: `${rosMapMsg.info.width}x${rosMapMsg.info.height}`,
-//             resolution: rosMapMsg.info.resolution,
-//             messageCount: publishers['/map'].messageCount,
-//             timestamp: new Date().toISOString()
-//         };
-        
-//     } catch (error) {
-//         console.error(`❌ Error publishing map for device ${deviceId}:`, error);
-//         return { 
-//             success: false, 
-//             error: error.message,
-//             deviceId: deviceId,
-//             timestamp: new Date().toISOString()
-//         };
-//     }
-// }
 
 /**
- * ✅ FIXED: Helper to convert your mapData to ROS OccupancyGrid message
- */
-function convertToOccupancyGrid(mapData) {
-    const now = new Date();
-    
-    // Default values if mapData doesn't have complete info
-    const info = mapData.info || {
-        resolution: config.MAP.DEFAULT_RESOLUTION,
-        width: config.MAP.DEFAULT_WIDTH,
-        height: config.MAP.DEFAULT_HEIGHT,
-        origin: {
-            position: config.MAP.DEFAULT_ORIGIN,
-            orientation: { x: 0, y: 0, z: 0, w: 1 }
-        }
-    };
-    
-    // Ensure data is in correct format (array of int8 values)
-    let data = mapData.data || [];
-    if (data.length !== info.width * info.height) {
-        // Create empty map if data doesn't match dimensions
-        data = new Array(info.width * info.height).fill(-1); // Unknown cells
-        console.warn(`⚠️ Map data size mismatch, creating empty map: ${info.width}x${info.height}`);
-    }
-    
-    return {
-        header: {
-            stamp: { 
-                sec: Math.floor(now.getTime() / 1000), 
-                nanosec: (now.getTime() % 1000) * 1000000 
-            },
-            frame_id: 'map'
-        },
-        info: {
-            map_load_time: { 
-                sec: Math.floor(now.getTime() / 1000), 
-                nanosec: (now.getTime() % 1000) * 1000000 
-            },
-            resolution: parseFloat(info.resolution),
-            width: parseInt(info.width),
-            height: parseInt(info.height),
-            origin: {
-                position: {
-                    x: parseFloat(info.origin.position?.x || config.MAP.DEFAULT_ORIGIN.x),
-                    y: parseFloat(info.origin.position?.y || config.MAP.DEFAULT_ORIGIN.y),
-                    z: parseFloat(info.origin.position?.z || config.MAP.DEFAULT_ORIGIN.z)
-                },
-                orientation: {
-                    x: parseFloat(info.origin.orientation?.x || 0),
-                    y: parseFloat(info.origin.orientation?.y || 0),
-                    z: parseFloat(info.origin.orientation?.z || 0),
-                    w: parseFloat(info.origin.orientation?.w || 1)
-                }
-            }
-        },
-        data: data.map(val => parseInt(val)) // Ensure int8 values
-    };
-}
-
-/**
- * ✅ NEW: Start mapping service call or topic publish
- */
-function startMapping() {
-    try {
-        if (!isInitialized) {
-            throw new Error('Publishers not initialized');
-        }
-        
-        // Try to publish to mapping start topic
-        try {
-            const publisher = getOrCreatePublisher('/mapping/start', 'std_msgs/msg/Bool');
-            publisher.publish({ data: true });
-            
-            if (publishers['/mapping/start']) {
-                publishers['/mapping/start'].messageCount++;
-            }
-            
-            console.log(`🗺️ Published mapping start command [${publishers['/mapping/start']?.messageCount || 1}]`);
-            
-        } catch (topicError) {
-            // If topic doesn't exist, try alternative methods
-            console.warn('⚠️ /mapping/start topic not available, trying alternatives...');
-            
-            // You might need to call a ROS2 service instead
-            // For now, just log that mapping should start
-            console.log('🗺️ Mapping start requested (service call may be needed)');
-        }
-        
-        return { 
-            success: true, 
-            message: 'Mapping start command sent',
-            timestamp: new Date().toISOString()
-        };
-        
-    } catch (error) {
-        console.error('❌ Failed to start mapping:', error);
-        return { 
-            success: false, 
-            error: error.message,
-            timestamp: new Date().toISOString()
-        };
-    }
-}
-
-/**
- * ✅ NEW: Stop mapping
- */
-function stopMapping() {
-    try {
-        if (!isInitialized) {
-            throw new Error('Publishers not initialized');
-        }
-        
-        try {
-            const publisher = getOrCreatePublisher('/mapping/stop', 'std_msgs/msg/Bool');
-            publisher.publish({ data: true });
-            
-            if (publishers['/mapping/stop']) {
-                publishers['/mapping/stop'].messageCount++;
-            }
-            
-            console.log(`🛑 Published mapping stop command [${publishers['/mapping/stop']?.messageCount || 1}]`);
-            
-        } catch (topicError) {
-            console.warn('⚠️ /mapping/stop topic not available');
-            console.log('🛑 Mapping stop requested');
-        }
-        
-        return { 
-            success: true, 
-            message: 'Mapping stop command sent',
-            timestamp: new Date().toISOString()
-        };
-        
-    } catch (error) {
-        console.error('❌ Failed to stop mapping:', error);
-        return { 
-            success: false, 
-            error: error.message,
-            timestamp: new Date().toISOString()
-        };
-    }
-}
-
-/**
- * Emergency stop - immediate zero velocity
+ * ✅ ENHANCED: Updated emergencyStop with additional safety measures
  */
 function emergencyStop() {
     try {
         const result = publishVelocity(0.0, 0.0);
-        console.log('🛑 EMERGENCY STOP ACTIVATED');
+        console.log('🛑 EMERGENCY STOP ACTIVATED - All motion halted');
+        
+        // ✅ NEW: Also try to publish to cmd_vel (standard topic)
+        try {
+            const cmdVelPublisher = getOrCreatePublisher('/cmd_vel', 'geometry_msgs/msg/Twist');
+            const stopMsg = {
+                linear: { x: 0.0, y: 0.0, z: 0.0 },
+                angular: { x: 0.0, y: 0.0, z: 0.0 }
+            };
+            cmdVelPublisher.publish(stopMsg);
+        } catch (cmdVelError) {
+            console.warn('⚠️ Could not publish to /cmd_vel:', cmdVelError.message);
+        }
         
         return {
             ...result,
             type: 'emergency_stop',
-            message: 'Emergency stop activated - all motion halted'
+            message: 'Emergency stop activated - all motion halted',
+            allTopics: ['/cmd_vel_joystick', '/cmd_vel'] // ✅ NEW
         };
         
     } catch (error) {
@@ -587,13 +530,14 @@ function emergencyStop() {
 }
 
 /**
- * ✅ NEW: Get publisher statistics
+ * ✅ ENHANCED: Updated getPublisherStats with active goals info
  */
 function getPublisherStats() {
     const stats = {
         totalPublishers: Object.keys(publishers).length,
         isInitialized: isInitialized,
         currentMaxSpeeds: getCurrentMaxSpeeds(),
+        activeGoals: activeGoals.size, // ✅ NEW
         publishers: {}
     };
     
@@ -609,7 +553,7 @@ function getPublisherStats() {
 }
 
 /**
- * ✅ NEW: Test publishing capability
+ * ✅ ENHANCED: Updated testPublishing with target_pose test
  */
 function testPublishing() {
     try {
@@ -620,14 +564,19 @@ function testPublishing() {
         // Test cmd_vel_joystick publishing
         const velResult = publishVelocity(0.0, 0.0);
         
+        // ✅ NEW: Test target_pose publishing (origin)
+        const goalResult = publishGoalWithId(0.0, 0.0, 0.0, `test_${Date.now()}`);
+        
         return {
             success: true,
             message: 'Publishing test completed',
             tests: {
                 velocity: velResult.success,
+                targetPose: goalResult.success, // ✅ NEW
                 publishersCreated: Object.keys(publishers).length,
                 availableTopics: Object.keys(publishers),
-                currentMaxSpeeds: getCurrentMaxSpeeds()
+                currentMaxSpeeds: getCurrentMaxSpeeds(),
+                activeGoals: activeGoals.size // ✅ NEW
             },
             timestamp: new Date().toISOString()
         };
@@ -642,7 +591,7 @@ function testPublishing() {
 }
 
 /**
- * Cleanup publishers
+ * ✅ ENHANCED: Updated cleanup with active goals cleanup
  */
 function cleanup() {
     Object.entries(publishers).forEach(([topicName, info]) => {
@@ -653,25 +602,45 @@ function cleanup() {
         }
     });
     publishers = {};
+    activeGoals.clear(); // ✅ NEW
     isInitialized = false;
+    goalCounter = 0; // ✅ NEW
     console.log('🧹 Publishers cleaned up');
 }
 
+/**
+ * ✅ NEW: Goal management functions
+ */
+function getActiveGoals() {
+    return Array.from(activeGoals.values());
+}
+
+function clearActiveGoals() {
+    const count = activeGoals.size;
+    activeGoals.clear();
+    return { cleared: count };
+}
+
+// ✅ ENHANCED: Updated module exports
 module.exports = {
     initializePublishers,
     updateMaxSpeeds,      
     getCurrentMaxSpeeds,  
     publishVelocity,
     publishJoystick,
-    publishGoal, 
-    // publishMap,
-    publishGoalWithId,      
+    // publishGoal,                    // Legacy compatibility
+    publishGoalWithId,              // ✅ Main goal publishing function
+    publishMoveBaseGoal,            // ✅ NEW: Alternative goal publishing
     cancelCurrentGoal,      
     getNavigationStatus,     
-    startMapping,
-    stopMapping,
+    // startMapping,
+    // stopMapping,
     emergencyStop,
     getPublisherStats,
     testPublishing,
-    cleanup
+    cleanup,
+    
+    // ✅ NEW: Goal management functions
+    getActiveGoals,
+    clearActiveGoals
 };

@@ -1,6 +1,6 @@
 # Flutter App Release Guide
 
-This guide explains how to build and release your AGV Fleet Management app for different platforms.
+This guide explains how to build and release your AMR Fleet Management app for different platforms.
 
 ## Prerequisites
 

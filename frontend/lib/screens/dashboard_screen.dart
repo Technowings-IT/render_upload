@@ -1,4 +1,4 @@
-// screens/dashboard_screen.dart - FIXED Enhanced with Order Sequence Management
+// screens/dashboard_screen.dart - FIXED with Complete Order Management Integration
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -9,7 +9,9 @@ import '../models/map_data.dart';
 import 'profile_screen.dart';
 import 'map_page.dart'; // Your existing map page
 import 'control_page.dart';
-import '../widgets/order_creation_dialog.dart';
+import '../widgets/enhanced_order_creation_dialog.dart';
+import '../widgets/order_table_widget.dart';
+import '../widgets/fleet_management_widget.dart';
 import '../widgets/interactive_map_order_creator.dart';
 
 // ✅ ADD this extension for string capitalization
@@ -254,21 +256,23 @@ class _DashboardScreenState extends State<DashboardScreen>
 
         // Create a basic MapData object from saved map metadata
         final mockMapData = {
-          'name': mostRecentMap['name'] ?? 'saved_map',
           'deviceId': deviceId,
           'timestamp':
               mostRecentMap['savedAt'] ?? DateTime.now().toIso8601String(),
-          'width': 100, // Default values since we don't have actual map data
-          'height': 100,
-          'resolution': 0.05,
-          'origin': {'x': 0.0, 'y': 0.0, 'orientation': 0.0},
-          'shapes': mostRecentMap['shapes'] ?? [],
-          'metadata': {
-            'type': 'saved_map',
-            'source': 'saved_maps_cache',
-            'savedMapsCount': savedMaps.length,
-            ...?mostRecentMap['metadata'],
+          'info': {
+            'width': 1000, // Default values since we don't have actual map data
+            'height': 1000,
+            'resolution': 0.05,
+            'origin': {
+              'x': -25.0,
+              'y': -25.0,
+              'z': 0.0,
+              'orientation': {'x': 0, 'y': 0, 'z': 0, 'w': 1},
+            },
           },
+          'data': [], // Empty occupancy data
+          'shapes': mostRecentMap['shapes'] ?? [],
+          'version': 1,
         };
 
         final mapData = MapData.fromJson(mockMapData);
@@ -286,9 +290,81 @@ class _DashboardScreenState extends State<DashboardScreen>
             '📊 Map contains ${savedMaps.length} saved maps, using: ${mostRecentMap['name']}');
       } else {
         print('⚠️ No saved maps found for device: $deviceId');
+        // Create minimal fallback map
+        await _createFallbackMapData(device);
       }
     } catch (e) {
       print('❌ Error loading from saved maps for ${device['id']}: $e');
+      await _createFallbackMapData(device);
+    }
+  }
+
+  /// Create minimal fallback map data when no maps are available
+  Future<void> _createFallbackMapData(Map<String, dynamic> device) async {
+    try {
+      final deviceId = device['id'];
+      print('🔧 Creating fallback map data for: $deviceId');
+
+      final fallbackMapData = {
+        'deviceId': deviceId,
+        'timestamp': DateTime.now().toIso8601String(),
+        'info': {
+          'width': 1000,
+          'height': 1000,
+          'resolution': 0.05,
+          'origin': {
+            'x': -25.0,
+            'y': -25.0,
+            'z': 0.0,
+            'orientation': {'x': 0, 'y': 0, 'z': 0, 'w': 1},
+          },
+        },
+        'data': [],
+        'shapes': [
+          // Add some sample stations for testing
+          {
+            'id': 'station_pickup_1',
+            'name': 'pickup_1',
+            'type': 'pickup',
+            'points': [
+              {'x': -10.0, 'y': -5.0, 'z': 0.0},
+              {'x': -8.0, 'y': -5.0, 'z': 0.0},
+              {'x': -8.0, 'y': -3.0, 'z': 0.0},
+              {'x': -10.0, 'y': -3.0, 'z': 0.0},
+            ],
+            'sides': {'left': '', 'right': '', 'front': '', 'back': ''},
+            'color': 'FF00FF00', // Green
+            'createdAt': DateTime.now().toIso8601String(),
+          },
+          {
+            'id': 'station_drop_1',
+            'name': 'drop_1',
+            'type': 'drop',
+            'points': [
+              {'x': 8.0, 'y': 5.0, 'z': 0.0},
+              {'x': 10.0, 'y': 5.0, 'z': 0.0},
+              {'x': 10.0, 'y': 7.0, 'z': 0.0},
+              {'x': 8.0, 'y': 7.0, 'z': 0.0},
+            ],
+            'sides': {'left': '', 'right': '', 'front': '', 'back': ''},
+            'color': 'FF0000FF', // Blue
+            'createdAt': DateTime.now().toIso8601String(),
+          },
+        ],
+        'version': 1,
+      };
+
+      final mapData = MapData.fromJson(fallbackMapData);
+      setState(() {
+        _availableMaps[deviceId] = mapData;
+        if (device['name'] != null && device['name'] != deviceId) {
+          _availableMaps[device['name']] = mapData;
+        }
+      });
+
+      print('✅ Fallback map created for: $deviceId');
+    } catch (e) {
+      print('❌ Error creating fallback map for ${device['id']}: $e');
     }
   }
 
@@ -375,638 +451,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  /// Build map statistics row
-  Widget _buildMapStatsRow() {
-    final totalSavedMaps =
-        _savedMapsCache.values.fold(0, (sum, maps) => sum + maps.length);
-    final devicesWithSavedMaps = _savedMapsCache.keys.length;
-    final recentMaps = _getRecentMapsCount();
-    final liveMaps = _availableMaps.length;
-
-    return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-              child: _buildMapStatItem(
-                  'Saved Maps', totalSavedMaps.toString(), Colors.purple)),
-          _buildStatDivider(),
-          Expanded(
-              child: _buildMapStatItem(
-                  'Live Maps', liveMaps.toString(), Colors.blue)),
-          _buildStatDivider(),
-          Expanded(
-              child: _buildMapStatItem(
-                  'Recent', recentMaps.toString(), Colors.green)),
-          _buildStatDivider(),
-          Expanded(
-              child: _buildMapStatItem(
-                  'Devices', devicesWithSavedMaps.toString(), Colors.orange)),
-        ],
-      ),
-    );
-  }
-
-  /// Build map statistic item
-  Widget _buildMapStatItem(String label, String count, Color color) {
-    return Column(
-      children: [
-        Text(
-          count,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey[600],
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Get recent maps count (last 7 days)
-  int _getRecentMapsCount() {
-    final sevenDaysAgo = DateTime.now().subtract(Duration(days: 7));
-    int count = 0;
-
-    _savedMapsCache.values.forEach((maps) {
-      count += maps.where((map) {
-        final savedAt = DateTime.tryParse(map['savedAt'] ?? '');
-        return savedAt != null && savedAt.isAfter(sevenDaysAgo);
-      }).length;
-    });
-
-    return count;
-  }
-
-  /// Build saved maps list
-  Widget _buildSavedMapsList() {
-    if (_isLoadingMaps) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading saved maps...'),
-          ],
-        ),
-      );
-    }
-
-    if (_savedMapsCache.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.map_outlined, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'No Saved Maps Found',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            Text('Maps saved from the Control page will appear here'),
-            SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => _navigateToControl(_connectedDevices.isNotEmpty
-                  ? _connectedDevices.first
-                  : {'id': 'default'}),
-              icon: Icon(Icons.control_camera),
-              label: Text('Go to Live Control'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadAllSavedMaps,
-      child: ListView.builder(
-        padding: EdgeInsets.all(16),
-        itemCount: _savedMapsCache.length,
-        itemBuilder: (context, index) {
-          final deviceId = _savedMapsCache.keys.elementAt(index);
-          final savedMaps = _savedMapsCache[deviceId]!;
-
-          return _buildDeviceMapsSection(deviceId, savedMaps);
-        },
-      ),
-    );
-  }
-
-  /// Build device maps section
-  Widget _buildDeviceMapsSection(
-      String deviceId, List<Map<String, dynamic>> savedMaps) {
-    final device = _connectedDevices.firstWhere(
-      (d) => d['id'] == deviceId,
-      orElse: () => {'name': deviceId, 'id': deviceId},
-    );
-
-    return Card(
-      margin: EdgeInsets.symmetric(vertical: 8),
-      child: ExpansionTile(
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.purple.shade400, Colors.purple.shade600],
-            ),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(Icons.smart_toy, color: Colors.white),
-        ),
-        title: Text(
-          '${device['name']} Maps',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text('${savedMaps.length} saved maps • Device: $deviceId'),
-        children: savedMaps
-            .map((mapData) => _buildSavedMapTile(deviceId, mapData))
-            .toList(),
-      ),
-    );
-  }
-
-  /// Build individual saved map tile
-  Widget _buildSavedMapTile(String deviceId, Map<String, dynamic> mapData) {
-    final mapName = mapData['name'] ?? 'Unnamed Map';
-    final savedAt =
-        DateTime.tryParse(mapData['savedAt'] ?? '') ?? DateTime.now();
-    final shapes = mapData['shapes'] ?? 0;
-    final fileSize = mapData['fileSize'] ?? 'Unknown';
-
-    return ListTile(
-      contentPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      leading: CircleAvatar(
-        backgroundColor: Colors.purple.shade100,
-        child: Icon(Icons.map, color: Colors.purple.shade700),
-      ),
-      title: Text(
-        mapName,
-        style: TextStyle(fontWeight: FontWeight.w600),
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Saved: ${_formatDateTime(savedAt)}'),
-          Text('Shapes: $shapes • Size: $fileSize'),
-          if (mapData['metadata'] != null)
-            Text('Type: ${mapData['metadata']['type'] ?? 'Complete Map'}'),
-        ],
-      ),
-      trailing: PopupMenuButton<String>(
-        onSelected: (value) => _handleMapAction(value, deviceId, mapData),
-        itemBuilder: (context) => [
-          PopupMenuItem(
-            value: 'load_edit',
-            child: ListTile(
-              leading: Icon(Icons.edit, color: Colors.blue),
-              title: Text('Load & Edit'),
-              dense: true,
-            ),
-          ),
-          PopupMenuItem(
-            value: 'preview',
-            child: ListTile(
-              leading: Icon(Icons.preview, color: Colors.green),
-              title: Text('Preview'),
-              dense: true,
-            ),
-          ),
-          PopupMenuItem(
-            value: 'clone',
-            child: ListTile(
-              leading: Icon(Icons.copy, color: Colors.orange),
-              title: Text('Clone'),
-              dense: true,
-            ),
-          ),
-          PopupMenuItem(
-            value: 'share',
-            child: ListTile(
-              leading: Icon(Icons.share, color: Colors.indigo),
-              title: Text('Share'),
-              dense: true,
-            ),
-          ),
-          PopupMenuDivider(),
-          PopupMenuItem(
-            value: 'delete',
-            child: ListTile(
-              leading: Icon(Icons.delete, color: Colors.red),
-              title: Text('Delete'),
-              dense: true,
-            ),
-          ),
-        ],
-      ),
-      onTap: () => _loadMapForEditing(deviceId, mapData),
-    );
-  }
-
-  /// Handle map actions from popup menu
-  void _handleMapAction(
-      String action, String deviceId, Map<String, dynamic> mapData) {
-    switch (action) {
-      case 'load_edit':
-        _loadMapForEditing(deviceId, mapData);
-        break;
-      case 'preview':
-        _showMapPreview(deviceId, mapData);
-        break;
-      case 'clone':
-        _showCloneMapDialog(deviceId, mapData);
-        break;
-      case 'share':
-        _showShareMapDialog(deviceId, mapData);
-        break;
-      case 'delete':
-        _showDeleteMapDialog(deviceId, mapData);
-        break;
-    }
-  }
-
-  /// Load map for editing
-  Future<void> _loadMapForEditing(
-      String deviceId, Map<String, dynamic> mapData) async {
-    try {
-      _showLoadingDialog('Loading map for editing...');
-
-      // Try to load complete map data, fallback to regular map data
-      Map<String, dynamic> response;
-      try {
-        response = await _apiService.loadCompleteMapData(
-          deviceId: deviceId,
-          mapName: mapData['name'],
-          includeShapes: true,
-          includeMetadata: true,
-        );
-      } catch (e) {
-        // Fallback to regular map data
-        response = await _apiService.getMapData(deviceId);
-      }
-
-      Navigator.of(context).pop(); // Close loading dialog
-
-      if (response['success'] == true) {
-        // Navigate to map editor with loaded data
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                EnhancedMapPage(), // Use your existing MapPage
-            settings: RouteSettings(
-              arguments: {
-                'deviceId': deviceId,
-                'mapData': response['mapData'],
-                'editMode': true,
-                'mapName': mapData['name'],
-              },
-            ),
-          ),
-        ).then((_) {
-          // Refresh maps list after editing
-          _loadAllSavedMaps();
-        });
-
-        _showSuccessSnackBar('Map loaded successfully for editing');
-      } else {
-        _showErrorSnackBar('Failed to load map: ${response['error']}');
-      }
-    } catch (e) {
-      Navigator.of(context).pop(); // Close loading dialog
-      _showErrorSnackBar('Error loading map: $e');
-    }
-  }
-
-  /// Show map preview dialog
-  void _showMapPreview(String deviceId, Map<String, dynamic> mapData) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Map Preview: ${mapData['name']}'),
-        content: Container(
-          width: double.maxFinite,
-          height: 400,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Map preview placeholder
-              Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.map, size: 64, color: Colors.grey),
-                      Text('Map Preview', style: TextStyle(color: Colors.grey)),
-                    ],
-                  ),
-                ),
-              ),
-
-              SizedBox(height: 16),
-
-              // Map details
-              Text('Map Details:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              SizedBox(height: 8),
-              _buildPreviewDetailRow('Device', deviceId),
-              _buildPreviewDetailRow('Shapes', '${mapData['shapes'] ?? 0}'),
-              _buildPreviewDetailRow('Size', mapData['fileSize'] ?? 'Unknown'),
-              _buildPreviewDetailRow(
-                  'Type', mapData['metadata']?['type'] ?? 'Complete Map'),
-              _buildPreviewDetailRow(
-                  'Saved',
-                  _formatDateTime(DateTime.tryParse(mapData['savedAt'] ?? '') ??
-                      DateTime.now())),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Close'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _loadMapForEditing(deviceId, mapData);
-            },
-            child: Text('Load & Edit'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.purple,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Build preview detail row
-  Widget _buildPreviewDetailRow(String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              '$label:',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-          Expanded(
-            child: Text(value),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Show clone map dialog
-  void _showCloneMapDialog(String deviceId, Map<String, dynamic> mapData) {
-    final TextEditingController nameController = TextEditingController(
-      text: '${mapData['name']}_copy',
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Clone Map'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Create a copy of "${mapData['name']}"'),
-            SizedBox(height: 16),
-            TextField(
-              controller: nameController,
-              decoration: InputDecoration(
-                labelText: 'New Map Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.isNotEmpty) {
-                Navigator.of(context).pop();
-                await _cloneMap(deviceId, mapData['name'], nameController.text);
-              }
-            },
-            child: Text('Clone'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Clone map
-  Future<void> _cloneMap(
-      String deviceId, String sourceMapName, String targetMapName) async {
-    try {
-      _showLoadingDialog('Cloning map...');
-
-      // Try to use cloneMap API, fallback to manual cloning
-      Map<String, dynamic> response;
-      try {
-        response = await _apiService.cloneMap(
-          deviceId: deviceId,
-          sourceMapName: sourceMapName,
-          targetMapName: targetMapName,
-          includeShapes: true,
-          includeMetadata: true,
-        );
-      } catch (e) {
-        // Fallback: simulate cloning by showing success
-        response = {
-          'success': true,
-          'message': 'Map cloning feature coming soon'
-        };
-      }
-
-      Navigator.of(context).pop(); // Close loading dialog
-
-      if (response['success'] == true) {
-        _showSuccessSnackBar('Map cloned successfully: $targetMapName');
-        _loadAllSavedMaps(); // Refresh list
-      } else {
-        _showErrorSnackBar('Failed to clone map: ${response['error']}');
-      }
-    } catch (e) {
-      Navigator.of(context).pop();
-      _showErrorSnackBar('Error cloning map: $e');
-    }
-  }
-
-  /// Show share map dialog
-  void _showShareMapDialog(String deviceId, Map<String, dynamic> mapData) {
-    _showErrorSnackBar('Map sharing feature coming soon!');
-  }
-
-  /// Show delete map dialog
-  void _showDeleteMapDialog(String deviceId, Map<String, dynamic> mapData) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete Map'),
-        content: Text(
-            'Are you sure you want to delete "${mapData['name']}"? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await _deleteMap(deviceId, mapData['name']);
-            },
-            child: Text('Delete'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Delete map
-  Future<void> _deleteMap(String deviceId, String mapName) async {
-    try {
-      _showLoadingDialog('Deleting map...');
-
-      // Try to use deleteSavedMap API, fallback to manual deletion
-      Map<String, dynamic> response;
-      try {
-        response = await _apiService.deleteSavedMap(
-          deviceId: deviceId,
-          mapName: mapName,
-          deleteBackups: true,
-        );
-      } catch (e) {
-        // Fallback: simulate deletion by showing success
-        response = {
-          'success': true,
-          'message': 'Map deletion feature coming soon'
-        };
-      }
-
-      Navigator.of(context).pop(); // Close loading dialog
-
-      if (response['success'] == true) {
-        _showSuccessSnackBar('Map deleted successfully');
-        _loadAllSavedMaps(); // Refresh list
-      } else {
-        _showErrorSnackBar('Failed to delete map: ${response['error']}');
-      }
-    } catch (e) {
-      Navigator.of(context).pop();
-      _showErrorSnackBar('Error deleting map: $e');
-    }
-  }
-
-  /// Build live maps list (your existing _buildMapsList method)
-  Widget _buildLiveMapsList() {
-    return _buildMapsList();
-  }
-
-  /// Build shared maps list
-  Widget _buildSharedMapsList() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.share, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
-          Text(
-            'Shared Maps',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 8),
-          Text('Map sharing feature coming soon!'),
-        ],
-      ),
-    );
-  }
-
-  /// Refresh all maps
-  Future<void> _refreshAllMaps() async {
-    await Future.wait([
-      _loadAllSavedMaps(),
-      _loadMapsForAllDevices(), // Your existing method
-    ]);
-  }
-
-  /// Show loading dialog
-  void _showLoadingDialog(String message) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Text(message),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Format date time for display
-  String _formatDateTime(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return 'Just now';
-    }
-  }
-
-  // ✅ ADD all the missing navigation and dialog methods:
-
+  // ✅ FIXED: Proper navigation methods
   void _navigateToControl(Map<String, dynamic> device) {
     Navigator.push(
       context,
@@ -1026,7 +471,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => EnhancedMapPage(),
+        builder: (context) => EnhancedMapPage(), // Use your existing MapPage
         settings: RouteSettings(
           arguments: {
             'deviceId': device['id'],
@@ -1036,6 +481,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  // ✅ FIXED: Complete fleet management navigation
+  void _navigateToCompleteFleetManagement() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CompleteFleetManagementWidget(
+          availableMaps: _availableMaps,
+          availableDevices: _connectedDevices,
+        ),
+      ),
+    );
+  }
+
+  // ✅ FIXED: Show station-based order creation dialog
   void _showCreateOrderDialog() {
     if (_connectedDevices.isEmpty) {
       _showErrorSnackBar('No devices available. Connect a device first.');
@@ -1046,19 +505,30 @@ class _DashboardScreenState extends State<DashboardScreen>
     print(
         '🔗 Available devices: ${_connectedDevices.map((d) => '${d['name']}(${d['id']})').join(', ')}');
     print('🗺️ Available maps: ${_availableMaps.keys.join(', ')}');
-    print('💾 Saved maps cache: ${_savedMapsCache.keys.join(', ')}');
-    for (final deviceId in _savedMapsCache.keys) {
-      print(
-          '  - $deviceId: ${_savedMapsCache[deviceId]?.length ?? 0} saved maps');
+
+    // Find first device with map for pre-selection
+    String? selectedDeviceId;
+    for (final device in _connectedDevices) {
+      if (_availableMaps.containsKey(device['id'])) {
+        selectedDeviceId = device['id'];
+        break;
+      }
     }
 
+    if (selectedDeviceId == null) {
+      _showErrorSnackBar('No map data available. Create a map with stations first.');
+      return;
+    }
+
+    // ✅ FIXED: Show the enhanced order creation dialog
     showDialog(
       context: context,
-      builder: (context) => OrderCreationDialog(
-        availableDevices: _connectedDevices,
-        availableMaps: _availableMaps,
-        onOrderCreated: (order) {
-          _createOrder(order);
+      builder: (context) => EnhancedOrderCreationDialog(
+        deviceId: selectedDeviceId!,
+        mapData: _availableMaps[selectedDeviceId]!,
+        onOrderCreated: (orderData) {
+          print('✅ Order created: ${orderData['name']}');
+          _createOrder(orderData);
         },
       ),
     );
@@ -1078,6 +548,27 @@ class _DashboardScreenState extends State<DashboardScreen>
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 20),
+
+            // Station-Based Order Creation Option
+            ListTile(
+              leading: Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.list_alt, color: Colors.green),
+              ),
+              title: Text('Station-Based Order'),
+              subtitle: Text('Select from and to stations with dropdowns'),
+              trailing: Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                Navigator.pop(context);
+                _showCreateOrderDialog();
+              },
+            ),
+
+            Divider(),
 
             // Interactive Map Creator Option
             ListTile(
@@ -1100,22 +591,22 @@ class _DashboardScreenState extends State<DashboardScreen>
 
             Divider(),
 
-            // Quick Dialog Option
+            // Complete Fleet Management Option  
             ListTile(
               leading: Container(
                 padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade100,
+                  color: Colors.purple.shade100,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(Icons.list_alt, color: Colors.green),
+                child: Icon(Icons.dashboard, color: Colors.purple),
               ),
-              title: Text('Quick Order Dialog'),
-              subtitle: Text('Create order from existing map stations'),
+              title: Text('Complete Fleet Management'),
+              subtitle: Text('Full order and station management dashboard'),
               trailing: Icon(Icons.arrow_forward_ios),
               onTap: () {
                 Navigator.pop(context);
-                _showCreateOrderDialog();
+                _navigateToCompleteFleetManagement();
               },
             ),
           ],
@@ -1183,7 +674,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Create Order'),
+        title: Text('Create Order for ${device['name']}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1229,16 +720,17 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  // ✅ FIXED: Show traditional order creation with proper dialog
   void _showTraditionalOrderCreation(
       String deviceId, Map<String, dynamic> device) {
     showDialog(
       context: context,
-      builder: (context) => OrderCreationDialog(
-        availableDevices: [device],
-        availableMaps: {deviceId: _availableMaps[deviceId]!},
-        preSelectedDevice: deviceId,
-        onOrderCreated: (order) {
-          _createOrder(order);
+      builder: (context) => EnhancedOrderCreationDialog(
+        deviceId: deviceId,
+        mapData: _availableMaps[deviceId]!,
+        onOrderCreated: (orderData) {
+          print('✅ Order created for device $deviceId: ${orderData['name']}');
+          _createOrder(orderData);
         },
       ),
     );
@@ -1265,24 +757,48 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  // ✅ FIXED: Create order with proper API integration
   Future<void> _createOrder(Map<String, dynamic> orderData) async {
     try {
+      print('📝 Creating order: ${orderData['name']} for device: ${orderData['deviceId']}');
+      
+      // Ensure waypoints are in the correct format
+      final waypoints = (orderData['waypoints'] as List<dynamic>? ?? [])
+          .map<Map<String, dynamic>>((wp) => {
+                'name': wp['name'] ?? 'Waypoint',
+                'type': wp['type'] ?? 'waypoint',
+                'position': {
+                  'x': (wp['position']?['x'] ?? wp['coordinates']?['x'] ?? 0.0).toDouble(),
+                  'y': (wp['position']?['y'] ?? wp['coordinates']?['y'] ?? 0.0).toDouble(),
+                  'z': (wp['position']?['z'] ?? wp['coordinates']?['z'] ?? 0.0).toDouble(),
+                },
+                'orientation': (wp['orientation'] ?? 0.0).toDouble(),
+                'metadata': wp['metadata'] ?? {},
+              })
+          .toList();
+
       final response = await _apiService.createOrder(
         deviceId: orderData['deviceId'],
-        name: orderData['name'],
-        waypoints: orderData['waypoints'],
+        name: orderData['name'] ?? 'New Order',
+        waypoints: waypoints,
         priority: orderData['priority'] ?? 0,
+        description: orderData['description'] ?? 'Created from dashboard',
       );
 
       if (response['success'] == true) {
-        _showSuccessSnackBar('Order sequence created successfully!');
-        _loadOrdersForAllDevices();
-        _loadSystemStats();
+        _showSuccessSnackBar(
+            '✅ Order "${orderData['name']}" created successfully with ${waypoints.length} waypoints!');
+        
+        // Refresh orders and stats
+        await Future.wait([
+          _loadOrdersForAllDevices(),
+          _loadSystemStats(),
+        ]);
       } else {
-        _showErrorSnackBar('Failed to create order: ${response['error']}');
+        _showErrorSnackBar('❌ Failed to create order: ${response['error']}');
       }
     } catch (e) {
-      _showErrorSnackBar('Error creating order: $e');
+      _showErrorSnackBar('❌ Error creating order: $e');
     }
   }
 
@@ -1345,6 +861,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                 SizedBox(height: 8),
                 Text('Created: ${order['createdAt']}'),
               ],
+              SizedBox(height: 16),
+              Text('Waypoints:', style: TextStyle(fontWeight: FontWeight.bold)),
+              ...(order['waypoints'] as List<dynamic>? ?? []).map((wp) => 
+                Text('• ${wp['name']} (${wp['type']})')
+              ).toList(),
             ],
           ),
         ),
@@ -1478,8 +999,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  // ✅ ADD helper methods for colors and icons:
-
+  // ✅ FIXED: Helper methods for colors and icons
   Color _getOrderStatusColor(String status) {
     switch (status) {
       case 'pending':
@@ -1567,8 +1087,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     );
   }
-
-  // ✅ Keep all your existing build methods unchanged:
 
   @override
   Widget build(BuildContext context) {
@@ -1770,6 +1288,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  // ✅ FIXED: Orders tab with proper integration
   Widget _buildOrdersTab() {
     return Column(
       children: [
@@ -1802,7 +1321,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                         ),
                         Text(
-                          'Create A→B→C→D sequences: Pickup → Drop → Charging → Next Drop',
+                          'Create station-based orders with dropdowns and interactive map',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.green.shade600,
@@ -1811,14 +1330,28 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ],
                     ),
                   ),
-                  ElevatedButton.icon(
-                    onPressed: _showCreateOrderDialog,
-                    icon: Icon(Icons.add),
-                    label: Text('New Order'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _showCreateOrderDialog,
+                        icon: Icon(Icons.list_alt, size: 18),
+                        label: Text('Station Order'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: _navigateToCompleteFleetManagement,
+                        icon: Icon(Icons.dashboard, size: 18),
+                        label: Text('Fleet Mgmt'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -1828,7 +1361,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ),
 
-        // Order list
+        // Orders table widget
         Expanded(
           child: _buildOrdersList(),
         ),
@@ -1867,7 +1400,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                         ),
                         Text(
-                          'Load, edit, and manage saved maps for AGV navigation',
+                          'Manage maps and station locations for order creation',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.purple.shade600,
@@ -1879,8 +1412,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   Row(
                     children: [
                       ElevatedButton.icon(
-                        onPressed: _refreshAllMaps,
-                        icon: Icon(Icons.refresh),
+                        onPressed: _refreshDashboard,
+                        icon: Icon(Icons.refresh, size: 18),
                         label: Text('Refresh'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
@@ -1894,7 +1427,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           MaterialPageRoute(
                               builder: (context) => EnhancedMapPage()),
                         ),
-                        icon: Icon(Icons.edit),
+                        icon: Icon(Icons.edit, size: 18),
                         label: Text('Edit Maps'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.purple,
@@ -1911,62 +1444,15 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ),
 
-        // Maps content with tabs
+        // Maps content
         Expanded(
-          child: DefaultTabController(
-            length: 3,
-            child: Column(
-              children: [
-                TabBar(
-                  labelColor: Colors.purple.shade700,
-                  unselectedLabelColor: Colors.grey.shade600,
-                  indicatorColor: Colors.purple.shade700,
-                  tabs: [
-                    Tab(icon: Icon(Icons.save), text: 'Saved Maps'),
-                    Tab(icon: Icon(Icons.live_tv), text: 'Live Maps'),
-                    Tab(icon: Icon(Icons.share), text: 'Shared Maps'),
-                  ],
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      _buildSavedMapsList(),
-                      _buildLiveMapsList(), // Your existing live maps
-                      _buildSharedMapsList(),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          child: _buildMapsList(),
         ),
       ],
     );
   }
 
-  // Keep all your existing build methods:
-  // - _buildOverviewCards()
-  // - _buildSystemHealthStatus()
-  // - _buildQuickActions()
-  // - _buildOrderStatsRow()
-  // - _buildOrderStatItem()
-  // - _buildStatDivider()
-  // - _buildDeviceFilter()
-  // - _buildDeviceGrid()
-  // - _buildDeviceCard()
-  // - _buildStatusChip()
-  // - _buildOrdersList()
-  // - _buildDetailedOrderCard()
-  // - _buildWaypointSequenceItem()
-  // - _getStepLabel()
-  // - _buildOrderActionButtons()
-  // - _buildMapsList()
-  // - _buildMapCard()
-  // - _buildActiveOrdersSummary()
-  // - _buildRecentActivity()
-
-  // I'll include the missing ones here:
-
+  // Keep all your existing build methods - they remain the same
   Widget _buildOverviewCards() {
     final totalDevices = _connectedDevices.length;
     final onlineDevices =
@@ -2163,25 +1649,22 @@ class _DashboardScreenState extends State<DashboardScreen>
               runSpacing: 8,
               children: [
                 _buildQuickActionButton(
-                  'Create Order',
-                  Icons.add_task,
+                  'Station Order',
+                  Icons.list_alt,
                   Colors.green,
                   _showCreateOrderDialog,
                 ),
                 _buildQuickActionButton(
-                  'Add Device',
-                  Icons.add,
+                  'Interactive Order',
+                  Icons.map,
                   Colors.blue,
-                  () => Navigator.pushNamed(context, '/connect'),
+                  _showInteractiveMapOrderCreator,
                 ),
                 _buildQuickActionButton(
-                  'Edit Maps',
-                  Icons.edit,
+                  'Fleet Management',
+                  Icons.dashboard,
                   Colors.purple,
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => EnhancedMapPage()),
-                  ),
+                  _navigateToCompleteFleetManagement,
                 ),
                 _buildQuickActionButton(
                   'Emergency Stop',
@@ -2272,6 +1755,39 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  Widget _buildMapStatsRow() {
+    final totalMaps = _availableMaps.length;
+    final mapsWithStations = _availableMaps.values.where((map) => map.shapes.isNotEmpty).length;
+    final totalStations = _availableMaps.values.fold(0, (sum, map) => sum + map.shapes.length);
+
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+              child: _buildOrderStatItem(
+                  'Maps', totalMaps, Colors.purple)),
+          _buildStatDivider(),
+          Expanded(
+              child: _buildOrderStatItem(
+                  'With Stations', mapsWithStations, Colors.blue)),
+          _buildStatDivider(),
+          Expanded(
+              child: _buildOrderStatItem(
+                  'Total Stations', totalStations, Colors.green)),
+          _buildStatDivider(),
+          Expanded(
+              child: _buildOrderStatItem(
+                  'Devices', _connectedDevices.length, Colors.orange)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDeviceFilter() {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 12),
@@ -2288,7 +1804,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             DropdownMenuItem(value: null, child: Text('All Devices')),
             DropdownMenuItem(value: 'online', child: Text('Online Only')),
             DropdownMenuItem(value: 'with_orders', child: Text('With Orders')),
-            DropdownMenuItem(value: 'mapping', child: Text('Mapping')),
+            DropdownMenuItem(value: 'with_maps', child: Text('With Maps')),
           ],
           onChanged: (value) {
             setState(() {
@@ -2315,9 +1831,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               .where((d) => (_deviceOrders[d['id']]?.length ?? 0) > 0)
               .toList();
           break;
-        case 'mapping':
+        case 'with_maps':
           filteredDevices = _connectedDevices
-              .where((d) => d['mappingStatus']?['active'] == true)
+              .where((d) => _availableMaps.containsKey(d['id']))
               .toList();
           break;
       }
@@ -2558,20 +2074,35 @@ class _DashboardScreenState extends State<DashboardScreen>
             Icon(Icons.assignment, size: 64, color: Colors.grey),
             SizedBox(height: 16),
             Text(
-              'No Orders Created',
+              'No Orders Created Yet',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8),
-            Text('Create your first A→B→C→D sequence to get started'),
+            Text('Create your first station-based order to get started'),
             SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _showCreateOrderDialog,
-              icon: Icon(Icons.add),
-              label: Text('Create Order Sequence'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _showCreateOrderDialog,
+                  icon: Icon(Icons.list_alt),
+                  label: Text('Station Order'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: _navigateToCompleteFleetManagement,
+                  icon: Icon(Icons.dashboard),
+                  label: Text('Fleet Management'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -2610,7 +2141,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           children: [
             Text('Device: ${order['deviceName'] ?? order['deviceId']}'),
             Text(
-                'Sequence: ${waypoints.length} stations • ${progress['percentage'] ?? 0}% complete'),
+                'Waypoints: ${waypoints.length} • ${progress['percentage'] ?? 0}% complete'),
             SizedBox(height: 4),
             LinearProgressIndicator(
               value: (progress['percentage'] ?? 0) / 100.0,
@@ -2642,7 +2173,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               children: [
                 if (waypoints.isNotEmpty) ...[
                   Text(
-                    'Order Sequence (A→B→C→D):',
+                    'Order Waypoints:',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 8),
@@ -2669,7 +2200,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     final name = waypoint['name'] ?? 'Station $step';
     final color = _getStationTypeColor(type);
     final icon = _getStationTypeIcon(type);
-    final stepLabel = _getStepLabel(step, type);
 
     return Container(
       margin: EdgeInsets.symmetric(vertical: 2),
@@ -2695,7 +2225,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               child: isCompleted
                   ? Icon(Icons.check, color: Colors.white, size: 16)
                   : Text(
-                      stepLabel,
+                      step.toString(),
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -2729,26 +2259,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
           ),
-          if (step < 4 && step < waypoint.length) // Show arrow if not last step
-            Icon(Icons.arrow_forward, color: Colors.grey.shade400),
         ],
       ),
     );
-  }
-
-  String _getStepLabel(int step, String type) {
-    switch (step) {
-      case 1:
-        return 'A';
-      case 2:
-        return 'B';
-      case 3:
-        return 'C';
-      case 4:
-        return 'D';
-      default:
-        return step.toString();
-    }
   }
 
   Widget _buildOrderActionButtons(Map<String, dynamic> order) {
@@ -2817,7 +2330,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8),
-            Text('Create maps and define stations for order sequences'),
+            Text('Create maps and define stations for order creation'),
             SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () => Navigator.push(
@@ -2883,7 +2396,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Size: ${mapData.info.width}×${mapData.info.height}'),
-            Text('Stations: $totalStations available for sequences'),
+            Text('Stations: $totalStations available for orders'),
             if (stationCounts.isNotEmpty)
               Wrap(
                 spacing: 4,
@@ -2912,7 +2425,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             IconButton(
               onPressed: () => _showCreateOrderForDevice(deviceId),
               icon: Icon(Icons.add_task),
-              tooltip: 'Create Order Sequence',
+              tooltip: 'Create Order',
             ),
           ],
         ),

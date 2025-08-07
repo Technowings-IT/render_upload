@@ -25,8 +25,8 @@ class _ConnectScreenState extends State<ConnectScreen>
   final NetworkDiscoveryService _discoveryService = NetworkDiscoveryService();
 
   // Controllers
-  final _deviceIdController = TextEditingController(text: 'agv_01');
-  final _deviceNameController = TextEditingController(text: 'Primary AGV');
+  final _deviceIdController = TextEditingController(text: 'AMR_01');
+  final _deviceNameController = TextEditingController(text: 'Primary AMR');
   final _manualBackendIpController = TextEditingController();
   final _manualBackendPortController = TextEditingController(text: '3000');
   final _manualDeviceIdController = TextEditingController();
@@ -46,7 +46,7 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   // State
   List<Map<String, dynamic>> _connectedDevices = [];
-  List<AGVDevice> _discoveredDevices = [];
+  List<AMRDevice> _discoveredDevices = [];
   String? _detectedBackendIP;
   bool _isLoading = false;
   bool _isConnecting = false;
@@ -70,10 +70,28 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   @override
   void dispose() {
-    _disposeControllers();
-    _disposeAnimations();
+    // Stop all animations before disposing
+    if (_scanningController.isAnimating) {
+      _scanningController.stop();
+    }
+    if (_connectionController.isAnimating) {
+      _connectionController.stop();
+    }
+    if (_radarController.isAnimating) {
+      _radarController.stop();
+    }
+    if (_discoveryController.isAnimating) {
+      _discoveryController.stop();
+    }
+
+    // Cancel stream subscriptions safely
     _deviceEventsSubscription.cancel();
     _connectionStateSubscription.cancel();
+
+    // Dispose controllers and animations
+    _disposeControllers();
+    _disposeAnimations();
+
     super.dispose();
   }
 
@@ -160,14 +178,16 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   void _loadSavedConnections() {
     setState(() {
-      _manualBackendIpController.text = '192.168.0.63';
-      _manualDeviceIpController.text = '192.168.0.63';
+      _manualBackendIpController.text = '192.168.0.76';
+      _manualDeviceIpController.text = '192.168.0.76';
     });
   }
 
   void _startInitialDiscovery() async {
+    if (!mounted) return;
+
     setState(() {
-      _connectionStatus = 'Scanning network for AGV systems...';
+      _connectionStatus = 'Scanning network for AMR systems...';
     });
 
     _radarController.repeat();
@@ -175,26 +195,37 @@ class _ConnectScreenState extends State<ConnectScreen>
     try {
       final backendIP = await _detectBackendIP();
 
+      if (!mounted) return; // Check if widget is still mounted
+
       if (backendIP != null) {
         setState(() {
           _detectedBackendIP = backendIP;
-          _connectionStatus = 'AGV Backend detected at $backendIP';
+          _connectionStatus = 'AMR Backend detected at $backendIP';
         });
         await _connectToDetectedBackend(backendIP);
       } else {
-        setState(() {
-          _connectionStatus =
-              'No AGV backend found - manual connection available';
-        });
+        if (mounted) {
+          setState(() {
+            _connectionStatus =
+                'No AMR backend found - manual connection available';
+          });
+        }
       }
 
-      await _discoverAGVDevices();
+      if (mounted) {
+        await _discoverAMRDevices();
+      }
     } catch (e) {
-      setState(() {
-        _connectionStatus = 'Discovery failed: ${e.toString()}';
-      });
+      if (mounted) {
+        setState(() {
+          _connectionStatus = 'Discovery failed: ${e.toString()}';
+        });
+      }
+      print('❌ Device discovery failed: $e');
     } finally {
-      _radarController.stop();
+      if (mounted && _radarController.isAnimating) {
+        _radarController.stop();
+      }
     }
   }
 
@@ -328,7 +359,6 @@ class _ConnectScreenState extends State<ConnectScreen>
   Widget _buildNetworkParticle(int index, ThemeService theme) {
     final screenWidth = MediaQuery.of(context).size.width;
     final left = (index * 47.3) % screenWidth;
-    final animationDelay = index * 0.3;
 
     return TweenAnimationBuilder<double>(
       duration: Duration(milliseconds: 3000 + (index * 200)),
@@ -564,7 +594,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Network Discovery', style: theme.headlineMedium),
-                    Text('Automatically find AGV systems on your network',
+                    Text('Automatically find AMR systems on your network',
                         style: theme.bodyMedium),
                   ],
                 ),
@@ -597,7 +627,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 child: ModernActionButton(
                   label: 'Quick Connect',
                   icon: Icons.flash_on,
-                  onPressed: () => _autoConnectAGV(),
+                  onPressed: () => _autoConnectAMR(),
                 ),
               ),
             ],
@@ -647,7 +677,7 @@ class _ConnectScreenState extends State<ConnectScreen>
     );
   }
 
-  Widget _buildDiscoveredDeviceCard(AGVDevice device, ThemeService theme) {
+  Widget _buildDiscoveredDeviceCard(AMRDevice device, ThemeService theme) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -723,7 +753,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                   children: [
                     Text('Manual Backend Connection',
                         style: theme.headlineMedium),
-                    Text('Connect to a specific AGV Fleet Backend',
+                    Text('Connect to a specific AMR Fleet Backend',
                         style: theme.bodyMedium),
                   ],
                 ),
@@ -740,7 +770,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 child: _buildModernTextField(
                   controller: _manualBackendIpController,
                   label: 'Backend IP Address',
-                  hint: '192.168.0.63',
+                  hint: '192.168.0.76',
                   icon: Icons.computer,
                   theme: theme,
                 ),
@@ -797,8 +827,8 @@ class _ConnectScreenState extends State<ConnectScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Manual AGV Device', style: theme.headlineMedium),
-                    Text('Add a specific AGV device to your fleet',
+                    Text('Manual AMR Device', style: theme.headlineMedium),
+                    Text('Add a specific AMR device to your fleet',
                         style: theme.bodyMedium),
                   ],
                 ),
@@ -811,7 +841,7 @@ class _ConnectScreenState extends State<ConnectScreen>
           _buildModernTextField(
             controller: _manualDeviceIdController,
             label: 'Device ID',
-            hint: 'agv_01',
+            hint: 'AMR_01',
             icon: Icons.badge,
             theme: theme,
           ),
@@ -819,7 +849,7 @@ class _ConnectScreenState extends State<ConnectScreen>
           _buildModernTextField(
             controller: _manualDeviceNameController,
             label: 'Device Name (Optional)',
-            hint: 'Primary AGV',
+            hint: 'Primary AMR',
             icon: Icons.label,
             theme: theme,
           ),
@@ -832,7 +862,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 flex: 3,
                 child: _buildModernTextField(
                   controller: _manualDeviceIpController,
-                  label: 'AGV IP Address',
+                  label: 'AMR IP Address',
                   hint: '192.168.0.64',
                   icon: Icons.smart_toy,
                   theme: theme,
@@ -859,9 +889,9 @@ class _ConnectScreenState extends State<ConnectScreen>
           SizedBox(
             width: double.infinity,
             child: ModernActionButton(
-              label: _isConnecting ? 'Adding Device...' : 'Add AGV Device',
+              label: _isConnecting ? 'Adding Device...' : 'Add AMR Device',
               icon: Icons.add_circle,
-              onPressed: _isConnecting ? () {} : () => _connectManualAGV(),
+              onPressed: _isConnecting ? () {} : () => _connectManualAMR(),
               isLoading: _isConnecting,
             ),
           ),
@@ -935,7 +965,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Connected Fleet', style: theme.headlineMedium),
-                    Text('Active AGV devices in your fleet',
+                    Text('Active AMR devices in your fleet',
                         style: theme.bodyMedium),
                   ],
                 ),
@@ -1011,8 +1041,8 @@ class _ConnectScreenState extends State<ConnectScreen>
           const SizedBox(height: 12),
           Text(
             _isWebSocketConnected
-                ? 'Fleet backend is connected. Use the tabs above to discover and add AGV devices to your fleet.'
-                : 'Connect to the AGV backend first, then add devices using discovery or manual connection.',
+                ? 'Fleet backend is connected. Use the tabs above to discover and add AMR devices to your fleet.'
+                : 'Connect to the AMR backend first, then add devices using discovery or manual connection.',
             style: theme.bodyMedium,
             textAlign: TextAlign.center,
           ),
@@ -1162,7 +1192,7 @@ class _ConnectScreenState extends State<ConnectScreen>
     if (networkInfo == null) return null;
 
     final subnet = networkInfo['subnet']!;
-    print('🔍 Scanning subnet: $subnet for AGV backend...');
+    print('🔍 Scanning subnet: $subnet for AMR backend...');
 
     final deviceIP = networkInfo['ip']!;
     final deviceIPLast = int.parse(deviceIP.split('.').last);
@@ -1192,7 +1222,7 @@ class _ConnectScreenState extends State<ConnectScreen>
       for (int j = 0; j < results.length; j++) {
         if (results[j] != null) {
           final foundIP = batch.elementAt(j);
-          print('✅ Found AGV backend at: $foundIP');
+          print('✅ Found AMR backend at: $foundIP');
           return foundIP;
         }
       }
@@ -1246,6 +1276,8 @@ class _ConnectScreenState extends State<ConnectScreen>
   }
 
   Future<void> _connectToDetectedBackend(String ip) async {
+    if (!mounted) return;
+
     setState(() {
       _isConnecting = true;
       _connectionStatus = 'Connecting to backend at $ip...';
@@ -1262,37 +1294,42 @@ class _ConnectScreenState extends State<ConnectScreen>
       final wsUrl = 'ws://$ip:3000';
       final wsConnected = await _webSocketService
           .connect(wsUrl, deviceId: 'flutter_app', deviceInfo: {
-        'name': 'Flutter AGV Controller',
+        'name': 'Flutter AMR Controller',
         'type': 'mobile_client',
         'platform': Platform.isAndroid ? 'android' : 'ios',
       });
 
+      if (!mounted) return; // Check if widget is still mounted
+
       if (wsConnected) {
         setState(() {
-          _connectionStatus = 'Connected to AGV Fleet Backend';
+          _connectionStatus = 'Connected to AMR Fleet Backend';
           _isWebSocketConnected = true;
           _detectedBackendIP = ip;
         });
 
-        _showSuccessSnackBar('Connected to AGV backend at $ip');
+        _showSuccessSnackBar('Connected to AMR backend at $ip');
       } else {
         throw Exception('WebSocket connection failed');
       }
     } catch (e) {
-      _showErrorSnackBar('Connection failed: $e');
-      setState(() {
-        _connectionStatus = 'Connection failed: $e';
-      });
+      if (mounted) {
+        _showErrorSnackBar('Connection failed: $e');
+        setState(() {
+          _connectionStatus = 'Connection failed: $e';
+        });
+      }
     } finally {
-      setState(() {
-        _isConnecting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isConnecting = false;
+        });
+      }
     }
   }
 
   Future<void> _connectManualWebSocket() async {
     final ip = _manualBackendIpController.text.trim();
-    final port = _manualBackendPortController.text.trim();
 
     if (ip.isEmpty || !_isValidIP(ip)) {
       _showErrorSnackBar('Please enter a valid IP address');
@@ -1302,7 +1339,7 @@ class _ConnectScreenState extends State<ConnectScreen>
     await _connectToDetectedBackend(ip);
   }
 
-  Future<void> _connectManualAGV() async {
+  Future<void> _connectManualAMR() async {
     final deviceId = _manualDeviceIdController.text.trim();
     final deviceName = _manualDeviceNameController.text.trim();
     final deviceIp = _manualDeviceIpController.text.trim();
@@ -1317,6 +1354,8 @@ class _ConnectScreenState extends State<ConnectScreen>
       return;
     }
 
+    if (!mounted) return;
+
     setState(() {
       _isConnecting = true;
     });
@@ -1329,14 +1368,16 @@ class _ConnectScreenState extends State<ConnectScreen>
 
       final result = await _apiService.connectDevice(
         deviceId: deviceId,
-        name: deviceName.isNotEmpty ? deviceName : 'AGV $deviceId',
+        name: deviceName.isNotEmpty ? deviceName : 'AMR $deviceId',
         ipAddress: deviceIp,
         type: 'differential_drive',
         capabilities: ['mapping', 'navigation', 'remote_control'],
       );
 
+      if (!mounted) return; // Check if widget is still mounted
+
       if (result['success'] == true) {
-        _showSuccessSnackBar('AGV device connected successfully');
+        _showSuccessSnackBar('AMR device connected successfully');
         _loadConnectedDevices();
         _clearManualDeviceFields();
         _showNavigationDialog();
@@ -1344,11 +1385,15 @@ class _ConnectScreenState extends State<ConnectScreen>
         _showErrorSnackBar('Failed to connect device: ${result['error']}');
       }
     } catch (e) {
-      _showErrorSnackBar('Failed to connect AGV device: $e');
+      if (mounted) {
+        _showErrorSnackBar('Failed to connect AMR device: $e');
+      }
     } finally {
-      setState(() {
-        _isConnecting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isConnecting = false;
+        });
+      }
     }
   }
 
@@ -1371,6 +1416,8 @@ class _ConnectScreenState extends State<ConnectScreen>
   }
 
   Future<void> _startAutoDiscovery() async {
+    if (!mounted) return;
+
     setState(() {
       _isDiscovering = true;
     });
@@ -1385,72 +1432,97 @@ class _ConnectScreenState extends State<ConnectScreen>
         useBroadcast: false,
       );
 
+      if (!mounted) return; // Check if widget is still mounted
+
       setState(() {
         _discoveredDevices = devices;
       });
 
-      print('🔍 Discovered ${devices.length} AGV devices');
+      print('🔍 Discovered ${devices.length} AMR devices');
     } catch (e) {
       print('❌ Device discovery failed: $e');
     } finally {
-      setState(() {
-        _isDiscovering = false;
-      });
-      _scanningController.stop();
-      _scanningController.reset();
+      if (mounted) {
+        setState(() {
+          _isDiscovering = false;
+        });
+        if (_scanningController.isAnimating) {
+          _scanningController.stop();
+          _scanningController.reset();
+        }
+      }
     }
   }
 
-  Future<void> _autoConnectAGV() async {
+  Future<void> _autoConnectAMR() async {
+    if (!mounted) return;
+
     setState(() {
       _isConnecting = true;
     });
 
     try {
-      final result = await _apiService.autoConnectAGV();
+      final result = await _apiService.autoConnectAMR();
+
+      if (!mounted) return; // Check if widget is still mounted
 
       if (result['success'] == true) {
-        _showSuccessSnackBar('AGV auto-connected successfully');
+        _showSuccessSnackBar('AMR auto-connected successfully');
         _loadConnectedDevices();
         _showNavigationDialog();
       } else {
         _showErrorSnackBar('Auto-connect failed: ${result['error']}');
       }
     } catch (e) {
-      _showErrorSnackBar('Auto-connect failed: $e');
+      if (mounted) {
+        _showErrorSnackBar('Auto-connect failed: $e');
+      }
     } finally {
-      setState(() {
-        _isConnecting = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isConnecting = false;
+        });
+      }
     }
   }
 
   Future<void> _loadConnectedDevices() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
     });
 
     try {
       if (!_apiService.isInitialized) {
-        setState(() {
-          _connectedDevices = [];
-        });
+        if (mounted) {
+          setState(() {
+            _connectedDevices = [];
+          });
+        }
         return;
       }
 
       final devices = await _apiService.getDevices();
+
+      if (!mounted) return; // Check if widget is still mounted
+
       setState(() {
         _connectedDevices = devices;
       });
     } catch (e) {
       print('❌ Error loading devices: $e');
-      setState(() {
-        _connectedDevices = [];
-      });
+      if (mounted) {
+        setState(() {
+          _connectedDevices = [];
+        });
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -1695,6 +1767,8 @@ class _ConnectScreenState extends State<ConnectScreen>
   }
 
   Future<void> _removeDevice(String deviceId) async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
     });
@@ -1705,6 +1779,9 @@ class _ConnectScreenState extends State<ConnectScreen>
       }
 
       final result = await _apiService.disconnectDevice(deviceId: deviceId);
+
+      if (!mounted) return; // Check if widget is still mounted
+
       if (result['success'] == true) {
         _showSuccessSnackBar('Device removed successfully');
         _loadConnectedDevices();
@@ -1712,11 +1789,15 @@ class _ConnectScreenState extends State<ConnectScreen>
         _showErrorSnackBar('Failed to remove device: ${result['error']}');
       }
     } catch (e) {
-      _showErrorSnackBar('Failed to remove device: $e');
+      if (mounted) {
+        _showErrorSnackBar('Failed to remove device: $e');
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -1739,7 +1820,7 @@ class _ConnectScreenState extends State<ConnectScreen>
           ],
         ),
         content: Text(
-          'Your AGV device has been successfully connected to the fleet. Would you like to go to the Dashboard to manage your fleet?',
+          'Your AMR device has been successfully connected to the fleet. Would you like to go to the Dashboard to manage your fleet?',
           style: theme.bodyMedium,
         ),
         actions: [
@@ -1802,7 +1883,9 @@ class _ConnectScreenState extends State<ConnectScreen>
     );
   }
 
-  Future<void> _discoverAGVDevices() async {
+  Future<void> _discoverAMRDevices() async {
+    if (!mounted) return;
+
     setState(() {
       _isDiscovering = true;
     });
@@ -1815,17 +1898,21 @@ class _ConnectScreenState extends State<ConnectScreen>
         useBroadcast: false,
       );
 
+      if (!mounted) return; // Check if widget is still mounted
+
       setState(() {
         _discoveredDevices = devices;
       });
 
-      print('🔍 Discovered ${devices.length} AGV devices');
+      print('🔍 Discovered ${devices.length} AMR devices');
     } catch (e) {
       print('❌ Device discovery failed: $e');
     } finally {
-      setState(() {
-        _isDiscovering = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isDiscovering = false;
+        });
+      }
     }
   }
 }

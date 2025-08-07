@@ -6,7 +6,7 @@ The PGM Map Editor provides a professional GIMP-like interface for visually edit
 ## 🚀 Quick Start
 
 ### 1. Access the Editor
-1. Open the AGV Fleet Management app
+1. Open the AMR Fleet Management app
 2. Navigate to **Maps** tab
 3. Select **PGM Editor** tab (4th tab)
 4. You'll see the GIMP-like interface with:
@@ -66,14 +66,14 @@ Large:  ●●● (9-15 pixels) - Quick coverage
 5. 📏 Line → Mark preferred robot routes
 6. 🪣 Flood Fill → Mark large open areas
 7. 💾 Save → "warehouse_edited.pgm"
-8. 🚀 Deploy → Send to Robot "AGV-001"
+8. 🚀 Deploy → Send to Robot "AMR-001"
 ```
 
 ## 💾 Save & Deploy Options
 
 ### Save Formats
 - **PGM + YAML**: Standard ROS2 navigation format
-- **JSON**: AGV Fleet Management format
+- **JSON**: AMR Fleet Management format
 - **PNG**: Visual preview for documentation
 
 ### Deployment
@@ -190,7 +190,7 @@ Need help? Check:
 - 📖 **Documentation**: Full API reference  
 - 🐛 **Issues**: Report bugs and feature requests
 - 💬 **Community**: Join our Discord for help
-- 📧 **Support**: team@agv-fleet.com
+- 📧 **Support**: team@AMR-fleet.com
 
 ---
 

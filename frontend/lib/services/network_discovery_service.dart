@@ -5,7 +5,7 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:multicast_dns/multicast_dns.dart';
 
-class AGVDevice {
+class AMRDevice {
   final String id;
   final String name;
   final String ipAddress;
@@ -14,7 +14,7 @@ class AGVDevice {
   final List<String> services;
   final Map<String, dynamic>? metadata;
 
-  AGVDevice({
+  AMRDevice({
     required this.id,
     required this.name,
     required this.ipAddress,
@@ -26,7 +26,7 @@ class AGVDevice {
 
   @override
   String toString() =>
-      'AGVDevice($name @ $ipAddress:$port via $discoveryMethod)';
+      'AMRDevice($name @ $ipAddress:$port via $discoveryMethod)';
 }
 
 class NetworkDiscoveryService {
@@ -35,28 +35,28 @@ class NetworkDiscoveryService {
   factory NetworkDiscoveryService() => _instance;
   NetworkDiscoveryService._internal();
 
-  final StreamController<List<AGVDevice>> _discoveredDevicesController =
-      StreamController<List<AGVDevice>>.broadcast();
+  final StreamController<List<AMRDevice>> _discoveredDevicesController =
+      StreamController<List<AMRDevice>>.broadcast();
 
-  Stream<List<AGVDevice>> get discoveredDevices =>
+  Stream<List<AMRDevice>> get discoveredDevices =>
       _discoveredDevicesController.stream;
 
-  List<AGVDevice> _devices = [];
+  List<AMRDevice> _devices = [];
   bool _isDiscovering = false;
 
-  // AGV-specific ports to scan
-  static const List<int> AGV_PORTS = [3000, 8080, 80, 22, 11311, 9090];
+  // AMR-specific ports to scan
+  static const List<int> AMR_PORTS = [3000, 8080, 80, 22, 11311, 9090];
 
-  // AGV service identifiers
-  static const List<String> AGV_SERVICES = [
+  // AMR service identifiers
+  static const List<String> AMR_SERVICES = [
     '_http._tcp',
     '_ros._tcp',
-    '_agv._tcp',
+    '_AMR._tcp',
     '_websocket._tcp',
     '_ssh._tcp'
   ];
 
-  Future<List<AGVDevice>> discoverDevices({
+  Future<List<AMRDevice>> discoverDevices({
     Duration timeout = const Duration(seconds: 30),
     List<int>? customPorts,
     bool useMDNS = true,
@@ -72,7 +72,7 @@ class NetworkDiscoveryService {
     _isDiscovering = true;
     _devices.clear();
 
-    print('🔍 Starting AGV device discovery...');
+    print('🔍 Starting AMR device discovery...');
 
     try {
       // Get network info
@@ -84,11 +84,11 @@ class NetworkDiscoveryService {
 
       print('📡 Scanning subnet: ${networkInfo['subnet']}');
 
-      final List<Future<List<AGVDevice>>> discoveryMethods = [];
+      final List<Future<List<AMRDevice>>> discoveryMethods = [];
 
-      // 1. Check known AGV IPs first (fastest)
+      // 1. Check known AMR IPs first (fastest)
       if (useKnownIPs) {
-        discoveryMethods.add(_discoverKnownIPs(customPorts ?? AGV_PORTS));
+        discoveryMethods.add(_discoverKnownIPs(customPorts ?? AMR_PORTS));
       }
 
       // 2. mDNS discovery
@@ -99,7 +99,7 @@ class NetworkDiscoveryService {
       // 3. Network scan
       if (useNetworkScan) {
         discoveryMethods.add(_discoverViaNetworkScan(
-            networkInfo['subnet']!, customPorts ?? AGV_PORTS, timeout));
+            networkInfo['subnet']!, customPorts ?? AMR_PORTS, timeout));
       }
 
       // 4. UDP broadcast
@@ -111,7 +111,7 @@ class NetworkDiscoveryService {
       final results = await Future.wait(discoveryMethods, eagerError: false);
 
       // Combine results and remove duplicates
-      final allDevices = <AGVDevice>[];
+      final allDevices = <AMRDevice>[];
       for (final deviceList in results) {
         allDevices.addAll(deviceList);
       }
@@ -130,28 +130,28 @@ class NetworkDiscoveryService {
     }
   }
 
-  // Method 1: Check known AGV IPs
-  Future<List<AGVDevice>> _discoverKnownIPs(List<int> ports) async {
-    print('🎯 Checking known AGV IPs...');
+  // Method 1: Check known AMR IPs
+  Future<List<AMRDevice>> _discoverKnownIPs(List<int> ports) async {
+    print('🎯 Checking known AMR IPs...');
 
-    // Add your known AGV IPs here
+    // Add your known AMR IPs here
     final knownIPs = [
-      '192.168.0.63', // Current backend IP (confirmed working)
-      '192.168.0.84', // Your current AGV
-      '192.168.0.100', // Common AGV IP
-      '10.0.0.100', // Common AGV IP
+      '192.168.0.76', // Current backend IP (confirmed working)
+      '192.168.0.84', // Your current AMR
+      '192.168.0.100', // Common AMR IP
+      '10.0.0.100', // Common AMR IP
     ];
 
-    final devices = <AGVDevice>[];
+    final devices = <AMRDevice>[];
 
     for (final ip in knownIPs) {
       for (final port in ports) {
         try {
           if (await _isPortOpen(ip, port, timeout: Duration(seconds: 2))) {
-            final device = await _identifyAGVDevice(ip, port, 'known_ip');
+            final device = await _identifyAMRDevice(ip, port, 'known_ip');
             if (device != null) {
               devices.add(device);
-              print('✅ Found known AGV: ${device.name} at $ip:$port');
+              print('✅ Found known AMR: ${device.name} at $ip:$port');
             }
           }
         } catch (e) {
@@ -164,10 +164,10 @@ class NetworkDiscoveryService {
   }
 
   // Method 2: mDNS Discovery (Fixed)
-  Future<List<AGVDevice>> _discoverViaMDNS(Duration timeout) async {
+  Future<List<AMRDevice>> _discoverViaMDNS(Duration timeout) async {
     print('🔍 Starting mDNS discovery...');
 
-    final devices = <AGVDevice>[];
+    final devices = <AMRDevice>[];
 
     try {
       final MDnsClient client = MDnsClient();
@@ -175,7 +175,7 @@ class NetworkDiscoveryService {
 
       final List<Future<void>> serviceLookups = [];
 
-      for (final service in AGV_SERVICES) {
+      for (final service in AMR_SERVICES) {
         serviceLookups.add(_lookupMDNSService(client, service, devices));
       }
 
@@ -198,7 +198,7 @@ class NetworkDiscoveryService {
   }
 
   Future<void> _lookupMDNSService(
-      MDnsClient client, String service, List<AGVDevice> devices) async {
+      MDnsClient client, String service, List<AMRDevice> devices) async {
     try {
       await for (final PtrResourceRecord ptr
           in client.lookup<PtrResourceRecord>(
@@ -218,11 +218,11 @@ class NetworkDiscoveryService {
           )) {
             try {
               final device =
-                  await _identifyAGVDevice(a.address.address, srv.port, 'mdns');
+                  await _identifyAMRDevice(a.address.address, srv.port, 'mdns');
               if (device != null &&
                   !devices.any((d) => d.ipAddress == device.ipAddress)) {
                 devices.add(device);
-                print('✅ Found mDNS AGV: ${device.name}');
+                print('✅ Found mDNS AMR: ${device.name}');
               }
             } catch (e) {
               // Skip invalid devices
@@ -236,16 +236,16 @@ class NetworkDiscoveryService {
   }
 
   // Method 3: Enhanced Network Scan
-  Future<List<AGVDevice>> _discoverViaNetworkScan(
+  Future<List<AMRDevice>> _discoverViaNetworkScan(
       String subnet, List<int> ports, Duration timeout) async {
     print('🔍 Starting network scan on $subnet.x...');
 
-    final devices = <AGVDevice>[];
+    final devices = <AMRDevice>[];
     final baseIP = subnet.split('.').take(3).join('.');
 
-    // Scan common AGV IP ranges
+    // Scan common AMR IP ranges
     final scanRanges = [
-      {'start': 70, 'end': 90}, // Common AGV range
+      {'start': 70, 'end': 90}, // Common AMR range
       {'start': 100, 'end': 120}, // Common device range
       {'start': 200, 'end': 210}, // High range
     ];
@@ -256,7 +256,7 @@ class NetworkDiscoveryService {
       for (int i = range['start']!; i <= range['end']!; i++) {
         final ip = '$baseIP.$i';
 
-        scanTasks.add(_scanIPForAGV(ip, ports, devices));
+        scanTasks.add(_scanIPForAMR(ip, ports, devices));
 
         // Batch processing to avoid overwhelming the network
         if (scanTasks.length >= 10) {
@@ -278,16 +278,16 @@ class NetworkDiscoveryService {
     return devices;
   }
 
-  Future<void> _scanIPForAGV(
-      String ip, List<int> ports, List<AGVDevice> devices) async {
+  Future<void> _scanIPForAMR(
+      String ip, List<int> ports, List<AMRDevice> devices) async {
     for (final port in ports) {
       try {
         if (await _isPortOpen(ip, port, timeout: Duration(seconds: 1))) {
-          final device = await _identifyAGVDevice(ip, port, 'network_scan');
+          final device = await _identifyAMRDevice(ip, port, 'network_scan');
           if (device != null &&
               !devices.any((d) => d.ipAddress == device.ipAddress)) {
             devices.add(device);
-            print('✅ Found network AGV: ${device.name} at $ip:$port');
+            print('✅ Found network AMR: ${device.name} at $ip:$port');
           }
         }
       } catch (e) {
@@ -297,23 +297,23 @@ class NetworkDiscoveryService {
   }
 
   // Method 4: UDP Broadcast Discovery
-  Future<List<AGVDevice>> _discoverViaBroadcast(Duration timeout) async {
+  Future<List<AMRDevice>> _discoverViaBroadcast(Duration timeout) async {
     print('🔍 Starting UDP broadcast discovery...');
 
-    final devices = <AGVDevice>[];
+    final devices = <AMRDevice>[];
 
     try {
       final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
       socket.broadcastEnabled = true;
 
-      // Send AGV discovery broadcast
+      // Send AMR discovery broadcast
       final message = utf8.encode(json.encode({
-        'type': 'agv_discovery',
+        'type': 'AMR_discovery',
         'timestamp': DateTime.now().toIso8601String(),
         'sender': 'flutter_app',
       }));
 
-      // Broadcast on common AGV ports
+      // Broadcast on common AMR ports
       final broadcastPorts = [8888, 9999, 12345];
       for (final port in broadcastPorts) {
         socket.send(message, InternetAddress('255.255.255.255'), port);
@@ -331,10 +331,10 @@ class NetworkDiscoveryService {
               final response = utf8.decode(datagram.data);
               final data = json.decode(response);
 
-              if (data['type'] == 'agv_response') {
-                final device = AGVDevice(
+              if (data['type'] == 'AMR_response') {
+                final device = AMRDevice(
                   id: data['id'] ?? 'unknown',
-                  name: data['name'] ?? 'AGV Device',
+                  name: data['name'] ?? 'AMR Device',
                   ipAddress: datagram.address.address,
                   port: data['port'] ?? 3000,
                   discoveryMethod: 'udp_broadcast',
@@ -345,7 +345,7 @@ class NetworkDiscoveryService {
 
                 if (!devices.any((d) => d.ipAddress == device.ipAddress)) {
                   devices.add(device);
-                  print('✅ Found broadcast AGV: ${device.name}');
+                  print('✅ Found broadcast AMR: ${device.name}');
                 }
               }
             } catch (e) {
@@ -373,11 +373,11 @@ class NetworkDiscoveryService {
     return devices;
   }
 
-  // AGV Device Identification
-  Future<AGVDevice?> _identifyAGVDevice(
+  // AMR Device Identification
+  Future<AMRDevice?> _identifyAMRDevice(
       String ip, int port, String discoveryMethod) async {
     try {
-      // Try to get AGV info via HTTP
+      // Try to get AMR info via HTTP
       final response = await http.get(
         Uri.parse('http://$ip:$port/api/health'),
         headers: {'Accept': 'application/json'},
@@ -387,18 +387,18 @@ class NetworkDiscoveryService {
         try {
           final data = json.decode(response.body);
 
-          // Check if this looks like an AGV API
+          // Check if this looks like an AMR API
           if (data['success'] == true ||
-              data.toString().toLowerCase().contains('agv') ||
+              data.toString().toLowerCase().contains('AMR') ||
               data.toString().toLowerCase().contains('fleet') ||
               data.toString().toLowerCase().contains('robot')) {
-            return AGVDevice(
-              id: data['data']?['deviceId'] ?? 'agv_${ip.replaceAll('.', '_')}',
-              name: data['data']?['name'] ?? 'AGV at $ip',
+            return AMRDevice(
+              id: data['data']?['deviceId'] ?? 'AMR_${ip.replaceAll('.', '_')}',
+              name: data['data']?['name'] ?? 'AMR at $ip',
               ipAddress: ip,
               port: port,
               discoveryMethod: discoveryMethod,
-              services: ['http', 'agv_api'],
+              services: ['http', 'AMR_api'],
               metadata: {
                 'health_endpoint': true,
                 'api_version': data['data']?['version'],
@@ -409,8 +409,8 @@ class NetworkDiscoveryService {
           }
         } catch (parseError) {
           // If JSON parse fails, still consider it if status is 200
-          return AGVDevice(
-            id: 'agv_${ip.replaceAll('.', '_')}',
+          return AMRDevice(
+            id: 'AMR_${ip.replaceAll('.', '_')}',
             name: 'Device at $ip',
             ipAddress: ip,
             port: port,
@@ -421,12 +421,12 @@ class NetworkDiscoveryService {
         }
       }
 
-      // Check for other AGV indicators
+      // Check for other AMR indicators
       if (response.statusCode == 404 || response.statusCode == 401) {
-        // Might be an AGV with different endpoint structure
-        return AGVDevice(
+        // Might be an AMR with different endpoint structure
+        return AMRDevice(
           id: 'device_${ip.replaceAll('.', '_')}',
-          name: 'Possible AGV at $ip',
+          name: 'Possible AMR at $ip',
           ipAddress: ip,
           port: port,
           discoveryMethod: discoveryMethod,
@@ -437,7 +437,7 @@ class NetworkDiscoveryService {
     } catch (e) {
       // Check if port is open but no HTTP service
       if (await _isPortOpen(ip, port, timeout: Duration(seconds: 1))) {
-        return AGVDevice(
+        return AMRDevice(
           id: 'device_${ip.replaceAll('.', '_')}',
           name: 'Device at $ip',
           ipAddress: ip,
@@ -488,9 +488,9 @@ class NetworkDiscoveryService {
     }
   }
 
-  List<AGVDevice> _removeDuplicateDevices(List<AGVDevice> devices) {
+  List<AMRDevice> _removeDuplicateDevices(List<AMRDevice> devices) {
     final seen = <String>{};
-    final unique = <AGVDevice>[];
+    final unique = <AMRDevice>[];
 
     for (final device in devices) {
       final key = '${device.ipAddress}:${device.port}';

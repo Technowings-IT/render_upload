@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Enhanced Order Creation System provides **two powerful ways** to create AGV orders with seamless integration to your existing `target_pose` publisher system.
+The Enhanced Order Creation System provides **two powerful ways** to create AMR orders with seamless integration to your existing `target_pose` publisher system.
 
 ## 🚀 **System Architecture**
 
@@ -125,7 +125,7 @@ POST /api/enhanced-orders/devices/:deviceId/orders/:orderId/cancel
 GET /api/enhanced-orders/devices/:deviceId/orders/:orderId/status
 
 # Get active executions
-GET /api/enhanced-orders/active-executions?deviceId=AGV-001
+GET /api/enhanced-orders/active-executions?deviceId=AMR-001
 
 # Get execution history
 GET /api/enhanced-orders/execution-history?limit=50&offset=0
@@ -148,7 +148,7 @@ GET /api/enhanced-orders/execution-history?limit=50&offset=0
 // Order execution started
 {
   "type": "order_execution_started",
-  "deviceId": "AGV-001",
+  "deviceId": "AMR-001",
   "orderId": "order_123",
   "executionContext": { ... }
 }
@@ -229,7 +229,7 @@ import '../widgets/interactive_map_order_creator.dart';
 
 // Enhanced API service methods are included
 await _apiService.executeOrderEnhanced(
-  deviceId: 'AGV-001',
+  deviceId: 'AMR-001',
   orderId: 'order_123',
   immediateStart: true,
 );
@@ -312,4 +312,4 @@ Your existing `publishers.js` system works seamlessly:
    - Emergency stop if needed
    - Cancel with reason
 
-The system is designed to be **intuitive for users** and **powerful for developers**, providing the flexibility you need for complex AGV fleet management! 🎯
+The system is designed to be **intuitive for users** and **powerful for developers**, providing the flexibility you need for complex AMR fleet management! 🎯

@@ -130,7 +130,7 @@ class ProfileScreen extends StatelessWidget {
                         _ProfileDetailRow(
                           icon: Icons.location_on,
                           label: 'Location',
-                          value: 'AGV Lab, Floor 2',
+                          value: 'AMR Lab, Floor 2',
                           theme: theme,
                         ),
                         _ProfileDetailRow(

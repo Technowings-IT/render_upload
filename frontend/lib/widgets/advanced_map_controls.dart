@@ -22,10 +22,9 @@ class AdvancedMapControls extends StatefulWidget {
 
 class _AdvancedMapControlsState extends State<AdvancedMapControls>
     with TickerProviderStateMixin {
-  
   final WebSocketService _wsService = WebSocketService();
   final ApiService _apiService = ApiService();
-  
+
   // Settings
   Map<String, dynamic> _settings = {
     'showGlobalCostmap': true,
@@ -42,17 +41,17 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
     'gridVisible': true,
     'coordinatesVisible': true,
   };
-  
+
   // Animation controllers
   late AnimationController _panelController;
   late AnimationController _exportController;
   bool _panelExpanded = false;
   bool _isExporting = false;
-  
+
   // Available maps
   List<Map<String, dynamic>> _availableMaps = [];
   String? _selectedMapName;
-  
+
   // Real-time status
   Map<String, bool> _layerStatus = {
     'staticMap': false,
@@ -64,22 +63,22 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
   @override
   void initState() {
     super.initState();
-    
+
     _panelController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    
+
     _exportController = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
-    
+
     // Initialize settings
     if (widget.currentSettings != null) {
       _settings.addAll(widget.currentSettings!);
     }
-    
+
     _loadAvailableMaps();
     _subscribeToStatusUpdates();
   }
@@ -155,7 +154,9 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
           _buildMainControls(),
           AnimatedSize(
             duration: const Duration(milliseconds: 300),
-            child: _panelExpanded ? _buildAdvancedPanel() : const SizedBox.shrink(),
+            child: _panelExpanded
+                ? _buildAdvancedPanel()
+                : const SizedBox.shrink(),
           ),
         ],
       ),
@@ -202,14 +203,14 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
               ),
             ],
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Quick layer toggles
           _buildQuickToggles(),
-          
+
           const SizedBox(height: 16),
-          
+
           // Action buttons
           _buildActionButtons(),
         ],
@@ -241,13 +242,15 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
           decoration: BoxDecoration(
             color: active ? color : Colors.grey.shade300,
             shape: BoxShape.circle,
-            boxShadow: active ? [
-              BoxShadow(
-                color: color.withOpacity(0.5),
-                blurRadius: 4,
-                spreadRadius: 1,
-              ),
-            ] : null,
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: color.withOpacity(0.5),
+                      blurRadius: 4,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
           ),
         ),
         const SizedBox(width: 4),
@@ -360,7 +363,8 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
                           value: _exportController.value,
                         ),
                       )
@@ -375,15 +379,15 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
             },
           ),
         ),
-        
+
         const SizedBox(width: 12),
-        
+
         // Upload button
         Expanded(
           child: ElevatedButton.icon(
             onPressed: _selectedMapName != null ? _uploadMap : null,
             icon: const Icon(Icons.upload),
-            label: const Text('Upload to AGV'),
+            label: const Text('Upload to AMR'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.purple,
               foregroundColor: Colors.white,
@@ -391,9 +395,9 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
             ),
           ),
         ),
-        
+
         const SizedBox(width: 12),
-        
+
         // Clear costmap button
         ElevatedButton(
           onPressed: _clearCostmaps,
@@ -422,19 +426,19 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
         children: [
           // Opacity controls
           _buildOpacityControls(),
-          
+
           const SizedBox(height: 16),
-          
+
           // Color scheme and appearance
           _buildAppearanceControls(),
-          
+
           const SizedBox(height: 16),
-          
+
           // Map management
           _buildMapManagement(),
-          
+
           const SizedBox(height: 16),
-          
+
           // Advanced options
           _buildAdvancedOptions(),
         ],
@@ -455,7 +459,6 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
           ),
         ),
         const SizedBox(height: 8),
-        
         if (_settings['showStaticMap'])
           _buildOpacitySlider(
             'Static Map',
@@ -463,7 +466,6 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
             Colors.grey.shade600,
             (value) => _updateSetting('staticMapOpacity', value),
           ),
-        
         if (_settings['showGlobalCostmap'])
           _buildOpacitySlider(
             'Global Costmap',
@@ -471,7 +473,6 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
             Colors.blue,
             (value) => _updateSetting('globalCostmapOpacity', value),
           ),
-        
         if (_settings['showLocalCostmap'])
           _buildOpacitySlider(
             'Local Costmap',
@@ -543,7 +544,7 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
           ),
         ),
         const SizedBox(height: 8),
-        
+
         // Color scheme selector
         Row(
           children: [
@@ -561,9 +562,9 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
             ),
           ],
         ),
-        
+
         const SizedBox(height: 8),
-        
+
         // Trail length
         Row(
           children: [
@@ -575,7 +576,8 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
                 max: 1000,
                 divisions: 19,
                 label: '${_settings['trailLength']} points',
-                onChanged: (value) => _updateSetting('trailLength', value.toInt()),
+                onChanged: (value) =>
+                    _updateSetting('trailLength', value.toInt()),
               ),
             ),
           ],
@@ -597,7 +599,7 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
           ),
         ),
         const SizedBox(height: 8),
-        
+
         // Available maps dropdown
         Row(
           children: [
@@ -608,7 +610,8 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
                 value: _selectedMapName,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   isDense: true,
                 ),
                 items: _availableMaps.map((map) {
@@ -635,9 +638,9 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
             ),
           ],
         ),
-        
+
         const SizedBox(height: 8),
-        
+
         // Map operations
         Row(
           children: [
@@ -700,7 +703,7 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
           ),
         ),
         const SizedBox(height: 8),
-        
+
         // Checkboxes for advanced features
         _buildCheckboxOption(
           'Auto Center on Robot',
@@ -773,14 +776,14 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
     if (_selectedMapName == null) return;
 
     try {
-      final result = await _apiService.uploadMapToAGV(
+      final result = await _apiService.uploadMapToAMR(
         deviceId: widget.deviceId,
         mapName: _selectedMapName!,
         setAsActiveMap: true,
       );
 
       if (result['success']) {
-        _showSuccessSnackBar('Map uploaded to AGV successfully!');
+        _showSuccessSnackBar('Map uploaded to AMR successfully!');
       } else {
         _showErrorSnackBar('Upload failed: ${result['error']}');
       }
@@ -842,8 +845,8 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
           children: [
             const Text('Select processing operation:'),
             const SizedBox(height: 16),
-            ...['erode', 'dilate', 'open', 'close'].map((op) =>
-              ListTile(
+            ...['erode', 'dilate', 'open', 'close'].map(
+              (op) => ListTile(
                 title: Text(op.toUpperCase()),
                 onTap: () => Navigator.of(context).pop(op),
               ),
@@ -905,23 +908,25 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
 
   Future<bool> _showDeleteConfirmDialog() async {
     return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Map'),
-        content: Text('Are you sure you want to delete "$_selectedMapName"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete Map'),
+            content:
+                Text('Are you sure you want to delete "$_selectedMapName"?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   void _showSuccessSnackBar(String message) {

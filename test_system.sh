@@ -1,5 +1,5 @@
 #!/bin/bash
-# test_system.sh - Quick test script for AGV Fleet Management System
+# test_system.sh - Quick test script for AMR Fleet Management System
 
 set -e
 
@@ -28,8 +28,8 @@ error() {
 }
 
 # Check if we're in the right directory
-if [[ "$(basename "$PWD")" != "agv-fleet-management" ]]; then
-  error "Please run this script from the agv-fleet-management root directory"
+if [[ "$(basename "$PWD")" != "AMR-fleet-management" ]]; then
+  error "Please run this script from the AMR-fleet-management root directory"
 fi
 # Function to check if a port is in use
 check_port() {
@@ -65,9 +65,9 @@ cleanup() {
     sleep 2
 }
 
-# Start mock AGV (ROS2 simulator)
-start_mock_agv() {
-    log "Starting mock AGV simulator..."
+# Start mock AMR (ROS2 simulator)
+start_mock_AMR() {
+    log "Starting mock AMR simulator..."
     
     # Check if ROS2 is available
     if ! command -v ros2 &> /dev/null; then
@@ -79,7 +79,7 @@ start_mock_agv() {
     export ROS_DOMAIN_ID=0
     
     # Start mock odometry publisher
-    nohup ros2 topic pub /agv_001/odom nav_msgs/msg/Odometry "{
+    nohup ros2 topic pub /AMR_001/odom nav_msgs/msg/Odometry "{
         header: {
             stamp: {sec: 0, nanosec: 0},
             frame_id: 'map'
@@ -99,7 +99,7 @@ start_mock_agv() {
     }" --rate 2 > /dev/null 2>&1 &
     
     # Start mock battery publisher
-    nohup ros2 topic pub /agv_001/battery_state sensor_msgs/msg/BatteryState "{
+    nohup ros2 topic pub /AMR_001/battery_state sensor_msgs/msg/BatteryState "{
         voltage: 12.5,
         current: 2.0,
         charge: 45.0,
@@ -112,14 +112,14 @@ start_mock_agv() {
     }" --rate 0.5 > /dev/null 2>&1 &
     
     # Start mock robot state publisher
-    nohup ros2 topic pub /agv_001/robot_state std_msgs/msg/String "{
+    nohup ros2 topic pub /AMR_001/robot_state std_msgs/msg/String "{
         data: '{\"mode\": \"auto\", \"status\": \"ok\", \"errors\": []}'
     }" --rate 0.2 > /dev/null 2>&1 &
     
-    info "Mock AGV started with topics:"
-    info "  - /agv_001/odom (odometry data)"
-    info "  - /agv_001/battery_state (battery info)"
-    info "  - /agv_001/robot_state (robot status)"
+    info "Mock AMR started with topics:"
+    info "  - /AMR_001/odom (odometry data)"
+    info "  - /AMR_001/battery_state (battery info)"
+    info "  - /AMR_001/robot_state (robot status)"
     
     sleep 2
 }
@@ -128,7 +128,7 @@ start_mock_agv() {
 start_backend() {
     log "Starting backend server..."
     
-    cd agv-fleet-backend
+    cd AMR-fleet-backend
     
     # Check if node_modules exists
     if [[ ! -d "node_modules" ]]; then
@@ -174,7 +174,7 @@ EOF
 start_frontend() {
     log "Starting Flutter frontend..."
     
-    cd agv_fleet_management
+    cd AMR_fleet_management
     
     # Check if Flutter is available
     if ! command -v flutter &> /dev/null; then
@@ -223,12 +223,12 @@ show_status() {
     fi
     
     # ROS2 topics
-    if source /opt/ros/jazzy/setup.bash && export ROS_DOMAIN_ID=0 && ros2 topic list | grep -q agv_001; then
-        echo -e "✅ Mock AGV: ${GREEN}Running${NC}"
+    if source /opt/ros/jazzy/setup.bash && export ROS_DOMAIN_ID=0 && ros2 topic list | grep -q AMR_001; then
+        echo -e "✅ Mock AMR: ${GREEN}Running${NC}"
         echo "   ROS2 Topics:"
-        source /opt/ros/jazzy/setup.bash && export ROS_DOMAIN_ID=0 && ros2 topic list | grep agv_001 | sed 's/^/     /'
+        source /opt/ros/jazzy/setup.bash && export ROS_DOMAIN_ID=0 && ros2 topic list | grep AMR_001 | sed 's/^/     /'
     else
-        echo -e "❌ Mock AGV: ${RED}Not Running${NC}"
+        echo -e "❌ Mock AMR: ${RED}Not Running${NC}"
     fi
     
     echo ""
@@ -236,11 +236,11 @@ show_status() {
     echo "1. Open the Flutter app in your browser: http://localhost:8080"
     echo "2. Go to 'Devices' tab and click '+' to add a device"
     echo "3. Use these settings:"
-    echo "   - Device ID: agv_001"
-    echo "   - Device Name: Test AGV"
+    echo "   - Device ID: AMR_001"
+    echo "   - Device Name: Test AMR"
     echo "   - IP Address: 127.0.0.1"
     echo "4. Click 'Connect Device'"
-    echo "5. Go to Dashboard to see your connected AGV"
+    echo "5. Go to Dashboard to see your connected AMR"
     echo "6. Try the Control interface to test the joystick"
     echo ""
     echo "To stop the system: $0 stop"
@@ -252,15 +252,15 @@ stop_services() {
     log "Stopping all services..."
     
     # Stop backend
-    if [[ -f "agv-fleet-backend/backend.pid" ]]; then
-        kill $(cat agv-fleet-backend/backend.pid) 2>/dev/null || true
-        rm agv-fleet-backend/backend.pid
+    if [[ -f "AMR-fleet-backend/backend.pid" ]]; then
+        kill $(cat AMR-fleet-backend/backend.pid) 2>/dev/null || true
+        rm AMR-fleet-backend/backend.pid
     fi
     
     # Stop frontend
-    if [[ -f "agv_fleet_management/frontend.pid" ]]; then
-        kill $(cat agv_fleet_management/frontend.pid) 2>/dev/null || true
-        rm agv_fleet_management/frontend.pid
+    if [[ -f "AMR_fleet_management/frontend.pid" ]]; then
+        kill $(cat AMR_fleet_management/frontend.pid) 2>/dev/null || true
+        rm AMR_fleet_management/frontend.pid
     fi
     
     # Stop all related processes
@@ -272,9 +272,9 @@ stop_services() {
 # Main script logic
 case "${1:-start}" in
     start)
-        log "Starting AGV Fleet Management System Test..."
+        log "Starting AMR Fleet Management System Test..."
         cleanup
-        start_mock_agv
+        start_mock_AMR
         start_backend
         start_frontend
         sleep 5

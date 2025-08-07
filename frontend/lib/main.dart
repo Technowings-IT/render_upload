@@ -17,11 +17,11 @@ import 'services/api_service.dart';
 
 // Configuration constants - Update these for your setup
 class AppConfig {
-  // Your AGV backend server configuration
+  // Your AMR backend server configuration
   static const String DEFAULT_SERVER_IP =
-      '192.168.0.63'; // Updated to actual machine IP
+      '192.168.1.35'; // Updated to actual backend IP where backend is running
   static const int DEFAULT_SERVER_PORT = 3000; // Backend port
-  static const int AGV_SSH_PORT = 22; // AGV SSH port (mentioned by user)
+  static const int AMR_SSH_PORT = 22; // AMR SSH port (mentioned by user)
 
   // Constructed URLs
   static String get serverUrl =>
@@ -38,10 +38,10 @@ class AppConfig {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  print('🚀 Starting AGV Fleet Management App...');
+  print('🚀 Starting AMR Fleet Management App...');
   print('📡 Server: ${AppConfig.serverUrl}');
   print('🔌 WebSocket: ${AppConfig.websocketUrl}');
-  print('🔧 AGV SSH Port: ${AppConfig.AGV_SSH_PORT}');
+  print('🔧 AMR SSH Port: ${AppConfig.AMR_SSH_PORT}');
   print('🌐 Backend health check: ${AppConfig.serverUrl}/health');
 
   // Initialize theme service
@@ -68,18 +68,18 @@ void main() async {
   runApp(
     ChangeNotifierProvider.value(
       value: themeService,
-      child: AGVFleetManagementApp(),
+      child: AMRFleetManagementApp(),
     ),
   );
 }
 
-class AGVFleetManagementApp extends StatelessWidget {
+class AMRFleetManagementApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Consumer<ThemeService>(
       builder: (context, themeService, child) {
         return MaterialApp(
-          title: 'AGV Fleet Management',
+          title: 'AMR Fleet Management',
           theme: themeService.lightTheme,
           darkTheme: themeService.darkTheme,
           themeMode: themeService.isDarkMode ? ThemeMode.dark : ThemeMode.light,
@@ -87,10 +87,7 @@ class AGVFleetManagementApp extends StatelessWidget {
           initialRoute: '/splash',
           routes: {
             '/splash': (context) => SplashScreen(),
-            '/login': (context) => EnhancedLoginScreen(
-              isDarkMode: Provider.of<ThemeService>(context, listen: false).isDarkMode,
-              onThemeToggle: (bool value) => Provider.of<ThemeService>(context, listen: false).toggleTheme(),
-            ),
+            '/login': (context) => EnhancedLoginScreen(),
             '/': (context) => MainNavigationWrapper(),
             '/dashboard': (context) => MainNavigationWrapper(initialIndex: 0),
             '/connect': (context) => MainNavigationWrapper(initialIndex: 1),
@@ -103,7 +100,7 @@ class AGVFleetManagementApp extends StatelessWidget {
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
                   builder: (context) => ControlPage(
-                    deviceId: args?['deviceId'] ?? 'agv_01',
+                    deviceId: args?['deviceId'] ?? 'AMR_01',
                   ),
                 );
               case '/map':
@@ -184,7 +181,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   void _initializeServices() async {
     setState(() {
       _isInitializing = true;
-      _connectionStatus = 'Connecting to AGV server...';
+      _connectionStatus = 'Connecting to AMR server...';
     });
 
     await _connectWithRetry();
@@ -232,7 +229,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
           if (wsConnected) {
             print('✅ WebSocket connected successfully');
             _subscribeToConnectionState();
-            _tryAutoConnectAGV();
+            _tryAutoConnectAMR();
           } else {
             print('⚠️ WebSocket connection failed, but API is available');
             _showWebSocketWarning();
@@ -264,16 +261,16 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
     }
   }
 
-  void _tryAutoConnectAGV() async {
+  void _tryAutoConnectAMR() async {
     try {
-      print('🤖 Attempting to auto-connect AGV...');
-      final result = await _apiService.autoConnectAGV();
+      print('🤖 Attempting to auto-connect AMR...');
+      final result = await _apiService.autoConnectAMR();
       if (result['success'] == true) {
-        print('✅ AGV auto-connected: ${result['deviceId']}');
-        _showSuccessSnackBar('AGV connected successfully');
+        print('✅ AMR auto-connected: ${result['deviceId']}');
+        _showSuccessSnackBar('AMR connected successfully');
       }
     } catch (e) {
-      print('⚠️ AGV auto-connect failed: $e');
+      print('⚠️ AMR auto-connect failed: $e');
       // Don't show error - this is optional
     }
   }
@@ -381,7 +378,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
               ),
               SizedBox(height: 24),
               Text(
-                'AGV Fleet Management',
+                'AMR Fleet Management',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -461,7 +458,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
                 ),
                 SizedBox(height: 8),
                 Text(
-                  'AGV Fleet Management',
+                  'AMR Fleet Management',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -631,7 +628,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
                 'API Server', _apiService.baseUrl ?? 'Unknown'),
             _buildConnectionItem(
                 'WebSocket', _apiService.getWebSocketUrl() ?? ''),
-            _buildConnectionItem('AGV SSH Port', '${AppConfig.AGV_SSH_PORT}'),
+            _buildConnectionItem('AMR SSH Port', '${AppConfig.AMR_SSH_PORT}'),
             _buildConnectionItem(
                 'Client ID', connectionInfo['clientId'] ?? 'Not assigned'),
             _buildConnectionItem('API Status',
@@ -693,32 +690,32 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('AGV Fleet Management System',
+              Text('AMR Fleet Management System',
                   style: TextStyle(fontWeight: FontWeight.bold)),
               SizedBox(height: 16),
               Text('Current Configuration:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
-              Text('• AGV IP: ${AppConfig.DEFAULT_SERVER_IP}'),
+              Text('• AMR IP: ${AppConfig.DEFAULT_SERVER_IP}'),
               Text('• Backend Port: ${AppConfig.DEFAULT_SERVER_PORT}'),
-              Text('• SSH Port: ${AppConfig.AGV_SSH_PORT}'),
+              Text('• SSH Port: ${AppConfig.AMR_SSH_PORT}'),
               SizedBox(height: 16),
               Text('Quick Start:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
-              Text('1. Ensure AGV backend is running'),
-              Text('2. Connect your AGV devices'),
+              Text('1. Ensure AMR backend is running'),
+              Text('2. Connect your AMR devices'),
               Text('3. Use joystick control for manual operation'),
               Text('4. Create maps using SLAM mapping'),
               Text('5. Set up automated orders and routes'),
               SizedBox(height: 16),
               Text('Troubleshooting:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
-              Text('• Check AGV backend: curl ${AppConfig.serverUrl}/health'),
+              Text('• Check AMR backend: curl ${AppConfig.serverUrl}/health'),
               Text('• Verify ROS2 topics: ros2 topic list'),
               Text('• Test SSH: ssh user@${AppConfig.DEFAULT_SERVER_IP}'),
               SizedBox(height: 16),
               Text('For technical support:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
-              Text('• Check ROS2 logs on AGV'),
+              Text('• Check ROS2 logs on AMR'),
               Text('• Verify network connectivity'),
               Text('• Ensure all required ROS2 nodes are running'),
             ],

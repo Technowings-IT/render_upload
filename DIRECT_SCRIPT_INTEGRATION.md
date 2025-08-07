@@ -1,7 +1,7 @@
-# AGV Fleet Management - Direct Script Execution Integration
+# AMR Fleet Management - Direct Script Execution Integration
 
 ## Overview
-Successfully integrated the direct script execution method from `direct_start.js` into the AGV Fleet Management system. The system now properly executes ROS2 scripts on the Raspberry Pi using SSH with nohup for background execution.
+Successfully integrated the direct script execution method from `direct_start.js` into the AMR Fleet Management system. The system now properly executes ROS2 scripts on the Raspberry Pi using SSH with nohup for background execution.
 
 ## Integration Components
 

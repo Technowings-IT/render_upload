@@ -1,4 +1,4 @@
-//routes/analyticsRoutes.js - Analytics API for AGV Fleet Management
+//routes/analyticsRoutes.js - Analytics API for AMR Fleet Management
 const express = require('express');
 const router = express.Router();
 

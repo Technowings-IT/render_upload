@@ -6,6 +6,58 @@ import '../services/api_service.dart';
 import '../models/map_data.dart';
 import 'pgm_map_editor.dart';
 
+// Define LocationPointType enum if not already defined elsewhere
+enum LocationPointType { pickup, drop, home, charging, waypoint }
+
+extension LocationPointTypeExtension on LocationPointType {
+  String get name => toString().split('.').last;
+  String get displayName {
+    switch (this) {
+      case LocationPointType.pickup:
+        return 'Pickup';
+      case LocationPointType.drop:
+        return 'Drop';
+      case LocationPointType.home:
+        return 'Home';
+      case LocationPointType.charging:
+        return 'Charging';
+      case LocationPointType.waypoint:
+        return 'Waypoint';
+    }
+  }
+}
+
+// Define LocationPointData class if not already defined elsewhere
+class LocationPointData {
+  final String id;
+  final String name;
+  final String type;
+  final Map<String, double> position;
+  final Map<String, double> orientation;
+  final Map<String, dynamic> properties;
+  final DateTime createdAt;
+
+  LocationPointData({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.position,
+    required this.orientation,
+    required this.properties,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'type': type,
+        'position': position,
+        'orientation': orientation,
+        'properties': properties,
+        'createdAt': createdAt.toIso8601String(),
+      };
+}
+
 class EnhancedMapEditingWorkflow extends StatefulWidget {
   final String deviceId;
   final MapData? currentMapData;
@@ -45,7 +97,9 @@ class _EnhancedMapEditingWorkflowState extends State<EnhancedMapEditingWorkflow>
   // Map editing data
   String? _convertedMapName;
   MapData? _editingMapData;
-  Uint8List? _editedMapImage;
+  // Uint8List? _editedMapImage; // Removed unused field
+
+  // TODO: Ensure LocationPointData is imported or defined. If not, replace with correct type.
   List<LocationPointData> _locationPoints = [];
   
   // Configuration
@@ -1954,7 +2008,7 @@ class _EnhancedMapEditingWorkflowState extends State<EnhancedMapEditingWorkflow>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Your enhanced map has been successfully deployed!'),
+            Text('Your map has been successfully deployed!'),
             SizedBox(height: 16),
             Text('Summary:', style: TextStyle(fontWeight: FontWeight.bold)),
             Text('• Map: ${_finalMapNameController.text}'),

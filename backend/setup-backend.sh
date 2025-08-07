@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Backend Setup Script for AGV Fleet Management System
+# Backend Setup Script for AMR Fleet Management System
 
-echo "🚀 Setting up AGV Fleet Management Backend..."
+echo "🚀 Setting up AMR Fleet Management Backend..."
 
 # Create directory structure
 echo "📁 Creating directory structure..."
@@ -61,7 +61,7 @@ fi
 # Create environment file
 echo "🔧 Creating environment configuration..."
 cat > .env << EOF
-# AGV Fleet Management Environment Configuration
+# AMR Fleet Management Environment Configuration
 NODE_ENV=development
 PORT=3000
 HOST=0.0.0.0
@@ -89,7 +89,7 @@ echo "🔄 Creating PM2 ecosystem config..."
 cat > ecosystem.config.js << EOF
 module.exports = {
   apps: [{
-    name: 'agv-fleet-backend',
+    name: 'AMR-fleet-backend',
     script: 'app.js',
     instances: 1,
     autorestart: true,
@@ -119,7 +119,7 @@ echo "📜 Creating startup scripts..."
 # Development startup
 cat > start-dev.sh << EOF
 #!/bin/bash
-echo "🚀 Starting AGV Fleet Management Backend (Development)"
+echo "🚀 Starting AMR Fleet Management Backend (Development)"
 
 # Check if ROS2 is available
 if command -v ros2 &> /dev/null; then
@@ -134,7 +134,7 @@ EOF
 # Production startup
 cat > start-prod.sh << EOF
 #!/bin/bash
-echo "🚀 Starting AGV Fleet Management Backend (Production)"
+echo "🚀 Starting AMR Fleet Management Backend (Production)"
 
 # Check if ROS2 is available
 if command -v ros2 &> /dev/null; then
@@ -152,15 +152,15 @@ echo "✅ Startup scripts created"
 
 # Create systemd service file (optional)
 echo "🔧 Creating systemd service template..."
-cat > agv-fleet-backend.service << EOF
+cat > AMR-fleet-backend.service << EOF
 [Unit]
-Description=AGV Fleet Management Backend
+Description=AMR Fleet Management Backend
 After=network.target
 
 [Service]
 Type=simple
 User=\$USER
-WorkingDirectory=/path/to/your/agv-fleet-backend
+WorkingDirectory=/path/to/your/AMR-fleet-backend
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=ROS_DOMAIN_ID=0
@@ -169,8 +169,8 @@ Restart=always
 RestartSec=10
 
 # Logging
-StandardOutput=append:/path/to/your/agv-fleet-backend/storage/logs/systemd.log
-StandardError=append:/path/to/your/agv-fleet-backend/storage/logs/systemd-error.log
+StandardOutput=append:/path/to/your/AMR-fleet-backend/storage/logs/systemd.log
+StandardError=append:/path/to/your/AMR-fleet-backend/storage/logs/systemd-error.log
 
 [Install]
 WantedBy=multi-user.target
@@ -183,7 +183,7 @@ echo "🏥 Creating health check script..."
 cat > health-check.sh << EOF
 #!/bin/bash
 
-echo "🏥 AGV Fleet Management Backend Health Check"
+echo "🏥 AMR Fleet Management Backend Health Check"
 
 # Check if server is running
 if curl -f http://localhost:3000/api/health >/dev/null 2>&1; then
@@ -221,7 +221,7 @@ echo "🎉 Backend setup completed!"
 echo ""
 echo "Next steps:"
 echo "1. Review and edit .env file with your settings"
-echo "2. If using systemd, edit agv-fleet-backend.service with correct paths"
+echo "2. If using systemd, edit AMR-fleet-backend.service with correct paths"
 echo "3. Start development server: ./start-dev.sh"
 echo "4. Or start production server: ./start-prod.sh"
 echo "5. Check health: ./health-check.sh"

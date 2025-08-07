@@ -21,7 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   final _serverUrlController = TextEditingController();
   final _websocketUrlController = TextEditingController();
 
-  // AGV settings
+  // AMR settings
   double _maxLinearSpeed = 1.0;
   double _maxAngularSpeed = 2.0;
   double _batteryLowThreshold = 20.0;
@@ -148,7 +148,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   delegate: SliverChildListDelegate([
                     _buildServerSettingsSection(theme),
                     const SizedBox(height: 24),
-                    _buildAGVSettingsSection(theme),
+                    _buildAMRSettingsSection(theme),
                     const SizedBox(height: 24),
                     _buildThemeSection(theme),
                     const SizedBox(height: 24),
@@ -306,9 +306,9 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  Widget _buildAGVSettingsSection(ThemeService theme) {
+  Widget _buildAMRSettingsSection(ThemeService theme) {
     return ModernSettingsSection(
-      title: 'AGV Control Settings',
+      title: 'AMR Control Settings',
       icon: Icons.smart_toy,
       children: [
         _buildSliderSetting(
@@ -1016,8 +1016,8 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   void _resetSettings() {
     setState(() {
-      _serverUrlController.text = 'http://192.168.0.63:3000';
-      _websocketUrlController.text = 'ws://192.168.0.63:3000';
+      _serverUrlController.text = 'http://192.168.0.76:3000';
+      _websocketUrlController.text = 'ws://192.168.0.76:3000';
       _maxLinearSpeed = 1.0;
       _maxAngularSpeed = 2.0;
       _batteryLowThreshold = 20.0;
@@ -1138,7 +1138,7 @@ class _SettingsScreenState extends State<SettingsScreen>
 
     showAboutDialog(
       context: context,
-      applicationName: 'AGV Fleet Management',
+      applicationName: 'AMR Fleet Management',
       applicationVersion: '2.1.0',
       applicationIcon: Container(
         padding: EdgeInsets.all(12),
@@ -1150,7 +1150,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       ),
       children: [
         Text(
-          'A comprehensive fleet management system for Automated Guided Vehicles (AGVs).',
+          'A comprehensive fleet management system for Automated Guided Vehicles (AMRs).',
           style: theme.bodyMedium,
         ),
         SizedBox(height: 16),
@@ -1159,7 +1159,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           style: theme.bodyMedium.copyWith(fontWeight: FontWeight.bold),
         ),
         SizedBox(height: 8),
-        _buildFeatureItem('Real-time AGV control and monitoring'),
+        _buildFeatureItem('Real-time AMR control and monitoring'),
         _buildFeatureItem('Interactive map editing and navigation'),
         _buildFeatureItem('Order management and automation'),
         _buildFeatureItem('Analytics and performance tracking'),
@@ -1192,7 +1192,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   void _showLicenses() {
     showLicensePage(
       context: context,
-      applicationName: 'AGV Fleet Management',
+      applicationName: 'AMR Fleet Management',
       applicationVersion: '2.1.0',
       applicationIcon: Container(
         padding: EdgeInsets.all(12),

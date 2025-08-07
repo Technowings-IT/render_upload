@@ -8,6 +8,30 @@ import 'package:http/http.dart' as http;
 import '../models/map_data.dart';
 import '../models/odom.dart';
 
+/// Custom exception for API errors
+class ApiException implements Exception {
+  final String message;
+  final int? statusCode;
+  final dynamic originalError;
+  bool get isNotFound => statusCode == 404;
+
+  ApiException(this.message, {this.statusCode, this.originalError});
+
+  @override
+  String toString() =>
+      'ApiException: $message${statusCode != null ? ' (HTTP $statusCode)' : ''}';
+}
+
+class _CacheEntry {
+  final dynamic data;
+  final DateTime createdAt;
+  final Duration ttl;
+
+  _CacheEntry(this.data, this.createdAt, this.ttl);
+
+  bool get isExpired => DateTime.now().difference(createdAt) > ttl;
+}
+
 class ApiService {
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
@@ -53,7 +77,7 @@ class ApiService {
 
   Future<bool> autoInitialize() async {
     try {
-      print('🔍 Auto-discovering AGV backend...');
+      print('🔍 Auto-discovering AMR backend...');
 
       final backendUrl = await _discoverBackend();
       if (backendUrl != null) {
@@ -74,11 +98,10 @@ class ApiService {
       if (networkInfo == null) return null;
 
       final subnet = networkInfo['subnet']!;
-      print('📡 Scanning subnet: $subnet.x for AGV backends');
+      print('📡 Scanning subnet: $subnet.x for AMR backends');
 
       final commonIPs = [
         '$subnet.63', // Current working backend IP
-        '$subnet.79',
         '$subnet.136',
         '$subnet.100',
         '$subnet.101',
@@ -89,7 +112,7 @@ class ApiService {
       for (final ip in commonIPs) {
         final url = await _testBackendAtIP(ip);
         if (url != null) {
-          print('✅ Found AGV backend at: $url');
+          print('✅ Found AMR backend at: $url');
           return url;
         }
       }
@@ -98,12 +121,12 @@ class ApiService {
         final ip = '$subnet.$i';
         final url = await _testBackendAtIP(ip);
         if (url != null) {
-          print('✅ Found AGV backend at: $url');
+          print('✅ Found AMR backend at: $url');
           return url;
         }
       }
 
-      print('❌ No AGV backend found on network');
+      print('❌ No AMR backend found on network');
       return null;
     } catch (e) {
       print('❌ Backend discovery failed: $e');
@@ -124,7 +147,7 @@ class ApiService {
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
 
-          if (_isAGVBackend(data)) {
+          if (_isAMRBackend(data)) {
             return 'http://$ip:$port';
           }
         }
@@ -255,8 +278,8 @@ class ApiService {
     }
   }
 
-  /// Upload map to AGV (send PGM + YAML back to ROS)
-  Future<Map<String, dynamic>> uploadMapToAGV({
+  /// Upload map to AMR (send PGM + YAML back to ROS)
+  Future<Map<String, dynamic>> uploadMapToAMR({
     required String deviceId,
     required String mapName,
     bool setAsActiveMap = true,
@@ -271,13 +294,13 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map uploaded to AGV: $mapName');
+        print('✅ Map uploaded to AMR: $mapName');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error uploading map to AGV: $e');
-      throw ApiException('Failed to upload map to AGV: $e');
+      print('❌ Error uploading map to AMR: $e');
+      throw ApiException('Failed to upload map to AMR: $e');
     }
   }
 
@@ -636,7 +659,7 @@ class ApiService {
     }
   }
 
-  /// Set map as active on the AGV
+  /// Set map as active on the AMR
   Future<Map<String, dynamic>> setActiveMap({
     required String deviceId,
     required String mapName,
@@ -1444,11 +1467,11 @@ class ApiService {
     }
   }
 
-  bool _isAGVBackend(Map<String, dynamic> data) {
+  bool _isAMRBackend(Map<String, dynamic> data) {
     final dataStr = data.toString().toLowerCase();
     return data['success'] == true ||
         data['status'] == 'healthy' ||
-        dataStr.contains('agv') ||
+        dataStr.contains('AMR') ||
         dataStr.contains('fleet') ||
         dataStr.contains('robot') ||
         dataStr.contains('ros') ||
@@ -1593,20 +1616,20 @@ class ApiService {
   // DEVICE MANAGEMENT
   // ==========================================
 
-  Future<Map<String, dynamic>> autoConnectAGV() async {
+  Future<Map<String, dynamic>> autoConnectAMR() async {
     _ensureInitialized();
 
     try {
       final response = await _post('/api/devices/auto-connect', {});
 
       if (response['success'] == true) {
-        print('✅ AGV auto-connected: ${response['deviceId']}');
+        print('✅ AMR auto-connected: ${response['deviceId']}');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error auto-connecting AGV: $e');
-      throw ApiException('Failed to auto-connect AGV: $e');
+      print('❌ Error auto-connecting AMR: $e');
+      throw ApiException('Failed to auto-connect AMR: $e');
     }
   }
 
@@ -1695,8 +1718,224 @@ class ApiService {
   }
 
   // ==========================================
-  // ✅ FIXED: ANALYTICS DATA METHODS
+  // ORDER MANAGEMENT METHODS
   // ==========================================
+
+  /// Get orders for a specific device
+  Future<List<Map<String, dynamic>>> getOrdersForDevice({
+    required String deviceId,
+    String? status,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final params = <String, String>{
+        'limit': limit.toString(),
+        'offset': offset.toString(),
+      };
+
+      if (status != null) {
+        params['status'] = status;
+      }
+
+      final queryString = params.entries
+          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+
+      final response = await _get('/api/orders/$deviceId?$queryString');
+
+      if (response['success'] == true) {
+        final orders = response['orders'] as List?;
+        if (orders != null) {
+          return orders.cast<Map<String, dynamic>>();
+        }
+      }
+
+      return [];
+    } catch (e) {
+      print('❌ Error getting orders for $deviceId: $e');
+      throw ApiException('Failed to get orders: $e');
+    }
+  }
+
+  /// Get order statistics for analytics
+  Future<Map<String, dynamic>> getOrderStatistics({
+    String? deviceId,
+    String timeRange = '7d',
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final params = <String, String>{
+        'timeRange': timeRange,
+      };
+
+      if (deviceId != null) {
+        params['deviceId'] = deviceId;
+      }
+
+      final queryString = params.entries
+          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+
+      final response = await _get('/api/orders/stats?$queryString');
+
+      if (response['success'] == true) {
+        return response;
+      }
+
+      throw ApiException(
+          'Failed to get order statistics: ${response['error']}');
+    } catch (e) {
+      print('❌ Error getting order statistics: $e');
+      throw ApiException('Failed to get order statistics: $e');
+    }
+  }
+
+  /// Execute an order for a device
+  Future<Map<String, dynamic>> executeOrder({
+    required String deviceId,
+    required String orderId,
+    bool realTimeExecution = true,
+    int waypointDelay = 3000,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/orders/$deviceId/$orderId/execute', {
+        'realTimeExecution': realTimeExecution,
+        'waypointDelay': waypointDelay,
+      });
+
+      if (response['success'] == true) {
+        print('✅ Order execution started: $orderId');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error executing order: $e');
+      throw ApiException('Failed to execute order: $e');
+    }
+  }
+
+  /// Cancel an order
+  Future<Map<String, dynamic>> cancelOrder({
+    required String deviceId,
+    required String orderId,
+    String? reason,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/orders/$deviceId/$orderId/cancel', {
+        if (reason != null) 'reason': reason,
+      });
+
+      if (response['success'] == true) {
+        print('✅ Order cancelled: $orderId');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error cancelling order: $e');
+      throw ApiException('Failed to cancel order: $e');
+    }
+  }
+
+  /// Emergency stop all orders for a device
+  Future<Map<String, dynamic>> emergencyStopDevice({
+    required String deviceId,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/orders/$deviceId/emergency_stop', {});
+
+      if (response['success'] == true) {
+        print('🚨 Emergency stop activated for: $deviceId');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error in emergency stop: $e');
+      throw ApiException('Failed to emergency stop: $e');
+    }
+  }
+
+  /// Get order execution status
+  Future<Map<String, dynamic>> getOrderExecutionStatus({
+    required String deviceId,
+    required String orderId,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response =
+          await _get('/api/orders/$deviceId/$orderId/execution_status');
+
+      if (response['success'] == true) {
+        return response;
+      }
+
+      throw ApiException(
+          'Failed to get execution status: ${response['error']}');
+    } catch (e) {
+      print('❌ Error getting execution status: $e');
+      throw ApiException('Failed to get execution status: $e');
+    }
+  }
+
+  /// Publish specific waypoint
+  Future<Map<String, dynamic>> publishWaypoint({
+    required String deviceId,
+    required String orderId,
+    required int waypointIndex,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post(
+          '/api/orders/$deviceId/$orderId/waypoint/$waypointIndex', {});
+
+      if (response['success'] == true) {
+        print('✅ Waypoint published: $waypointIndex');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error publishing waypoint: $e');
+      throw ApiException('Failed to publish waypoint: $e');
+    }
+  }
+
+  /// Batch execute multiple orders
+  Future<Map<String, dynamic>> batchExecuteOrders({
+    required String deviceId,
+    required List<String> orderIds,
+    int orderDelay = 60000,
+    int waypointDelay = 3000,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      final response = await _post('/api/orders/$deviceId/batch_execute', {
+        'orderIds': orderIds,
+        'orderDelay': orderDelay,
+        'waypointDelay': waypointDelay,
+      });
+
+      if (response['success'] == true) {
+        print('✅ Batch execution started for ${orderIds.length} orders');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error in batch execution: $e');
+      throw ApiException('Failed to batch execute orders: $e');
+    }
+  }
 
   /// Get analytics data for a specific device and type
   Future<Map<String, dynamic>> getAnalyticsData(
@@ -1707,24 +1946,43 @@ class ApiService {
     _ensureInitialized();
 
     try {
-      final params = {
-        'type': dataType,
+      final params = <String, String>{
         'timeRange': timeRange,
-        if (deviceId != null) 'deviceId': deviceId,
       };
+
+      if (deviceId != null) {
+        params['deviceId'] = deviceId;
+      }
 
       final queryString = params.entries
           .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
           .join('&');
 
-      final response = await _get('/api/analytics?$queryString');
+      String endpoint;
+      switch (dataType) {
+        case 'orders':
+          endpoint = '/api/orders/stats?$queryString';
+          break;
+        case 'battery':
+        case 'performance':
+        case 'events':
+          endpoint = '/api/analytics?type=$dataType&$queryString';
+          break;
+        default:
+          endpoint = '/api/analytics?type=$dataType&$queryString';
+      }
+
+      final response = await _get(endpoint);
 
       if (response['success'] == true) {
         return response;
       }
 
       // If analytics endpoint doesn't exist, return mock data
-      if (response['error']?.toString().contains('404') == true) {
+      if (response['error']?.toString().contains('404') == true ||
+          response['error']?.toString().contains('Endpoint not found') ==
+              true) {
+        print('⚠️ Analytics endpoint not available, using mock data');
         return _generateMockAnalyticsData(deviceId, dataType, timeRange);
       }
 
@@ -2687,8 +2945,8 @@ class ApiService {
     }
   }
 
-  /// ✅ NEW: Get execution status
-  Future<Map<String, dynamic>> getOrderExecutionStatus({
+  /// ✅ NEW: Get enhanced execution status
+  Future<Map<String, dynamic>> getEnhancedOrderExecutionStatus({
     required String deviceId,
     required String orderId,
   }) async {
@@ -2802,8 +3060,8 @@ class ApiService {
     }
   }
 
-  /// Execute an order (start it)
-  Future<Map<String, dynamic>> executeOrder(
+  /// Execute an order (start it) - legacy version, renamed to avoid conflict
+  Future<Map<String, dynamic>> executeOrderLegacy(
       String deviceId, String orderId) async {
     _ensureInitialized();
     try {
@@ -3738,255 +3996,445 @@ class ApiService {
       throw ApiException('Failed to get map analytics: $e');
     }
   }
-}
-
-class _CacheEntry {
-  final dynamic data;
-  final DateTime createdAt;
-  final Duration ttl;
-
-  _CacheEntry(this.data, this.createdAt, this.ttl);
-
-  bool get isExpired => DateTime.now().isAfter(createdAt.add(ttl));
-}
 
 // ==========================================
-// ENHANCED DATA MODELS FOR MAP EDITING
+// ENHANCED ROS2 NAVIGATION METHODS
 // ==========================================
 
-/// Enhanced data model for map edit operations
-class MapEditOperation {
-  final String id;
-  final String type; // 'draw', 'erase', 'addPoint', 'removePoint', etc.
-  final Map<String, dynamic> data;
-  final DateTime timestamp;
+  /// Publish navigation goal to target_pose topic (ROS2 specific)
+  Future<Map<String, dynamic>> publishGoal(
+    String deviceId,
+    double x,
+    double y, {
+    double orientation = 0.0,
+    String? goalId,
+  }) async {
+    _ensureInitialized();
 
-  MapEditOperation({
-    required this.id,
-    required this.type,
-    required this.data,
-    required this.timestamp,
-  });
+    try {
+      final requestBody = {
+        'x': x,
+        'y': y,
+        'orientation': orientation,
+        if (goalId != null) 'goalId': goalId,
+      };
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'type': type,
-      'data': data,
-      'timestamp': timestamp.toIso8601String(),
-    };
+      final response =
+          await _post('/api/ros2/$deviceId/publish_goal', requestBody);
+
+      if (response['success'] == true) {
+        print('🎯 Navigation goal published: ($x, $y) @ ${orientation}rad');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error publishing goal: $e');
+      throw ApiException('Failed to publish goal: $e');
+    }
   }
 
-  factory MapEditOperation.fromJson(Map<String, dynamic> json) {
-    return MapEditOperation(
-      id: json['id'],
-      type: json['type'],
-      data: json['data'],
-      timestamp: DateTime.parse(json['timestamp']),
-    );
-  }
-}
+  /// Cancel current navigation goal (ROS2 specific)
+  Future<Map<String, dynamic>> cancelGoal(String deviceId) async {
+    _ensureInitialized();
 
-/// Enhanced data model for location points
-class LocationPointData {
-  final String id;
-  final String name;
-  final String type;
-  final Map<String, double> position;
-  final Map<String, double> orientation;
-  final Map<String, dynamic> properties;
-  final DateTime createdAt;
-  final DateTime? updatedAt;
+    try {
+      final response = await _post('/api/ros2/$deviceId/cancel_goal', {});
 
-  LocationPointData({
-    required this.id,
-    required this.name,
-    required this.type,
-    required this.position,
-    required this.orientation,
-    required this.properties,
-    required this.createdAt,
-    this.updatedAt,
-  });
+      if (response['success'] == true) {
+        print('🛑 Navigation goal cancelled for device: $deviceId');
+      }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'type': type,
-      'position': position,
-      'orientation': orientation,
-      'properties': properties,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
-    };
+      return response;
+    } catch (e) {
+      print('❌ Error cancelling goal: $e');
+      throw ApiException('Failed to cancel goal: $e');
+    }
   }
 
-  factory LocationPointData.fromJson(Map<String, dynamic> json) {
-    return LocationPointData(
-      id: json['id'],
-      name: json['name'],
-      type: json['type'],
-      position: Map<String, double>.from(json['position']),
-      orientation: Map<String, double>.from(json['orientation']),
-      properties: Map<String, dynamic>.from(json['properties']),
-      createdAt: DateTime.parse(json['createdAt']),
-      updatedAt:
-          json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : null,
-    );
-  }
-}
+  /// Get navigation status (ROS2 specific)
+  Future<Map<String, dynamic>> getNavigationStatus(String deviceId) async {
+    _ensureInitialized();
 
-/// Enhanced data model for map editing sessions
-class MapEditingSession {
-  final String sessionId;
-  final String deviceId;
-  final String mapName;
-  final List<MapEditOperation> operations;
-  final List<LocationPointData> locationPoints;
-  final DateTime startedAt;
-  final DateTime? savedAt;
-  final bool hasUnsavedChanges;
+    try {
+      final response = await _get('/api/ros2/$deviceId/navigation_status');
 
-  MapEditingSession({
-    required this.sessionId,
-    required this.deviceId,
-    required this.mapName,
-    required this.operations,
-    required this.locationPoints,
-    required this.startedAt,
-    this.savedAt,
-    required this.hasUnsavedChanges,
-  });
+      if (response['success'] == true) {
+        return response;
+      }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'sessionId': sessionId,
-      'deviceId': deviceId,
-      'mapName': mapName,
-      'operations': operations.map((op) => op.toJson()).toList(),
-      'locationPoints': locationPoints.map((point) => point.toJson()).toList(),
-      'startedAt': startedAt.toIso8601String(),
-      'savedAt': savedAt?.toIso8601String(),
-      'hasUnsavedChanges': hasUnsavedChanges,
-    };
+      throw ApiException(
+          'Failed to get navigation status: ${response['error']}');
+    } catch (e) {
+      print('❌ Error getting navigation status: $e');
+      throw ApiException('Failed to get navigation status: $e');
+    }
   }
 
-  factory MapEditingSession.fromJson(Map<String, dynamic> json) {
-    return MapEditingSession(
-      sessionId: json['sessionId'],
-      deviceId: json['deviceId'],
-      mapName: json['mapName'],
-      operations: (json['operations'] as List)
-          .map((op) => MapEditOperation.fromJson(op))
-          .toList(),
-      locationPoints: (json['locationPoints'] as List)
-          .map((point) => LocationPointData.fromJson(point))
-          .toList(),
-      startedAt: DateTime.parse(json['startedAt']),
-      savedAt: json['savedAt'] != null ? DateTime.parse(json['savedAt']) : null,
-      hasUnsavedChanges: json['hasUnsavedChanges'],
-    );
-  }
-}
+  /// Publish velocity command (ROS2 specific)
+  Future<Map<String, dynamic>> publishVelocity(
+    String deviceId,
+    double linear,
+    double angular,
+  ) async {
+    _ensureInitialized();
 
-/// Enhanced map validation result
-class MapValidationResult {
-  final bool isValid;
-  final List<String> errors;
-  final List<String> warnings;
-  final Map<String, dynamic> metrics;
-  final DateTime validatedAt;
+    try {
+      final requestBody = {
+        'linear': linear,
+        'angular': angular,
+      };
 
-  MapValidationResult({
-    required this.isValid,
-    required this.errors,
-    required this.warnings,
-    required this.metrics,
-    required this.validatedAt,
-  });
+      final response =
+          await _post('/api/ros2/$deviceId/publish_velocity', requestBody);
 
-  Map<String, dynamic> toJson() {
-    return {
-      'isValid': isValid,
-      'errors': errors,
-      'warnings': warnings,
-      'metrics': metrics,
-      'validatedAt': validatedAt.toIso8601String(),
-    };
+      if (response['success'] == true) {
+        print(
+            '🏃 Velocity command published: linear=$linear, angular=$angular');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error publishing velocity: $e');
+      throw ApiException('Failed to publish velocity: $e');
+    }
   }
 
-  factory MapValidationResult.fromJson(Map<String, dynamic> json) {
-    return MapValidationResult(
-      isValid: json['isValid'],
-      errors: List<String>.from(json['errors']),
-      warnings: List<String>.from(json['warnings']),
-      metrics: Map<String, dynamic>.from(json['metrics']),
-      validatedAt: DateTime.parse(json['validatedAt']),
-    );
+// ==========================================
+// ENHANCED ORDER EXECUTION WITH TRACKING
+// ==========================================
+
+  /// Execute order with real-time waypoint publishing and progress tracking
+  Future<Map<String, dynamic>> executeOrderWithTracking(
+    String deviceId,
+    String orderId, {
+    Duration waypointDelay = const Duration(seconds: 3),
+    Function(int currentWaypoint, int totalWaypoints)? onProgress,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      // Get order details
+      final orderResponse = await getOrder(deviceId, orderId);
+      if (orderResponse['success'] != true) {
+        throw Exception(
+            orderResponse['error'] ?? 'Failed to get order details');
+      }
+
+      final order = orderResponse['order'];
+      final waypoints = order['waypoints'] as List<dynamic>? ?? [];
+
+      if (waypoints.isEmpty) {
+        throw Exception('Order has no waypoints');
+      }
+
+      print('🚀 Starting order execution: ${order['name']}');
+      print('📍 Total waypoints: ${waypoints.length}');
+
+      // Update order status to active
+      await updateOrderStatus(
+        orderId: orderId,
+        status: 'active',
+      );
+
+      // Execute each waypoint sequentially
+      for (int i = 0; i < waypoints.length; i++) {
+        final waypoint = waypoints[i];
+        final position = waypoint['position'] as Map<String, dynamic>? ?? {};
+
+        final x = position['x']?.toDouble() ?? 0.0;
+        final y = position['y']?.toDouble() ?? 0.0;
+        final orientation = waypoint['orientation']?.toDouble() ?? 0.0;
+
+        print(
+            '🎯 Executing waypoint ${i + 1}/${waypoints.length}: ${waypoint['name']}');
+        print('📍 Coordinates: ($x, $y) @ ${orientation}rad');
+
+        // Publish navigation goal to target_pose topic
+        final goalResponse = await publishGoal(
+          deviceId,
+          x,
+          y,
+          orientation: orientation,
+          goalId: '${orderId}_wp_${i}',
+        );
+
+        if (goalResponse['success'] != true) {
+          throw Exception(
+              'Failed to publish waypoint ${i + 1}: ${goalResponse['error']}');
+        }
+
+        // Update order progress
+        await updateOrderStatus(
+          orderId: orderId,
+          status: 'active',
+          currentWaypoint: i + 1,
+        );
+
+        // Call progress callback if provided
+        onProgress?.call(i + 1, waypoints.length);
+
+        // Wait before next waypoint (except for last one)
+        if (i < waypoints.length - 1) {
+          print(
+              '⏳ Waiting ${waypointDelay.inSeconds}s before next waypoint...');
+          await Future.delayed(waypointDelay);
+        }
+      }
+
+      // Mark order as completed
+      await updateOrderStatus(
+        orderId: orderId,
+        status: 'completed',
+      );
+
+      print('✅ Order execution completed successfully!');
+
+      return {
+        'success': true,
+        'message': 'Order executed successfully',
+        'orderId': orderId,
+        'waypointsExecuted': waypoints.length,
+        'executionTime': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      // Mark order as failed
+      try {
+        await updateOrderStatus(
+          orderId: orderId,
+          status: 'failed',
+          reason: e.toString(),
+        );
+      } catch (updateError) {
+        print('❌ Failed to update order status to failed: $updateError');
+      }
+
+      print('❌ Order execution failed: $e');
+      throw ApiException('Order execution failed: $e');
+    }
   }
-}
 
-/// Enhanced deployment configuration
-class DeploymentConfig {
-  final String deviceId;
-  final Map<String, dynamic> piConfig;
-  final Map<String, dynamic> networkConfig;
-  final Map<String, dynamic> rosConfig;
-  final Map<String, String> pathMappings;
-  final bool autoBackup;
-  final bool validateBeforeDeploy;
-  final DateTime lastUpdated;
+  /// Batch execute multiple orders with delays
+  Future<Map<String, dynamic>> executeBatchOrders(
+    String deviceId,
+    List<String> orderIds, {
+    Duration orderDelay = const Duration(minutes: 1),
+    Function(int currentOrder, int totalOrders)? onOrderProgress,
+    Function(int currentWaypoint, int totalWaypoints)? onWaypointProgress,
+  }) async {
+    _ensureInitialized();
 
-  DeploymentConfig({
-    required this.deviceId,
-    required this.piConfig,
-    required this.networkConfig,
-    required this.rosConfig,
-    required this.pathMappings,
-    required this.autoBackup,
-    required this.validateBeforeDeploy,
-    required this.lastUpdated,
-  });
+    try {
+      final results = <Map<String, dynamic>>[];
 
-  Map<String, dynamic> toJson() {
-    return {
-      'deviceId': deviceId,
-      'piConfig': piConfig,
-      'networkConfig': networkConfig,
-      'rosConfig': rosConfig,
-      'pathMappings': pathMappings,
-      'autoBackup': autoBackup,
-      'validateBeforeDeploy': validateBeforeDeploy,
-      'lastUpdated': lastUpdated.toIso8601String(),
-    };
+      for (int i = 0; i < orderIds.length; i++) {
+        final orderId = orderIds[i];
+        print('📦 Executing batch order ${i + 1}/${orderIds.length}: $orderId');
+
+        // Call order progress callback if provided
+        onOrderProgress?.call(i + 1, orderIds.length);
+
+        final result = await executeOrderWithTracking(
+          deviceId,
+          orderId,
+          onProgress: onWaypointProgress,
+        );
+
+        results.add(result);
+
+        // Wait between orders (except for last one)
+        if (i < orderIds.length - 1 && result['success'] == true) {
+          print('⏳ Waiting ${orderDelay.inMinutes}min before next order...');
+          await Future.delayed(orderDelay);
+        }
+      }
+
+      final successCount = results.where((r) => r['success'] == true).length;
+
+      return {
+        'success': true,
+        'message': 'Batch execution completed',
+        'totalOrders': orderIds.length,
+        'successfulOrders': successCount,
+        'failedOrders': orderIds.length - successCount,
+        'results': results,
+        'completedAt': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      print('❌ Batch execution failed: $e');
+      throw ApiException('Batch execution failed: $e');
+    }
   }
 
-  factory DeploymentConfig.fromJson(Map<String, dynamic> json) {
-    return DeploymentConfig(
-      deviceId: json['deviceId'],
-      piConfig: Map<String, dynamic>.from(json['piConfig']),
-      networkConfig: Map<String, dynamic>.from(json['networkConfig']),
-      rosConfig: Map<String, dynamic>.from(json['rosConfig']),
-      pathMappings: Map<String, String>.from(json['pathMappings']),
-      autoBackup: json['autoBackup'],
-      validateBeforeDeploy: json['validateBeforeDeploy'],
-      lastUpdated: DateTime.parse(json['lastUpdated']),
-    );
+// ==========================================
+// CONVENIENCE METHODS FOR QUICK OPERATIONS
+// ==========================================
+
+  /// Quick order creation from station IDs
+  Future<Map<String, dynamic>> createQuickOrder(
+    String deviceId,
+    String fromStationId,
+    String toStationId, {
+    String? AMRSerial,
+    String? orderName,
+    int priority = 0,
+  }) async {
+    _ensureInitialized();
+
+    try {
+      // Get available stations
+      final stationsResponse = await getMapStations(deviceId);
+      if (stationsResponse['success'] != true) {
+        throw Exception('Failed to get stations: ${stationsResponse['error']}');
+      }
+
+      final stations = stationsResponse['stations'] as List<dynamic>? ?? [];
+
+      final fromStation = stations.firstWhere(
+        (s) => s['id'] == fromStationId,
+        orElse: () => null,
+      );
+
+      final toStation = stations.firstWhere(
+        (s) => s['id'] == toStationId,
+        orElse: () => null,
+      );
+
+      if (fromStation == null || toStation == null) {
+        throw Exception('Station not found');
+      }
+
+      final waypoints = [
+        {
+          'name': fromStation['name'],
+          'type': fromStation['type'],
+          'position': fromStation['position'],
+          'metadata': {
+            'stationId': fromStation['id'],
+            'isStart': true,
+          },
+        },
+        {
+          'name': toStation['name'],
+          'type': toStation['type'],
+          'position': toStation['position'],
+          'metadata': {
+            'stationId': toStation['id'],
+            'isEnd': true,
+          },
+        },
+      ];
+
+      return await createOrder(
+        deviceId: deviceId,
+        name: orderName ?? '${fromStation['name']} → ${toStation['name']}',
+        waypoints: waypoints,
+        priority: priority,
+        description:
+            'Quick order from ${fromStation['name']} to ${toStation['name']}${AMRSerial != null ? ' (AMR: $AMRSerial)' : ''}',
+      );
+    } catch (e) {
+      print('❌ Error creating quick order: $e');
+      throw ApiException('Failed to create quick order: $e');
+    }
   }
-}
 
-class ApiException implements Exception {
-  final String message;
-  final int? statusCode;
-  final dynamic originalError;
+  /// Get comprehensive fleet summary
+  Future<Map<String, dynamic>> getFleetSummary() async {
+    _ensureInitialized();
 
-  ApiException(this.message, {this.statusCode, this.originalError});
+    try {
+      final devicesResponse = await getDevices();
+      final ordersResponse = await getAllOrders(limit: 1000);
 
-  bool get isNetworkError => originalError is SocketException;
-  bool get isTimeout => originalError is TimeoutException;
-  bool get isNotFound => statusCode == 404;
+      if (devicesResponse.isEmpty) {
+        print('⚠️ No devices found');
+      }
 
-  @override
-  String toString() => 'ApiException: $message';
+      if (ordersResponse['success'] != true) {
+        throw Exception('Failed to get orders: ${ordersResponse['error']}');
+      }
+
+      final devices = devicesResponse;
+      final orders = ordersResponse['orders'] as List<dynamic>? ?? [];
+
+      // Calculate summary statistics
+      final statusCounts = <String, int>{};
+      final deviceOrderCounts = <String, int>{};
+
+      for (final order in orders) {
+        final status = order['status'] ?? 'unknown';
+        final deviceId = order['deviceId'] ?? 'unknown';
+
+        statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+        deviceOrderCounts[deviceId] = (deviceOrderCounts[deviceId] ?? 0) + 1;
+      }
+
+      return {
+        'success': true,
+        'fleet': {
+          'totalDevices': devices.length,
+          'totalOrders': orders.length,
+          'activeOrders': statusCounts['active'] ?? 0,
+          'pendingOrders': statusCounts['pending'] ?? 0,
+          'completedOrders': statusCounts['completed'] ?? 0,
+          'failedOrders': statusCounts['failed'] ?? 0,
+        },
+        'devices': devices,
+        'ordersByStatus': statusCounts,
+        'ordersByDevice': deviceOrderCounts,
+        'recentOrders': orders.take(10).toList(),
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      print('❌ Error getting fleet summary: $e');
+      throw ApiException('Failed to get fleet summary: $e');
+    }
+  }
+
+  /// Get available devices (enhanced version)
+  Future<Map<String, dynamic>> getAvailableDevices() async {
+    _ensureInitialized();
+
+    try {
+      final response = await _get('/api/discovery/devices');
+
+      if (response['success'] == true) {
+        return response;
+      }
+
+      // Fallback to existing getDevices method
+      final devices = await getDevices();
+      return {
+        'success': true,
+        'devices': devices,
+        'source': 'fallback',
+      };
+    } catch (e) {
+      print('❌ Error getting available devices: $e');
+      throw ApiException('Failed to get available devices: $e');
+    }
+  }
+
+  /// Enhanced device status with more details
+  Future<Map<String, dynamic>> getEnhancedDeviceStatus(String deviceId) async {
+    _ensureInitialized();
+
+    try {
+      // Try ROS2-specific status endpoint first
+      try {
+        final response = await _get('/api/ros2/$deviceId/status');
+        if (response['success'] == true) {
+          return response;
+        }
+      } catch (e) {
+        print('⚠️ ROS2 status endpoint not available: $e');
+      }
+
+      // Fallback to existing method
+      return await getDeviceStatus(deviceId);
+    } catch (e) {
+      print('❌ Error getting enhanced device status: $e');
+      throw ApiException('Failed to get enhanced device status: $e');
+    }
+  }
 }

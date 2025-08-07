@@ -1,7 +1,7 @@
 {
-  "name": "agv-fleet-backend",
+  "name": "AMR-fleet-backend",
   "version": "1.0.0",
-  "description": "Backend server for AGV Fleet Management System with ROS2 integration",
+  "description": "Backend server for AMR Fleet Management System with ROS2 integration",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
@@ -19,16 +19,16 @@
     "clean": "rm -rf node_modules/.cache && rm -rf logs/* && npm run create-dirs",
     "build": "echo 'Building backend...' && npm install --production",
     "prebuild": "npm run lint && npm run test",
-    "docker:build": "docker build -t agv-fleet-backend .",
-    "docker:run": "docker run -p 3000:3000 -e ROS_DOMAIN_ID=0 agv-fleet-backend",
+    "docker:build": "docker build -t AMR-fleet-backend .",
+    "docker:run": "docker run -p 3000:3000 -e ROS_DOMAIN_ID=0 AMR-fleet-backend",
     "docker:dev": "docker-compose -f docker-compose.dev.yml up",
     "docker:prod": "docker-compose up -d",
     "docker:stop": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "pm2:start": "pm2 start ecosystem.config.js",
-    "pm2:stop": "pm2 stop agv-fleet-backend",
-    "pm2:restart": "pm2 restart agv-fleet-backend",
-    "pm2:logs": "pm2 logs agv-fleet-backend",
+    "pm2:stop": "pm2 stop AMR-fleet-backend",
+    "pm2:restart": "pm2 restart AMR-fleet-backend",
+    "pm2:logs": "pm2 logs AMR-fleet-backend",
     "logs": "tail -f logs/app.log",
     "logs:error": "tail -f logs/error.log",
     "monitor": "pm2 monit",
@@ -44,7 +44,7 @@
     "convert-map": "python3 scripts/map_converter.py"
   },
   "keywords": [
-    "agv",
+    "AMR",
     "fleet-management",
     "ros2",
     "robotics",
@@ -59,7 +59,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/agv-fleet-backend.git"
+    "url": "git+https://github.com/yourusername/AMR-fleet-backend.git"
   },
   "engines": {
     "node": ">=16.0.0",
@@ -144,7 +144,7 @@
     "log_level": "info"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/agv-fleet-backend/issues"
+    "url": "https://github.com/yourusername/AMR-fleet-backend/issues"
   },
-  "homepage": "https://github.com/yourusername/agv-fleet-backend#readme"
+  "homepage": "https://github.com/yourusername/AMR-fleet-backend#readme"
 }

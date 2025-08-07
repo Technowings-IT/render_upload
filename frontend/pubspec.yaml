@@ -1,5 +1,5 @@
-name: agv_fleet_management
-description: A comprehensive fleet management system for Automated Guided Vehicles (AGVs) with real-time control, mapping, and analytics.
+name: AMR_fleet_management
+description: A comprehensive fleet management system for Automated Guided Vehicles (AMRs) with real-time control, mapping, and analytics.
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 

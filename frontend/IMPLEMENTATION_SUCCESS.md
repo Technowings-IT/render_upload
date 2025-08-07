@@ -155,7 +155,7 @@ dart test_pgm_editor.dart
 5. ✅ **Comprehensive documentation** and testing
 
 ### Usage:
-1. Open AGV Fleet Management app
+1. Open AMR Fleet Management app
 2. Go to **Maps** → **PGM Editor** tab
 3. Load a map and start editing with GIMP-like tools
 4. Save and deploy to your robots
@@ -164,4 +164,4 @@ dart test_pgm_editor.dart
 
 ---
 *Implementation completed successfully by GitHub Copilot*  
-*Ready for professional AGV fleet map management*
+*Ready for professional AMR fleet map management*

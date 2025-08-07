@@ -1290,7 +1290,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         ModernStatsCard(
           title: 'Fleet Size',
           value: totalDevices.toString(),
-          subtitle: 'Total AGV units',
+          subtitle: 'Total AMR units',
           icon: Icons.precision_manufacturing,
           color: theme.infoColor,
           trend: '+2',
@@ -1409,7 +1409,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
                   Icon(Icons.device_unknown, size: 48, color: theme.errorColor),
                   const SizedBox(height: 12),
                   Text('No devices connected', style: theme.headlineMedium),
-                  Text('Connect AGV devices to see fleet health',
+                  Text('Connect AMR devices to see fleet health',
                       style: theme.bodyMedium),
                 ],
               ),

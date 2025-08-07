@@ -3,7 +3,7 @@
   "maps": [
     {
       "name": "complete_map_piros_1751435635469",
-      "filePath": "/home/vidit-agrawal/ agv-fleet-management /backend/storage/maps/piros_complete_map_piros_1751435635469.json",
+      "filePath": "/home/vidit-agrawal/ AMR-fleet-management /backend/storage/maps/piros_complete_map_piros_1751435635469.json",
       "savedAt": "2025-07-02T05:53:55.592Z",
       "fileSize": "5860.57 KB",
       "shapes": 2,
@@ -21,7 +21,7 @@
     },
     {
       "name": "complete_map_piros_1751435680718",
-      "filePath": "/home/vidit-agrawal/ agv-fleet-management /backend/storage/maps/piros_complete_map_piros_1751435680718.json",
+      "filePath": "/home/vidit-agrawal/ AMR-fleet-management /backend/storage/maps/piros_complete_map_piros_1751435680718.json",
       "savedAt": "2025-07-02T05:54:40.790Z",
       "fileSize": "91.17 KB",
       "shapes": 2,
@@ -39,7 +39,7 @@
     },
     {
       "name": "complete_map_piros_1751438225636",
-      "filePath": "/home/vidit-agrawal/ agv-fleet-management /backend/storage/maps/piros_complete_map_piros_1751438225636.json",
+      "filePath": "/home/vidit-agrawal/ AMR-fleet-management /backend/storage/maps/piros_complete_map_piros_1751438225636.json",
       "savedAt": "2025-07-02T06:37:05.681Z",
       "fileSize": "91.17 KB",
       "shapes": 2,
@@ -57,7 +57,7 @@
     },
     {
       "name": "complete_map_piros_1751456549331",
-      "filePath": "/home/vidit-agrawal/ agv-fleet-management /backend/storage/maps/piros_complete_map_piros_1751456549331.json",
+      "filePath": "/home/vidit-agrawal/ AMR-fleet-management /backend/storage/maps/piros_complete_map_piros_1751456549331.json",
       "savedAt": "2025-07-02T11:42:29.353Z",
       "fileSize": "126.69 KB",
       "shapes": 2,
@@ -75,7 +75,7 @@
     },
     {
       "name": "complete_map_piros_1751456819374",
-      "filePath": "/home/vidit-agrawal/ agv-fleet-management /backend/storage/maps/piros_complete_map_piros_1751456819374.json",
+      "filePath": "/home/vidit-agrawal/ AMR-fleet-management /backend/storage/maps/piros_complete_map_piros_1751456819374.json",
       "savedAt": "2025-07-02T11:46:59.409Z",
       "fileSize": "125.46 KB",
       "shapes": 2,
@@ -93,7 +93,7 @@
     },
     {
       "name": "complete_map_piros_1751456889142",
-      "filePath": "/home/vidit-agrawal/ agv-fleet-management /backend/storage/maps/piros_complete_map_piros_1751456889142.json",
+      "filePath": "/home/vidit-agrawal/ AMR-fleet-management /backend/storage/maps/piros_complete_map_piros_1751456889142.json",
       "savedAt": "2025-07-02T11:48:09.161Z",
       "fileSize": "125.46 KB",
       "shapes": 2,
@@ -111,7 +111,7 @@
     },
     {
       "name": "complete_map_piros_1753166252034",
-      "filePath": "/home/vidit-agrawal/ agv-fleet-management /backend/storage/maps/piros_complete_map_piros_1753166252034.json",
+      "filePath": "/home/vidit-agrawal/ AMR-fleet-management /backend/storage/maps/piros_complete_map_piros_1753166252034.json",
       "savedAt": "2025-07-22T06:37:32.114Z",
       "fileSize": "90.91 KB",
       "shapes": 1,

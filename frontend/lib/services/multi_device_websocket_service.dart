@@ -6,13 +6,14 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 
 class MultiDeviceWebSocketService {
-  static final MultiDeviceWebSocketService _instance = MultiDeviceWebSocketService._internal();
+  static final MultiDeviceWebSocketService _instance =
+      MultiDeviceWebSocketService._internal();
   factory MultiDeviceWebSocketService() => _instance;
   MultiDeviceWebSocketService._internal();
 
   // Map of device connections
   final Map<String, DeviceConnection> _connections = {};
-  
+
   // Global stream controllers for aggregated data
   StreamController<Map<String, dynamic>>? _globalRealTimeController;
   StreamController<Map<String, dynamic>>? _globalDeviceEventsController;
@@ -21,27 +22,32 @@ class MultiDeviceWebSocketService {
 
   // Public streams for aggregated data from all devices
   Stream<Map<String, dynamic>> get globalRealTimeData {
-    _globalRealTimeController ??= StreamController<Map<String, dynamic>>.broadcast();
+    _globalRealTimeController ??=
+        StreamController<Map<String, dynamic>>.broadcast();
     return _globalRealTimeController!.stream;
   }
 
   Stream<Map<String, dynamic>> get globalDeviceEvents {
-    _globalDeviceEventsController ??= StreamController<Map<String, dynamic>>.broadcast();
+    _globalDeviceEventsController ??=
+        StreamController<Map<String, dynamic>>.broadcast();
     return _globalDeviceEventsController!.stream;
   }
 
   Stream<Map<String, dynamic>> get globalControlEvents {
-    _globalControlEventsController ??= StreamController<Map<String, dynamic>>.broadcast();
+    _globalControlEventsController ??=
+        StreamController<Map<String, dynamic>>.broadcast();
     return _globalControlEventsController!.stream;
   }
 
   Stream<Map<String, bool>> get connectionStates {
-    _connectionStatesController ??= StreamController<Map<String, bool>>.broadcast();
+    _connectionStatesController ??=
+        StreamController<Map<String, bool>>.broadcast();
     return _connectionStatesController!.stream;
   }
 
   // Connect to a specific device
-  Future<bool> connectToDevice(String deviceId, String ipAddress, {int port = 3000}) async {
+  Future<bool> connectToDevice(String deviceId, String ipAddress,
+      {int port = 3000}) async {
     final wsUrl = 'ws://$ipAddress:$port';
     print('🔌 Connecting to device $deviceId at $wsUrl');
 
@@ -58,14 +64,18 @@ class MultiDeviceWebSocketService {
       );
 
       // Set up connection listeners
-      connection.realTimeData.listen((data) => _handleDeviceData(deviceId, data));
-      connection.deviceEvents.listen((data) => _handleDeviceEvent(deviceId, data));
-      connection.controlEvents.listen((data) => _handleControlEvent(deviceId, data));
-      connection.connectionState.listen((connected) => _updateConnectionState(deviceId, connected));
+      connection.realTimeData
+          .listen((data) => _handleDeviceData(deviceId, data));
+      connection.deviceEvents
+          .listen((data) => _handleDeviceEvent(deviceId, data));
+      connection.controlEvents
+          .listen((data) => _handleControlEvent(deviceId, data));
+      connection.connectionState
+          .listen((connected) => _updateConnectionState(deviceId, connected));
 
       // Attempt connection
       final success = await connection.connect();
-      
+
       if (success) {
         _connections[deviceId] = connection;
         print('✅ Connected to device $deviceId');
@@ -82,27 +92,29 @@ class MultiDeviceWebSocketService {
   }
 
   // Connect to multiple devices
-  Future<Map<String, bool>> connectToMultipleDevices(List<AGVDevice> devices) async {
+  Future<Map<String, bool>> connectToMultipleDevices(
+      List<AMRDevice> devices) async {
     final results = <String, bool>{};
-    
+
     print('🔌 Connecting to ${devices.length} devices...');
-    
+
     // Connect to devices in parallel (with some delay to avoid overwhelming network)
     for (int i = 0; i < devices.length; i++) {
       final device = devices[i];
-      
+
       // Add small delay between connections
       if (i > 0) {
         await Future.delayed(Duration(milliseconds: 500));
       }
-      
-      final success = await connectToDevice(device.id, device.ipAddress, port: device.port);
+
+      final success =
+          await connectToDevice(device.id, device.ipAddress, port: device.port);
       results[device.id] = success;
     }
-    
+
     final successCount = results.values.where((success) => success).length;
     print('✅ Connected to $successCount/${devices.length} devices');
-    
+
     return results;
   }
 
@@ -157,19 +169,19 @@ class MultiDeviceWebSocketService {
 
   // Send message to all connected devices
   void sendToAllDevices(Map<String, dynamic> message) {
-    final connectedDevices = _connections.entries
-        .where((entry) => entry.value.isConnected)
-        .toList();
-    
+    final connectedDevices =
+        _connections.entries.where((entry) => entry.value.isConnected).toList();
+
     for (final entry in connectedDevices) {
       entry.value.sendMessage(message);
     }
-    
+
     print('📡 Sent message to ${connectedDevices.length} devices');
   }
 
   // Control commands for specific device
-  void sendControlCommand(String deviceId, String command, Map<String, dynamic>? data) {
+  void sendControlCommand(
+      String deviceId, String command, Map<String, dynamic>? data) {
     sendToDevice(deviceId, {
       'type': 'control_command',
       'deviceId': deviceId,
@@ -196,7 +208,7 @@ class MultiDeviceWebSocketService {
       'sourceDeviceId': deviceId,
       'timestamp': DateTime.now().toIso8601String(),
     };
-    
+
     _globalRealTimeController?.add(enrichedData);
   }
 
@@ -206,7 +218,7 @@ class MultiDeviceWebSocketService {
       'sourceDeviceId': deviceId,
       'timestamp': DateTime.now().toIso8601String(),
     };
-    
+
     _globalDeviceEventsController?.add(enrichedData);
   }
 
@@ -216,13 +228,13 @@ class MultiDeviceWebSocketService {
       'sourceDeviceId': deviceId,
       'timestamp': DateTime.now().toIso8601String(),
     };
-    
+
     _globalControlEventsController?.add(enrichedData);
   }
 
   void _updateConnectionState(String deviceId, bool connected) {
     _broadcastConnectionStates();
-    
+
     if (connected) {
       print('✅ Device $deviceId connected');
     } else {
@@ -241,21 +253,23 @@ class MultiDeviceWebSocketService {
   // Get connection statistics
   Map<String, dynamic> getConnectionStats() {
     final totalDevices = _connections.length;
-    final connectedDevices = _connections.values.where((conn) => conn.isConnected).length;
+    final connectedDevices =
+        _connections.values.where((conn) => conn.isConnected).length;
     final disconnectedDevices = totalDevices - connectedDevices;
-    
+
     return {
       'totalDevices': totalDevices,
       'connectedDevices': connectedDevices,
       'disconnectedDevices': disconnectedDevices,
-      'connectionRate': totalDevices > 0 ? (connectedDevices / totalDevices) : 0.0,
+      'connectionRate':
+          totalDevices > 0 ? (connectedDevices / totalDevices) : 0.0,
       'deviceStates': _connections.map((key, conn) => MapEntry(key, {
-        'deviceId': key,
-        'connected': conn.isConnected,
-        'url': conn.wsUrl,
-        'lastHeartbeat': conn.lastHeartbeat?.toIso8601String(),
-        'reconnectAttempts': conn.reconnectAttempts,
-      })),
+            'deviceId': key,
+            'connected': conn.isConnected,
+            'url': conn.wsUrl,
+            'lastHeartbeat': conn.lastHeartbeat?.toIso8601String(),
+            'reconnectAttempts': conn.reconnectAttempts,
+          })),
     };
   }
 
@@ -281,7 +295,7 @@ class DeviceConnection {
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
   DateTime? _lastHeartbeat;
-  
+
   static const int maxReconnectAttempts = 3;
 
   // Stream controllers for this device
@@ -301,15 +315,19 @@ class DeviceConnection {
 
   void _initializeControllers() {
     _realTimeController = StreamController<Map<String, dynamic>>.broadcast();
-    _deviceEventsController = StreamController<Map<String, dynamic>>.broadcast();
-    _controlEventsController = StreamController<Map<String, dynamic>>.broadcast();
+    _deviceEventsController =
+        StreamController<Map<String, dynamic>>.broadcast();
+    _controlEventsController =
+        StreamController<Map<String, dynamic>>.broadcast();
     _connectionStateController = StreamController<bool>.broadcast();
   }
 
   // Public streams
   Stream<Map<String, dynamic>> get realTimeData => _realTimeController!.stream;
-  Stream<Map<String, dynamic>> get deviceEvents => _deviceEventsController!.stream;
-  Stream<Map<String, dynamic>> get controlEvents => _controlEventsController!.stream;
+  Stream<Map<String, dynamic>> get deviceEvents =>
+      _deviceEventsController!.stream;
+  Stream<Map<String, dynamic>> get controlEvents =>
+      _controlEventsController!.stream;
   Stream<bool> get connectionState => _connectionStateController!.stream;
 
   bool get isConnected => _isConnected;
@@ -335,7 +353,7 @@ class DeviceConnection {
 
       // Wait for connection confirmation
       final connected = await _waitForConnection();
-      
+
       if (connected) {
         _isConnected = true;
         _reconnectAttempts = 0;
@@ -356,7 +374,7 @@ class DeviceConnection {
   Future<bool> _waitForConnection() async {
     final completer = Completer<bool>();
     late StreamSubscription subscription;
-    
+
     subscription = _channel!.stream.listen((data) {
       try {
         final message = json.decode(data);
@@ -383,42 +401,42 @@ class DeviceConnection {
     try {
       final message = json.decode(data);
       final messageType = message['type'];
-      
+
       switch (messageType) {
         case 'connection':
           _isConnected = true;
           _connectionStateController!.add(true);
           print('✅ Device $deviceId connection established');
           break;
-          
+
         case 'heartbeat':
           _lastHeartbeat = DateTime.now();
           _sendHeartbeatAck();
           break;
-          
+
         case 'broadcast':
           _routeMessage(message['topic'], message['data'] ?? {});
           break;
-          
+
         case 'real_time_data':
         case 'odometry_update':
         case 'battery_update':
         case 'laser_scan':
           _realTimeController!.add(message);
           break;
-          
+
         case 'device_event':
         case 'status_update':
         case 'alert':
           _deviceEventsController!.add(message);
           break;
-          
+
         case 'control_event':
         case 'movement_command':
         case 'stop_command':
           _controlEventsController!.add(message);
           break;
-          
+
         default:
           print('❓ Unknown message type from $deviceId: $messageType');
       }
@@ -450,7 +468,7 @@ class DeviceConnection {
     _isConnected = false;
     _connectionStateController!.add(false);
     _stopHeartbeat();
-    
+
     // Attempt reconnection if within limits
     if (_reconnectAttempts < maxReconnectAttempts) {
       _startReconnectTimer();
@@ -485,10 +503,12 @@ class DeviceConnection {
   }
 
   void _startReconnectTimer() {
-    _reconnectTimer = Timer(Duration(seconds: 5 + _reconnectAttempts * 2), () async {
+    _reconnectTimer =
+        Timer(Duration(seconds: 5 + _reconnectAttempts * 2), () async {
       _reconnectAttempts++;
-      print('🔄 Reconnecting to $deviceId (attempt $_reconnectAttempts/$maxReconnectAttempts)');
-      
+      print(
+          '🔄 Reconnecting to $deviceId (attempt $_reconnectAttempts/$maxReconnectAttempts)');
+
       final success = await connect();
       if (!success) {
         _handleDisconnection();
@@ -512,15 +532,14 @@ class DeviceConnection {
     try {
       _stopHeartbeat();
       _reconnectTimer?.cancel();
-      
+
       if (_channel != null) {
         await _channel!.sink.close();
         _channel = null;
       }
-      
+
       _isConnected = false;
       _connectionStateController!.add(false);
-      
     } catch (e) {
       print('❌ Error disconnecting from $deviceId: $e');
     }
@@ -535,8 +554,8 @@ class DeviceConnection {
   }
 }
 
-// For backward compatibility, keep the AGVDevice class definition
-class AGVDevice {
+// For backward compatibility, keep the AMRDevice class definition
+class AMRDevice {
   final String id;
   final String name;
   final String ipAddress;
@@ -546,7 +565,7 @@ class AGVDevice {
   final String? apiEndpoint;
   final Map<String, dynamic>? metadata;
 
-  AGVDevice({
+  AMRDevice({
     required this.id,
     required this.name,
     required this.ipAddress,

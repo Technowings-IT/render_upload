@@ -4,13 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class EnhancedSignupScreen extends StatefulWidget {
-  final bool isDarkMode;
-  final Function(bool) onThemeToggle;
-
   const EnhancedSignupScreen({
     super.key,
-    required this.isDarkMode,
-    required this.onThemeToggle,
   });
 
   @override
@@ -23,7 +18,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -131,7 +127,7 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
   }
 
   ThemeColors _getThemeColors() {
-    return widget.isDarkMode ? ThemeColors.dark() : ThemeColors.light();
+    return ThemeColors.light();
   }
 
   DeviceType _getDeviceType(BuildContext context) {
@@ -155,7 +151,7 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
     final deviceType = _getDeviceType(context);
     final screenHeight = MediaQuery.of(context).size.height;
     final isCompact = screenHeight < 700;
-    
+
     switch (deviceType) {
       case DeviceType.desktop:
         return SignupResponsiveDimensions(
@@ -196,7 +192,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
           stepIndicatorSize: 13.0,
         );
       case DeviceType.tablet:
-        final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+        final isLandscape =
+            MediaQuery.of(context).orientation == Orientation.landscape;
         return SignupResponsiveDimensions(
           horizontalPadding: isLandscape ? 70.0 : 50.0,
           verticalPadding: isCompact ? 28.0 : 36.0,
@@ -246,7 +243,7 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
       _hasNumber = password.contains(RegExp(r'[0-9]'));
       _hasSpecialChar = password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
     });
-    
+
     // Update progress animation
     final strength = _calculatePasswordStrength();
     _progressController.animateTo(strength);
@@ -299,7 +296,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
       await prefs.setString('saved_fullname', _fullNameController.text);
 
       HapticFeedback.lightImpact();
-      _showSnackBar('Account created successfully! Redirecting to login...', true);
+      _showSnackBar(
+          'Account created successfully! Redirecting to login...', true);
 
       await Future.delayed(const Duration(milliseconds: 1000));
       Navigator.pop(context);
@@ -327,7 +325,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
     }
 
     // Step 2: Account Details
-    if (_usernameController.text.isEmpty || _usernameController.text.length < 3) {
+    if (_usernameController.text.isEmpty ||
+        _usernameController.text.length < 3) {
       _showSnackBar('Username must be at least 3 characters', false);
       return false;
     }
@@ -354,7 +353,7 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
   void _showSnackBar(String message, bool isSuccess) {
     final dimensions = _getResponsiveDimensions(context);
     final colors = _getThemeColors();
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -411,20 +410,20 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
             // Animated background
             if (deviceType != DeviceType.mobile)
               ...List.generate(
-                dimensions.particleCount,
-                (index) => _buildBackgroundElement(index, dimensions, colors)
-              ),
+                  dimensions.particleCount,
+                  (index) =>
+                      _buildBackgroundElement(index, dimensions, colors)),
 
             // Main content
             SafeArea(
               child: Column(
                 children: [
                   _buildCustomAppBar(dimensions, colors),
-                  
+
                   // Step indicators
                   if (deviceType != DeviceType.mobile)
                     _buildStepIndicator(dimensions, colors),
-                  
+
                   Expanded(
                     child: Center(
                       child: ConstrainedBox(
@@ -446,11 +445,13 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
                                   child: Form(
                                     key: _formKey,
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         _buildHeaderSection(dimensions, colors),
                                         SizedBox(height: dimensions.spacing),
-                                        _buildFormSection(dimensions, colors, deviceType),
+                                        _buildFormSection(
+                                            dimensions, colors, deviceType),
                                         SizedBox(height: dimensions.spacing),
                                         _buildSignupButton(dimensions, colors),
                                         SizedBox(height: dimensions.spacing),
@@ -469,58 +470,14 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
                 ],
               ),
             ),
-
-            // Theme toggle
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 20,
-              right: 20,
-              child: _buildThemeToggle(dimensions, colors),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildThemeToggle(SignupResponsiveDimensions dimensions, ThemeColors colors) {
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.cardBackground,
-        borderRadius: BorderRadius.circular(dimensions.borderRadius),
-        boxShadow: [
-          BoxShadow(
-            color: colors.shadow,
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            widget.onThemeToggle(!widget.isDarkMode);
-          },
-          borderRadius: BorderRadius.circular(dimensions.borderRadius),
-          child: Padding(
-            padding: EdgeInsets.all(dimensions.spacing / 3),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: Icon(
-                widget.isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                key: ValueKey(widget.isDarkMode),
-                color: colors.primary,
-                size: dimensions.iconSize / 2,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCustomAppBar(SignupResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildCustomAppBar(
+      SignupResponsiveDimensions dimensions, ThemeColors colors) {
     return Container(
       padding: EdgeInsets.all(dimensions.appBarPadding),
       decoration: BoxDecoration(
@@ -538,7 +495,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
           Container(
             decoration: BoxDecoration(
               color: colors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(dimensions.borderRadius / 1.5),
+              borderRadius:
+                  BorderRadius.circular(dimensions.borderRadius / 1.5),
               border: Border.all(
                 color: colors.primary.withOpacity(0.3),
                 width: 1,
@@ -572,7 +530,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
     );
   }
 
-  Widget _buildStepIndicator(SignupResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildStepIndicator(
+      SignupResponsiveDimensions dimensions, ThemeColors colors) {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: dimensions.horizontalPadding,
@@ -583,7 +542,7 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
         children: List.generate(3, (index) {
           final isActive = index == _currentStep;
           final isCompleted = index < _currentStep;
-          
+
           return Flexible(
             child: Row(
               children: [
@@ -629,7 +588,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
                   Expanded(
                     child: Container(
                       height: 2,
-                      margin: EdgeInsets.symmetric(horizontal: dimensions.spacing / 4),
+                      margin: EdgeInsets.symmetric(
+                          horizontal: dimensions.spacing / 4),
                       decoration: BoxDecoration(
                         color: isCompleted ? colors.primary : colors.border,
                         borderRadius: BorderRadius.circular(1),
@@ -644,7 +604,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
     );
   }
 
-  Widget _buildHeaderSection(SignupResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildHeaderSection(
+      SignupResponsiveDimensions dimensions, ThemeColors colors) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -706,9 +667,11 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
     );
   }
 
-  Widget _buildFormSection(SignupResponsiveDimensions dimensions, ThemeColors colors, DeviceType deviceType) {
-    final useColumns = deviceType == DeviceType.desktop || deviceType == DeviceType.laptop;
-    
+  Widget _buildFormSection(SignupResponsiveDimensions dimensions,
+      ThemeColors colors, DeviceType deviceType) {
+    final useColumns =
+        deviceType == DeviceType.desktop || deviceType == DeviceType.laptop;
+
     return Container(
       padding: EdgeInsets.all(dimensions.cardPadding),
       decoration: BoxDecoration(
@@ -971,7 +934,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
     );
   }
 
-  Widget _buildPasswordStrengthIndicator(SignupResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildPasswordStrengthIndicator(
+      SignupResponsiveDimensions dimensions, ThemeColors colors) {
     return Container(
       padding: EdgeInsets.all(dimensions.spacing / 2),
       decoration: BoxDecoration(
@@ -1027,10 +991,13 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
             runSpacing: dimensions.spacing / 4,
             children: [
               _buildStrengthChip('8+ chars', _hasMinLength, dimensions, colors),
-              _buildStrengthChip('Uppercase', _hasUppercase, dimensions, colors),
-              _buildStrengthChip('Lowercase', _hasLowercase, dimensions, colors),
+              _buildStrengthChip(
+                  'Uppercase', _hasUppercase, dimensions, colors),
+              _buildStrengthChip(
+                  'Lowercase', _hasLowercase, dimensions, colors),
               _buildStrengthChip('Number', _hasNumber, dimensions, colors),
-              _buildStrengthChip('Special', _hasSpecialChar, dimensions, colors),
+              _buildStrengthChip(
+                  'Special', _hasSpecialChar, dimensions, colors),
             ],
           ),
         ],
@@ -1038,7 +1005,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
     );
   }
 
-  Widget _buildStrengthChip(String text, bool isValid, SignupResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildStrengthChip(String text, bool isValid,
+      SignupResponsiveDimensions dimensions, ThemeColors colors) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       padding: EdgeInsets.symmetric(
@@ -1046,7 +1014,9 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
         vertical: dimensions.spacing / 5,
       ),
       decoration: BoxDecoration(
-        color: isValid ? colors.success.withOpacity(0.1) : colors.border.withOpacity(0.2),
+        color: isValid
+            ? colors.success.withOpacity(0.1)
+            : colors.border.withOpacity(0.2),
         borderRadius: BorderRadius.circular(dimensions.borderRadius / 3),
         border: Border.all(
           color: isValid ? colors.success : colors.border,
@@ -1075,7 +1045,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
     );
   }
 
-  Widget _buildCheckboxes(SignupResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildCheckboxes(
+      SignupResponsiveDimensions dimensions, ThemeColors colors) {
     return Column(
       children: [
         Row(
@@ -1165,7 +1136,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
     );
   }
 
-  Widget _buildSignupButton(SignupResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildSignupButton(
+      SignupResponsiveDimensions dimensions, ThemeColors colors) {
     return Container(
       width: double.infinity,
       height: dimensions.buttonHeight,
@@ -1224,7 +1196,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
     );
   }
 
-  Widget _buildLoginSection(SignupResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildLoginSection(
+      SignupResponsiveDimensions dimensions, ThemeColors colors) {
     return Container(
       padding: EdgeInsets.all(dimensions.cardPadding / 1.5),
       decoration: BoxDecoration(
@@ -1258,7 +1231,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
               ),
               backgroundColor: colors.secondary.withOpacity(0.1),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(dimensions.borderRadius / 2),
+                borderRadius:
+                    BorderRadius.circular(dimensions.borderRadius / 2),
               ),
             ),
             child: Text(
@@ -1276,7 +1250,8 @@ class _EnhancedSignupScreenState extends State<EnhancedSignupScreen>
     );
   }
 
-  Widget _buildBackgroundElement(int index, SignupResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildBackgroundElement(
+      int index, SignupResponsiveDimensions dimensions, ThemeColors colors) {
     final random = (index * 98765) % 1000;
     final screenSize = MediaQuery.of(context).size;
     final left = (random % 100) / 100 * screenSize.width;

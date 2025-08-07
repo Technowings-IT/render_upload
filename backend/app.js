@@ -776,14 +776,14 @@ app.post('/api/ros/monitor/force-recovery', async (req, res) => {
     }
 });
 
-// ✅ NEW: Quick connect endpoint for AGVs
+// ✅ NEW: Quick connect endpoint for AMRs
 app.post('/api/connect', async (req, res) => {
     try {
         const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
         const { deviceId, name } = req.body;
 
-        const autoDeviceId = deviceId || 'agv_01';
-        const deviceName = name || 'Primary AGV';
+        const autoDeviceId = deviceId || 'AMR_01';
+        const deviceName = name || 'Primary AMR';
 
         const deviceInfo = {
             id: autoDeviceId,
@@ -854,7 +854,7 @@ app.use((req, res) => {
 });
 
 async function initializeApplication() {
-    console.log('🚀 Initializing AGV Fleet Management System...');
+    console.log('🚀 Initializing AMR Fleet Management System...');
 
     try {
         // 1. Initialize storage manager
@@ -901,16 +901,16 @@ async function initializeApplication() {
             broadcastToSubscribers: require('./websocket/clientConnection').broadcastToSubscribers
         };
 
-        // 6. Auto-connect default AGV if not already connected
+        // 6. Auto-connect default AMR if not already connected
         setTimeout(async () => {
             if (global.connectedDevices.length === 0) {
                 console.log('🔍 No devices found, attempting auto-connection...');
                 try {
                     const deviceInfo = {
                         id: 'piros', // Changed to match your device name
-                        name: 'Primary AGV',
+                        name: 'Primary AMR',
                         type: 'differential_drive',
-                        ipAddress: '192.168.0.64', // Your AGV's IP
+                        ipAddress: '192.168.0.64', // Your AMR's IP
                         capabilities: config.DEVICE.CAPABILITIES,
                         autoConnected: true
                     };
@@ -923,14 +923,14 @@ async function initializeApplication() {
                         console.warn('⚠️ Could not save auto-connected device:', saveError.message);
                     }
 
-                    console.log('✅ Default AGV auto-connected');
+                    console.log('✅ Default AMR auto-connected');
                 } catch (error) {
-                    console.warn('⚠️ Could not auto-connect default AGV:', error.message);
+                    console.warn('⚠️ Could not auto-connect default AMR:', error.message);
                 }
             }
         }, 3000);
 
-        console.log('✅ AGV Fleet Management System initialized successfully');
+        console.log('✅ AMR Fleet Management System initialized successfully');
         return true;
 
     } catch (error) {
@@ -948,7 +948,7 @@ async function startServer() {
                 require('./routes/discoveryRoutes').getServerInfo() :
                 { ip: config.SERVER.HOST, port: config.SERVER.PORT };
 
-            console.log(`\n🎉 AGV Fleet Backend Server Started`);
+            console.log(`\n🎉 AMR Fleet Backend Server Started`);
             console.log(`📍 Server: http://${serverInfo.ip}:${serverInfo.port}`);
             console.log(`🔌 WebSocket: ws://${serverInfo.ip}:${serverInfo.port}`);
             console.log(`🗂️ Health Check: http://${serverInfo.ip}:${serverInfo.port}/health`);
@@ -966,7 +966,7 @@ async function startServer() {
             console.log(`   - Order Management: ✅ Ready`); // ✅ NEW
             console.log('✅ Map and PGM conversion routes added');
             console.log(`   - Connected Devices: ${global.connectedDevices.length}`);
-            console.log(`\n🤖 Ready for AGV connections!\n`);
+            console.log(`\n🤖 Ready for AMR connections!\n`);
 
             // Test ROS2 publishing capability
             setTimeout(async () => {

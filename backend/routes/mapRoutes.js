@@ -3460,7 +3460,7 @@ router.post('/maps/:deviceId/export/pgm', async (req, res) => {
 });
 
 /**
- * Upload map to AGV (send PGM + YAML back to ROS)
+ * Upload map to AMR (send PGM + YAML back to ROS)
  * POST /api/maps/:deviceId/upload
  */
 router.post('/maps/:deviceId/upload', async (req, res) => {
@@ -3468,7 +3468,7 @@ router.post('/maps/:deviceId/upload', async (req, res) => {
         const { deviceId } = req.params;
         const { mapName, setAsActiveMap = true } = req.body;
 
-        console.log(`🚀 Uploading map to AGV: ${mapName} for device: ${deviceId}`);
+        console.log(`🚀 Uploading map to AMR: ${mapName} for device: ${deviceId}`);
 
         // Find the map files
         const mapsDir = path.join(__dirname, '../maps');
@@ -3505,7 +3505,7 @@ router.post('/maps/:deviceId/upload', async (req, res) => {
         // If setAsActiveMap is true, make this the active map
         if (setAsActiveMap && uploadResult.success) {
             try {
-                await setActiveMapOnAGV(deviceId, mapName);
+                await setActiveMapOnAMR(deviceId, mapName);
                 console.log(`✅ Map set as active: ${mapName}`);
             } catch (error) {
                 console.warn(`⚠️ Could not set as active map: ${error.message}`);
@@ -3514,7 +3514,7 @@ router.post('/maps/:deviceId/upload', async (req, res) => {
 
         res.json({
             success: uploadResult.success,
-            message: uploadResult.success ? 'Map uploaded to AGV successfully' : 'Upload failed',
+            message: uploadResult.success ? 'Map uploaded to AMR successfully' : 'Upload failed',
             deviceId: deviceId,
             mapName: mapName,
             method: uploadResult.method,
@@ -3523,7 +3523,7 @@ router.post('/maps/:deviceId/upload', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error uploading map to AGV:', error);
+        console.error('❌ Error uploading map to AMR:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -3969,7 +3969,7 @@ async function copyMapToROSDirectory(deviceId, yamlPath, pgmPath, mapName) {
     }
 }
 
-async function setActiveMapOnAGV(deviceId, mapName) {
+async function setActiveMapOnAMR(deviceId, mapName) {
     try {
         // Call ROS service to set active map
         return await callROSService(deviceId, '/map_server/set_active_map', {

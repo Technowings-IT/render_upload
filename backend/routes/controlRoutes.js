@@ -1,4 +1,4 @@
-// routes/controlRoutes.js - Enhanced control routes for AGV fleet management
+// routes/controlRoutes.js - Enhanced control routes for AMR fleet management
 const express = require('express');
 const router = express.Router();
 
@@ -89,7 +89,7 @@ router.post('/devices/connect', async (req, res) => {
 
         const deviceInfo = {
             id: deviceId,
-            name: name || `AGV ${deviceId}`,
+            name: name || `AMR ${deviceId}`,
             type: type || 'differential_drive',
             ipAddress: ipAddress,
             capabilities: capabilities || ['mapping', 'navigation', 'remote_control'],
@@ -304,7 +304,7 @@ router.put('/orders/:orderId/status', validateOrder, async (req, res) => {
     }
 });
 
-// Execute order (send waypoints to AGV)
+// Execute order (send waypoints to AMR)
 router.post('/devices/:deviceId/orders/:orderId/execute', validateDevice, validateOrder, async (req, res) => {
     try {
         const orders = global.deviceOrders[req.deviceId] || [];
@@ -348,14 +348,14 @@ router.post('/devices/:deviceId/orders/:orderId/execute', validateDevice, valida
                 console.log(`🚀 Order ${req.orderId} execution started - first waypoint: ${firstWaypoint.name}`);
             } else {
                 res.status(500).json({
-                    error: 'Failed to send waypoint to AGV',
+                    error: 'Failed to send waypoint to AMR',
                     details: goalResult.error
                 });
             }
         } catch (rosError) {
             console.error('❌ ROS error during order execution:', rosError);
             res.status(500).json({
-                error: 'Failed to communicate with AGV',
+                error: 'Failed to communicate with AMR',
                 details: rosError.message
             });
         }
@@ -1079,8 +1079,8 @@ router.post('/devices/:deviceId/map/export-pgm', validateDevice, async (req, res
     }
 });
 
-// === UPLOAD MAP TO AGV ===
-router.post('/devices/:deviceId/map/upload-to-agv', validateDevice, async (req, res) => {
+// === UPLOAD MAP TO AMR ===
+router.post('/devices/:deviceId/map/upload-to-AMR', validateDevice, async (req, res) => {
     try {
         const { mapName } = req.body;
         const mapData = global.deviceMaps?.[req.deviceId];
@@ -1089,7 +1089,7 @@ router.post('/devices/:deviceId/map/upload-to-agv', validateDevice, async (req, 
             return res.status(400).json({ error: 'No map data found for upload' });
         }
 
-        // Publish map to AGV (ROS topic)
+        // Publish map to AMR (ROS topic)
         const result = publishers.publishMap(req.deviceId, mapData);
 
         // Broadcast map upload event
@@ -1102,16 +1102,16 @@ router.post('/devices/:deviceId/map/upload-to-agv', validateDevice, async (req, 
 
         res.json({
             success: true,
-            message: 'Map uploaded to AGV successfully',
+            message: 'Map uploaded to AMR successfully',
             result: result
         });
 
-        console.log(`⬆️ Map uploaded to AGV for device ${req.deviceId}: ${mapData.name}`);
+        console.log(`⬆️ Map uploaded to AMR for device ${req.deviceId}: ${mapData.name}`);
 
     } catch (error) {
-        console.error('❌ Error uploading map to AGV:', error);
+        console.error('❌ Error uploading map to AMR:', error);
         res.status(500).json({
-            error: 'Failed to upload map to AGV',
+            error: 'Failed to upload map to AMR',
             details: error.message
         });
     }

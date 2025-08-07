@@ -1,5 +1,5 @@
 #!/bin/bash
-echo "🚀 Starting AGV Fleet Management Backend (Production)"
+echo "🚀 Starting AMR Fleet Management Backend (Production)"
 
 # Check if ROS2 is available
 if command -v ros2 &> /dev/null; then

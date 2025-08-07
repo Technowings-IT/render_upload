@@ -1,4 +1,4 @@
-// routes/discoveryRoutes.js - Device Discovery API for AGV Fleet Management
+// routes/discoveryRoutes.js - Device Discovery API for AMR Fleet Management
 const express = require('express');
 const dgram = require('dgram');
 const os = require('os');
@@ -55,7 +55,7 @@ router.get('/websocket-info', (req, res) => {
             success: true,
             websocket: {
                 url: `ws://${serverInfo.ip}:${serverInfo.port}`,
-                protocols: ['agv-protocol'],
+                protocols: ['AMR-protocol'],
                 capabilities: [
                     'real_time_control',
                     'live_mapping',
@@ -77,14 +77,14 @@ router.get('/websocket-info', (req, res) => {
     }
 });
 
-// ✅ NEW: Auto-connect endpoint for AGVs
+// ✅ NEW: Auto-connect endpoint for AMRs
 router.post('/auto-connect', async (req, res) => {
     try {
         const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
         const { deviceId, name, capabilities } = req.body;
         
-        const autoDeviceId = deviceId || `agv_${clientIP.replace(/\./g, '_')}`;
-        const deviceName = name || `AGV at ${clientIP}`;
+        const autoDeviceId = deviceId || `AMR_${clientIP.replace(/\./g, '_')}`;
+        const deviceName = name || `AMR at ${clientIP}`;
         
         const deviceInfo = {
             id: autoDeviceId,
@@ -141,13 +141,13 @@ router.get('/network-scan', async (req, res) => {
     try {
         const { subnet, startIP, endIP } = req.query;
         
-        const targetSubnet = subnet || config.NETWORK.DISCOVERY.AGV_SUBNET;
-        const start = parseInt(startIP) || config.NETWORK.DISCOVERY.AGV_IP_RANGE.START;
-        const end = parseInt(endIP) || config.NETWORK.DISCOVERY.AGV_IP_RANGE.END;
+        const targetSubnet = subnet || config.NETWORK.DISCOVERY.AMR_SUBNET;
+        const start = parseInt(startIP) || config.NETWORK.DISCOVERY.AMR_IP_RANGE.START;
+        const end = parseInt(endIP) || config.NETWORK.DISCOVERY.AMR_IP_RANGE.END;
         
         console.log(`🔍 Starting network scan: ${targetSubnet}.${start}-${end}`);
         
-        const discoveredDevices = await scanNetworkForAGVs(targetSubnet, start, end);
+        const discoveredDevices = await scanNetworkForAMRs(targetSubnet, start, end);
         
         res.json({
             success: true,
@@ -236,7 +236,7 @@ function getServerInfo() {
         platform: os.platform(),
         nodeVersion: process.version,
         uptime: process.uptime(),
-        type: 'agv_fleet_backend',
+        type: 'AMR_fleet_backend',
         version: '1.0.0'
     };
 }
@@ -261,13 +261,13 @@ function getNetworkInfo() {
     return interfaces;
 }
 
-async function scanNetworkForAGVs(subnet, startIP, endIP) {
+async function scanNetworkForAMRs(subnet, startIP, endIP) {
     const discoveredDevices = [];
     const scanPromises = [];
     
     for (let i = startIP; i <= endIP; i++) {
         const ip = `${subnet}.${i}`;
-        scanPromises.push(checkAGVAtIP(ip));
+        scanPromises.push(checkAMRAtIP(ip));
     }
     
     // Process in batches to avoid overwhelming the network
@@ -291,7 +291,7 @@ async function scanNetworkForAGVs(subnet, startIP, endIP) {
     return discoveredDevices;
 }
 
-async function checkAGVAtIP(ip) {
+async function checkAMRAtIP(ip) {
     try {
         const http = require('http');
         
@@ -309,10 +309,10 @@ async function checkAGVAtIP(ip) {
                     res.on('end', () => {
                         try {
                             const parsed = JSON.parse(data);
-                            if (parsed.success || data.includes('agv') || data.includes('fleet')) {
+                            if (parsed.success || data.includes('AMR') || data.includes('fleet')) {
                                 resolve({
-                                    id: `agv_${ip.replace(/\./g, '_')}`,
-                                    name: `AGV at ${ip}`,
+                                    id: `AMR_${ip.replace(/\./g, '_')}`,
+                                    name: `AMR at ${ip}`,
                                     ipAddress: ip,
                                     port: 3000,
                                     discoveryMethod: 'network_scan',
@@ -322,7 +322,7 @@ async function checkAGVAtIP(ip) {
                                 return;
                             }
                         } catch (e) {
-                            // Not JSON, but might still be an AGV
+                            // Not JSON, but might still be an AMR
                         }
                         
                         resolve({
@@ -356,7 +356,7 @@ async function checkAGVAtIP(ip) {
     }
 }
 
-// ✅ NEW: UDP broadcast listener for AGV discovery
+// ✅ NEW: UDP broadcast listener for AMR discovery
 function initializeUDPDiscovery() {
     try {
         const server = dgram.createSocket('udp4');
@@ -365,14 +365,14 @@ function initializeUDPDiscovery() {
             try {
                 const message = JSON.parse(msg.toString());
                 
-                if (message.type === 'agv_discovery') {
+                if (message.type === 'AMR_discovery') {
                     console.log(`📡 Discovery request from ${rinfo.address}:${rinfo.port}`);
                     
                     // Send discovery response
                     const response = {
-                        type: 'agv_response',
-                        id: 'agv_fleet_backend',
-                        name: 'AGV Fleet Backend',
+                        type: 'AMR_response',
+                        id: 'AMR_fleet_backend',
+                        name: 'AMR Fleet Backend',
                         ip: getServerInfo().ip,
                         port: config.SERVER.PORT,
                         websocket_port: config.SERVER.PORT,

@@ -29,7 +29,6 @@ class ROS2ScriptManager extends EventEmitter {
         
         // Pi script file paths
         this.piScriptPaths = {
-            robot_control: '/home/piros/scripts/robot_control.sh',
             slam: '/home/piros/scripts/slam.sh',
             navigation: '/home/piros/scripts/nav2.sh',
             kill: '/home/piros/scripts/kill.sh'
@@ -140,7 +139,7 @@ class ROS2ScriptManager extends EventEmitter {
             const conn = new Client();
             
             conn.on('ready', () => {
-                const checkCommand = 'ls -la /home/piros/scripts/slam.sh /home/piros/scripts/nav2.sh /home/piros/scripts/robot_control.sh 2>/dev/null | wc -l';
+                const checkCommand = 'ls -la /home/piros/scripts/slam.sh /home/piros/scripts/nav2.sh 2>/dev/null | wc -l';
                 
                 conn.exec(checkCommand, (err, stream) => {
                     if (err) {
@@ -226,11 +225,7 @@ class ROS2ScriptManager extends EventEmitter {
                 // Prepare script arguments based on type
                 let scriptName, args = '';
                 
-                switch (scriptType) {
-                    case 'robot_control':
-                        scriptName = 'robot_control.sh';
-                        break;
-                        
+                switch (scriptType) {                        
                     case 'slam':
                         scriptName = 'slam.sh';
                         args = options.mapName || ('new_slam_map_' + Date.now());
@@ -577,10 +572,7 @@ class ROS2ScriptManager extends EventEmitter {
                         killCommands.push('pkill -f "nav2_bringup" || true');
                         killCommands.push('pkill -f "nav2.sh" || true');
                         break;
-                    case 'robot_control':
-                        killCommands.push('pkill -f "ros2_control_robot" || true');
-                        killCommands.push('pkill -f "robot_control.sh" || true');
-                        break;
+                    
                 }
                 
                 const killCommand = killCommands.join(' ; ');

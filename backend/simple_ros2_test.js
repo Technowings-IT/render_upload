@@ -29,7 +29,7 @@ async function simpleROS2Test() {
         const topics = node.getTopicNamesAndTypes();
         console.log(`📡 Discovered ${topics.length} topics`);
         
-        // Check for key AGV topics
+        // Check for key AMR topics
         const keyTopics = ['/cmd_vel', '/diff_drive_controller/odom'];
         keyTopics.forEach(topicName => {
             const found = topics.some(t => t.name === topicName);

@@ -1,12 +1,12 @@
-# AGV Fleet Management System
+# AMR Fleet Management System
 
-A comprehensive fleet management system for Automated Guided Vehicles (AGVs) built with Flutter frontend, Node.js backend, and ROS2 integration.
+A comprehensive fleet management system for Automated Guided Vehicles (AMRs) built with Flutter frontend, Node.js backend, and ROS2 integration.
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────┐    WebSocket/HTTP   ┌─────────────────┐    ROS2    ┌─────────────────┐
-│  Flutter App    │ ◄─────────────────► │  Node.js Server │ ◄────────► │  AGV Fleet      │
+│  Flutter App    │ ◄─────────────────► │  Node.js Server │ ◄────────► │  AMR Fleet      │
 │  (Frontend)     │                     │  (Backend)      │            │  (ROS2 Nodes)   │
 └─────────────────┘                     └─────────────────┘            └─────────────────┘
 ```
@@ -14,9 +14,9 @@ A comprehensive fleet management system for Automated Guided Vehicles (AGVs) bui
 ## 🚀 Features
 
 ### Frontend (Flutter)
-- Real-time AGV monitoring dashboard
+- Real-time AMR monitoring dashboard
 - WebSocket-based live updates
-- Manual AGV control with joystick
+- Manual AMR control with joystick
 - Mission planning and waypoint management
 - Fleet statistics and analytics
 - Dark/Light theme support
@@ -25,13 +25,13 @@ A comprehensive fleet management system for Automated Guided Vehicles (AGVs) bui
 ### Backend (Node.js + ROS2)
 - ROS2 integration with rclnodejs
 - WebSocket server for real-time communication
-- RESTful API for AGV control
+- RESTful API for AMR control
 - Modular architecture with separate concerns
-- AGV discovery and network scanning
+- AMR discovery and network scanning
 - Safety features and emergency stop
 - Mission management and queue system
 
-### AGV Integration
+### AMR Integration
 - Position and orientation tracking
 - Battery monitoring
 - Status updates (idle, moving, charging, error)
@@ -49,8 +49,8 @@ A comprehensive fleet management system for Automated Guided Vehicles (AGVs) bui
 - **Flutter**: 3.0.0 or later
 
 ### Hardware Requirements
-- Network connection to AGVs
-- WiFi router for AGV communication
+- Network connection to AMRs
+- WiFi router for AMR communication
 - Computer/server with minimum 4GB RAM
 
 ## 🛠️ Installation
@@ -91,7 +91,7 @@ rosdep update
 ```bash
 # Clone repository
 git clone <your-repository-url>
-cd agv-fleet-management/backend
+cd AMR-fleet-management/backend
 
 # Install Node.js dependencies
 npm install
@@ -133,33 +133,33 @@ NODE_ENV=development
 PORT=3000
 ROS_DOMAIN_ID=0
 
-# AGV Configuration
-AGV_IDS=agv_001,agv_002,agv_003
+# AMR Configuration
+AMR_IDS=AMR_001,AMR_002,AMR_003
 
 # Network
 CORS_ORIGIN=*
 ```
 
-### AGV Network Configuration
+### AMR Network Configuration
 
-Ensure all AGVs are connected to the same WiFi network:
+Ensure all AMRs are connected to the same WiFi network:
 
 ```bash
 # Example network configuration
-Network: AGV_Fleet_WiFi
+Network: AMR_Fleet_WiFi
 IP Range: 192.168.1.100-200
 Gateway: 192.168.1.1
 ```
 
 ### ROS2 Topic Configuration
 
-Default topic structure for each AGV:
+Default topic structure for each AMR:
 ```
-/agv_001/pose          # Position updates
-/agv_001/status        # Status updates  
-/agv_001/battery_state # Battery information
-/agv_001/cmd_vel       # Velocity commands
-/agv_001/mission       # Mission commands
+/AMR_001/pose          # Position updates
+/AMR_001/status        # Status updates  
+/AMR_001/battery_state # Battery information
+/AMR_001/cmd_vel       # Velocity commands
+/AMR_001/mission       # Mission commands
 ```
 
 ## 🚀 Running the System
@@ -189,11 +189,11 @@ npm run dev
 
 Expected output:
 ```
-🚀 AGV Fleet Management Server running on port 3000
+🚀 AMR Fleet Management Server running on port 3000
 📡 WebSocket server ready for connections
 ✅ ROS2 initialization complete
-📤 Publishers created for 3 AGVs
-📥 Subscribers created for 3 AGVs
+📤 Publishers created for 3 AMRs
+📥 Subscribers created for 3 AMRs
 ```
 
 ### 3. Start Flutter App
@@ -216,8 +216,8 @@ flutter run -d linux
 ### Dashboard Features
 
 1. **Connection Status**: Shows real-time connection to backend
-2. **AGV Selection**: Dropdown to select which AGV to monitor
-3. **AGV Information Card**: 
+2. **AMR Selection**: Dropdown to select which AMR to monitor
+3. **AMR Information Card**: 
    - Current status (Active, Idle, Charging, Error)
    - Battery percentage and charging status
    - Current position coordinates
@@ -226,27 +226,27 @@ flutter run -d linux
 
 4. **Quick Actions**:
    - **Start**: Navigate to control page
-   - **Stop**: Send stop command to AGV
-   - **E-Stop**: Emergency stop for selected AGV
-   - **Emergency Stop All**: Stop all AGVs immediately
+   - **Stop**: Send stop command to AMR
+   - **E-Stop**: Emergency stop for selected AMR
+   - **Emergency Stop All**: Stop all AMRs immediately
 
 5. **Navigation Menu**:
-   - **View Map**: See AGV positions on map
+   - **View Map**: See AMR positions on map
    - **Fleet Status**: Analytics and statistics
    - **Settings**: Configuration options
    - **Refresh**: Reconnect to server
 
 ### Control Interface
 
-- **Virtual Joystick**: Manual control of AGV movement
+- **Virtual Joystick**: Manual control of AMR movement
 - **Direction Buttons**: Precise directional control
 - **Speed Control**: Adjust movement speed
 - **Emergency Stop**: Quick access emergency stop
 
 ### Mission Planning
 
-- **Waypoint Addition**: Add GPS coordinates for AGV navigation
-- **Mission Assignment**: Send waypoint sequences to AGVs
+- **Waypoint Addition**: Add GPS coordinates for AMR navigation
+- **Mission Assignment**: Send waypoint sequences to AMRs
 - **Priority Settings**: Set mission priority levels
 - **Progress Monitoring**: Track mission completion
 
@@ -254,44 +254,44 @@ flutter run -d linux
 
 ### REST API Endpoints
 
-#### AGV Management
+#### AMR Management
 ```http
-GET    /api/agvs                    # Get all AGVs
-GET    /api/agvs/:agvId             # Get specific AGV
-POST   /api/agvs/:agvId/command     # Send command
-POST   /api/agvs/:agvId/move        # Move with velocity
-POST   /api/agvs/:agvId/stop        # Stop AGV
-POST   /api/agvs/:agvId/emergency-stop  # Emergency stop
-POST   /api/agvs/:agvId/mission     # Assign mission
-POST   /api/agvs/:agvId/goto        # Go to position
-POST   /api/agvs/:agvId/mode        # Set mode
+GET    /api/AMRs                    # Get all AMRs
+GET    /api/AMRs/:AMRId             # Get specific AMR
+POST   /api/AMRs/:AMRId/command     # Send command
+POST   /api/AMRs/:AMRId/move        # Move with velocity
+POST   /api/AMRs/:AMRId/stop        # Stop AMR
+POST   /api/AMRs/:AMRId/emergency-stop  # Emergency stop
+POST   /api/AMRs/:AMRId/mission     # Assign mission
+POST   /api/AMRs/:AMRId/goto        # Go to position
+POST   /api/AMRs/:AMRId/mode        # Set mode
 ```
 
 #### Fleet Operations
 ```http
 GET    /api/fleet/stats             # Fleet statistics
-POST   /api/fleet/emergency-stop    # Stop all AGVs
+POST   /api/fleet/emergency-stop    # Stop all AMRs
 GET    /api/health                  # System health
-GET    /api/discover                # Discover AGVs
+GET    /api/discover                # Discover AMRs
 ```
 
 ### WebSocket Events
 
 #### Client → Server
 ```javascript
-socket.emit('get_agv_status', agvId);
-socket.emit('send_command', {agvId, command, params});
-socket.emit('assign_mission', {agvId, waypoints, priority});
-socket.emit('emergency_stop', agvId);
+socket.emit('get_AMR_status', AMRId);
+socket.emit('send_command', {AMRId, command, params});
+socket.emit('assign_mission', {AMRId, waypoints, priority});
+socket.emit('emergency_stop', AMRId);
 socket.emit('emergency_stop_all');
 ```
 
 #### Server → Client
 ```javascript
-socket.on('agv_data', (agvList) => {});
-socket.on('agv_position_update', (update) => {});
-socket.on('agv_status_update', (update) => {});
-socket.on('agv_battery_update', (update) => {});
+socket.on('AMR_data', (AMRList) => {});
+socket.on('AMR_position_update', (update) => {});
+socket.on('AMR_status_update', (update) => {});
+socket.on('AMR_battery_update', (update) => {});
 socket.on('command_response', (response) => {});
 ```
 
@@ -312,13 +312,13 @@ node --version  # Should be 16+
 npm install
 ```
 
-#### 2. No AGVs detected
+#### 2. No AMRs detected
 ```bash
 # Check ROS2 topics
-ros2 topic list | grep agv
+ros2 topic list | grep AMR
 
 # Check network connectivity
-ping 192.168.1.101  # Your AGV IP
+ping 192.168.1.101  # Your AMR IP
 
 # Check ROS2 domain ID
 echo $ROS_DOMAIN_ID
@@ -346,8 +346,8 @@ ping [backend-server-ip]
 
 ```bash
 # Check ROS2 communication
-ros2 topic echo /agv_001/pose
-ros2 topic pub /agv_001/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5}}"
+ros2 topic echo /AMR_001/pose
+ros2 topic pub /AMR_001/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5}}"
 
 # Backend logs
 npm run dev  # Shows detailed logs
@@ -359,7 +359,7 @@ flutter logs
 ## 📊 Monitoring & Analytics
 
 ### Built-in Metrics
-- AGV connection status
+- AMR connection status
 - Battery levels and charging status
 - Position tracking and movement history
 - Mission completion rates
@@ -371,7 +371,7 @@ flutter logs
 # System health
 curl http://localhost:3000/health
 
-# AGV discovery
+# AMR discovery
 curl http://localhost:3000/api/discover
 
 # Fleet statistics
@@ -432,7 +432,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🗺️ Roadmap
 
 ### Phase 1 (Current)
-- ✅ Basic AGV control and monitoring
+- ✅ Basic AMR control and monitoring
 - ✅ WebSocket communication
 - ✅ Flutter dashboard
 - ✅ ROS2 integration
@@ -453,4 +453,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Happy AGV Managing! 🤖🚀**
+**Happy AMR Managing! 🤖🚀**

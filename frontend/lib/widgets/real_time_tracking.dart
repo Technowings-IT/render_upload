@@ -7,7 +7,7 @@ import '../models/map_data.dart';
 import 'joystick.dart';
 import '/models/odom.dart';
 
-// Real-Time Map Widget with Live AGV Tracking
+// Real-Time Map Widget with Live AMR Tracking
 class LiveMapWidget extends StatefulWidget {
   final String? deviceId;
   final Function(MapData)? onMapChanged;
@@ -496,7 +496,7 @@ class LiveMapPainter extends CustomPainter {
     // Robot ID text
     final textPainter = TextPainter(
       text: TextSpan(
-        text: 'AGV',
+        text: 'AMR',
         style: TextStyle(
           color: Colors.white,
           fontSize: 8,

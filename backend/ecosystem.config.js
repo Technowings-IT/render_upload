@@ -1,6 +1,6 @@
 module.exports = {
   apps: [{
-    name: 'agv-fleet-backend',
+    name: 'AMR-fleet-backend',
     script: 'app.js',
     instances: 1,
     autorestart: true,

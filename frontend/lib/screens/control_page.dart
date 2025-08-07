@@ -8,12 +8,11 @@ import '../services/api_service.dart';
 import '../services/theme_service.dart';
 import '../widgets/joystick.dart';
 import '../widgets/live_maping_canvas.dart';
-import '../widgets/modern_ui_components.dart';
 import '../models/map_data.dart';
 import '../models/odom.dart' as odom;
 
-
 enum DeviceType { phone, tablet, desktop }
+
 enum SnackBarType { success, error, warning, info }
 
 class ControlPage extends StatefulWidget {
@@ -54,7 +53,6 @@ class _ControlPageState extends State<ControlPage>
   // Robot control state
   bool _mappingActive = false;
   bool _controlEnabled = true;
-  bool _robotControlActive = false;
   bool _scriptExecutionInProgress = false;
 
   // Script status tracking
@@ -116,131 +114,103 @@ class _ControlPageState extends State<ControlPage>
     _setupSubscriptions();
   }
 
-@override
-void dispose() {
-  _realTimeDataSubscription?.cancel();
-  _mappingEventsSubscription?.cancel();
-  _controlEventsSubscription?.cancel();
-  _connectionStateSubscription?.cancel();
-  _errorSubscription?.cancel();
-  _statusAnimationController.dispose();
-  _cardAnimationController.dispose();
-  _joystickGlowController.dispose();
-  _tabController.dispose();
-  super.dispose();
-}
+  @override
+  void dispose() {
+    _realTimeDataSubscription?.cancel();
+    _mappingEventsSubscription?.cancel();
+    _controlEventsSubscription?.cancel();
+    _connectionStateSubscription?.cancel();
+    _errorSubscription?.cancel();
+    _statusAnimationController.dispose();
+    _cardAnimationController.dispose();
+    _joystickGlowController.dispose();
+    _tabController.dispose();
+    super.dispose();
+  }
 
   // ==========================================
   // INITIALIZATION METHODS
   // ==========================================
 
-  // Added: Modern AppBar builder to fix missing method error
-  PreferredSizeWidget _buildModernAppBar(ThemeService theme) {
-    return AppBar(
-      title: Text('Live Control - ${widget.deviceId}'),
-      backgroundColor: _mappingActive ? Colors.green : Theme.of(context).primaryColor,
-      elevation: 2,
-      actions: [
-        _buildConnectionIndicator(),
-        if (_mappingActive) _buildMappingIndicator(),
-        IconButton(
-          icon: const Icon(Icons.emergency, color: Colors.red),
-          onPressed: _emergencyStop,
-          tooltip: 'Emergency Stop',
-        ),
-      ],
-      bottom: TabBar(
-        controller: _tabController,
-        indicatorColor: Colors.white,
-        labelColor: Colors.white,
-        unselectedLabelColor: Colors.white70,
-        tabs: const [
-          Tab(icon: Icon(Icons.control_camera), text: 'Live Control'),
-          Tab(icon: Icon(Icons.settings), text: 'Settings'),
-        ],
-      ),
+  void _initializeAnimations() {
+    _statusAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
     );
+
+    // NEW: Additional animation controllers
+    _cardAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _joystickGlowController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+    );
+
+    // NEW: Start card animations
+    _cardAnimationController.forward();
   }
-
-void _initializeAnimations() {
-  _statusAnimationController = AnimationController(
-    duration: const Duration(milliseconds: 1000),
-    vsync: this,
-  );
-
-  // NEW: Additional animation controllers
-  _cardAnimationController = AnimationController(
-    duration: const Duration(milliseconds: 800),
-    vsync: this,
-  );
-
-  _joystickGlowController = AnimationController(
-    duration: const Duration(milliseconds: 2000),
-    vsync: this,
-  );
-
-  _tabController = TabController(
-    length: 2,
-    vsync: this,
-  );
-
-  // NEW: Start card animations
-  _cardAnimationController.forward();
-}
 
 // NEW: Enhanced snackbar types
 
-void _showModernSnackBar(String message, SnackBarType type) {
-  final theme = Provider.of<ThemeService>(context, listen: false);
-  Color backgroundColor;
-  IconData icon;
+  void _showModernSnackBar(String message, SnackBarType type) {
+    final theme = Provider.of<ThemeService>(context, listen: false);
+    Color backgroundColor;
+    IconData icon;
 
-  switch (type) {
-    case SnackBarType.success:
-      backgroundColor = theme.successColor;
-      icon = Icons.check_circle;
-      break;
-    case SnackBarType.error:
-      backgroundColor = theme.errorColor;
-      icon = Icons.error;
-      break;
-    case SnackBarType.warning:
-      backgroundColor = theme.warningColor;
-      icon = Icons.warning;
-      break;
-    case SnackBarType.info:
-      backgroundColor = theme.infoColor;
-      icon = Icons.info;
-      break;
-  }
+    switch (type) {
+      case SnackBarType.success:
+        backgroundColor = theme.successColor;
+        icon = Icons.check_circle;
+        break;
+      case SnackBarType.error:
+        backgroundColor = theme.errorColor;
+        icon = Icons.error;
+        break;
+      case SnackBarType.warning:
+        backgroundColor = theme.warningColor;
+        icon = Icons.warning;
+        break;
+      case SnackBarType.info:
+        backgroundColor = theme.infoColor;
+        icon = Icons.info;
+        break;
+    }
 
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Row(
-        children: [
-          Icon(icon, color: Colors.white, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: theme.bodyMedium.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: theme.bodyMedium.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
+        backgroundColor: backgroundColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: theme.borderRadiusMedium,
+        ),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
       ),
-      backgroundColor: backgroundColor,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(
-        borderRadius: theme.borderRadiusMedium,
-      ),
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(seconds: 3),
-    ),
-  );
-}
+    );
+  }
 
 // Removed duplicate build method to resolve "The name 'build' is already defined" error.
   void _initializeConnection() {
@@ -250,7 +220,7 @@ void _showModernSnackBar(String message, SnackBarType type) {
 
     if (!_webSocketService.isConnected) {
       _webSocketService.connect(
-        'ws://192.168.0.63:3000',
+        'ws://192.168.0.75:3000',
         deviceId: widget.deviceId,
         deviceInfo: {
           'type': 'mobile_controller',
@@ -266,28 +236,28 @@ void _showModernSnackBar(String message, SnackBarType type) {
     }
   }
 
-void _setupSubscriptions() {
-  _connectionStateSubscription = _webSocketService.connectionState.listen(
-    (connected) {
-      if (mounted) {
-        setState(() {
-          _isConnected = connected;
-          _connectionStatus = connected ? 'Connected' : 'Disconnected';
-        });
+  void _setupSubscriptions() {
+    _connectionStateSubscription = _webSocketService.connectionState.listen(
+      (connected) {
+        if (mounted) {
+          setState(() {
+            _isConnected = connected;
+            _connectionStatus = connected ? 'Connected' : 'Disconnected';
+          });
 
-        if (connected) {
-          _subscribeToTopics();
-          _statusAnimationController.forward();
-          // NEW: Joystick glow animation when connected
-          _joystickGlowController.repeat(reverse: true);
-        } else {
-          _statusAnimationController.reverse();
-          // NEW: Stop glow animation when disconnected
-          _joystickGlowController.stop();
+          if (connected) {
+            _subscribeToTopics();
+            _statusAnimationController.forward();
+            // NEW: Joystick glow animation when connected
+            _joystickGlowController.repeat(reverse: true);
+          } else {
+            _statusAnimationController.reverse();
+            // NEW: Stop glow animation when disconnected
+            _joystickGlowController.stop();
+          }
         }
-      }
-    },
-  );
+      },
+    );
 
     _realTimeDataSubscription = _webSocketService.realTimeData.listen((data) {
       if (mounted) {
@@ -464,9 +434,7 @@ void _setupSubscriptions() {
           _scriptStatus[scriptType] = status;
 
           // Update specific flags
-          if (scriptType == 'robot_control') {
-            _robotControlActive = status == 'running';
-          } else if (scriptType == 'slam') {
+          if (scriptType == 'slam') {
             _mappingActive = status == 'running';
           }
         }
@@ -498,7 +466,6 @@ void _setupSubscriptions() {
   void _handleNavigationStatus(Map<String, dynamic> data) {
     if (mounted) {
       final status = data['status_text'];
-      final success = data['result']?['success'];
 
       if (status == 'SUCCEEDED') {
         _showSnackBar('Navigation completed successfully!', Colors.green);
@@ -805,14 +772,6 @@ void _setupSubscriptions() {
     }
   }
 
-  void _toggleMapping() {
-    if (_mappingActive) {
-      _webSocketService.sendMappingCommand(widget.deviceId, 'stop');
-    } else {
-      _webSocketService.sendMappingCommand(widget.deviceId, 'start');
-    }
-  }
-
   Future<void> _emergencyStop() async {
     // Immediate robot stop
     _webSocketService.stopRobot(widget.deviceId);
@@ -822,7 +781,6 @@ void _setupSubscriptions() {
 
     setState(() {
       _mappingActive = false;
-      _robotControlActive = false;
       _currentLinear = 0.0;
       _currentAngular = 0.0;
 
@@ -836,124 +794,43 @@ void _setupSubscriptions() {
   }
 
   // ==========================================
-  // SCRIPT CONTROL METHODS
+  // SIMPLIFIED SCRIPT CONTROL METHODS
   // ==========================================
 
-  Future<void> _startRobotControl() async {
-    if (_scriptExecutionInProgress) {
-      _showSnackBar('Another script operation is in progress', Colors.orange);
-      return;
-    }
+  // Execute kill.sh script - Emergency stop all processes
+  Future<void> _executeKillScript() async {
+    if (_scriptExecutionInProgress) return;
 
     setState(() {
       _scriptExecutionInProgress = true;
     });
 
     try {
-      _showSnackBar(
-          'Starting complete robot system (Robot Control + SLAM + Navigation)...',
-          Colors.blue);
+      _showModernSnackBar(
+          '🔴 Executing EMERGENCY KILL (kill.sh)...', SnackBarType.warning);
 
-      // Start Robot Control first
-      final robotSuccess = _webSocketService.sendScriptCommand(
-        widget.deviceId,
-        'start_robot_control',
-      );
-
-      if (robotSuccess) {
-        _showSnackBar('Robot control started, starting SLAM...', Colors.blue);
-
-        // Wait a bit for robot control to initialize
-        await Future.delayed(Duration(seconds: 2));
-
-        // Start SLAM
-        final slamSuccess = _webSocketService.sendScriptCommand(
-            widget.deviceId, 'start_slam', options: {
-          'mapName': 'slam_map_${DateTime.now().millisecondsSinceEpoch}'
-        });
-
-        if (slamSuccess) {
-          _showSnackBar('SLAM started, starting navigation...', Colors.blue);
-
-          // Wait a bit for SLAM to initialize
-          await Future.delayed(Duration(seconds: 2));
-
-          // Start navigation
-          final navSuccess = _webSocketService.sendScriptCommand(
-              widget.deviceId, 'start_navigation',
-              options: {'mapPath': 'current_map.yaml'});
-
-          if (navSuccess) {
-            _showSnackBar(
-                'Complete robot system started! Waiting for confirmation...',
-                Colors.blue);
-
-            // Wait for all systems to come online
-            await Future.delayed(Duration(seconds: 5));
-
-            if (_scriptStatus['robot_control'] == 'running' ||
-                _scriptStatus['slam'] == 'running') {
-              _showSnackBar('Robot system started successfully!', Colors.green);
-            } else {
-              _showSnackBar(
-                  'System start commands sent but no confirmation received',
-                  Colors.orange);
-            }
-          } else {
-            _showSnackBar('Failed to start navigation', Colors.red);
-          }
-        } else {
-          _showSnackBar('Failed to start SLAM', Colors.red);
-        }
-      } else {
-        _showSnackBar('Failed to start robot control', Colors.red);
-      }
-    } catch (e) {
-      _showSnackBar('Error starting robot system: $e', Colors.red);
-    } finally {
-      setState(() {
-        _scriptExecutionInProgress = false;
-      });
-    }
-  }
-
-  Future<void> _startSLAM() async {
-    if (_scriptExecutionInProgress) {
-      _showSnackBar('Another script operation is in progress', Colors.orange);
-      return;
-    }
-
-    setState(() {
-      _scriptExecutionInProgress = true;
-    });
-
-    try {
-      _showSnackBar('Starting SLAM mapping system...', Colors.blue);
-
+      // Send kill command to backend
       final success = _webSocketService.sendScriptCommand(
-          widget.deviceId, 'start_slam', options: {
-        'mapName': 'slam_map_${DateTime.now().millisecondsSinceEpoch}'
-      });
+          widget.deviceId, 'kill_all_processes');
 
       if (success) {
-        _showSnackBar(
-            'SLAM command sent. System will auto-start robot control if needed...',
-            Colors.blue);
+        // Reset all statuses
+        setState(() {
+          _scriptStatus['robot_control'] = 'stopped';
+          _scriptStatus['slam'] = 'stopped';
+          _scriptStatus['navigation'] = 'stopped';
+          _mappingActive = false;
+        });
 
-        // Wait for SLAM to initialize
-        await Future.delayed(Duration(seconds: 5));
-
-        if (_scriptStatus['slam'] == 'running') {
-          _showSnackBar('SLAM mapping started successfully!', Colors.green);
-        } else {
-          _showSnackBar(
-              'SLAM command sent but no confirmation received', Colors.orange);
-        }
+        _showModernSnackBar(
+            '✅ Emergency kill executed successfully!', SnackBarType.success);
       } else {
-        _showSnackBar('Failed to send SLAM command', Colors.red);
+        _showModernSnackBar(
+            '❌ Failed to execute emergency kill', SnackBarType.error);
       }
     } catch (e) {
-      _showSnackBar('Error starting SLAM: $e', Colors.red);
+      _showModernSnackBar(
+          '❌ Error executing kill script: $e', SnackBarType.error);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -961,94 +838,36 @@ void _setupSubscriptions() {
     }
   }
 
-  Future<void> _startNavigation() async {
-    if (_scriptExecutionInProgress) {
-      _showSnackBar('Another script operation is in progress', Colors.orange);
-      return;
-    }
+  // Execute nav2.sh script - Start robot navigation
+  Future<void> _executeNav2Script() async {
+    if (_scriptExecutionInProgress) return;
 
     setState(() {
       _scriptExecutionInProgress = true;
     });
 
     try {
-      _showSnackBar('Starting navigation system...', Colors.blue);
+      _showModernSnackBar(
+          '🤖 Starting Robot Navigation (nav2.sh)...', SnackBarType.info);
 
+      // Send nav2 start command to backend
       final success = _webSocketService.sendScriptCommand(
           widget.deviceId, 'start_navigation',
-          options: {'mapPath': 'current_map.yaml'});
+          options: {'script_type': 'nav2', 'auto_start': true});
 
       if (success) {
-        _showSnackBar(
-            'Navigation command sent. System will auto-start robot control if needed...',
-            Colors.blue);
-
-        // Wait for navigation to initialize
-        await Future.delayed(Duration(seconds: 5));
-
-        if (_scriptStatus['navigation'] == 'running') {
-          _showSnackBar('Navigation started successfully!', Colors.green);
-        } else {
-          _showSnackBar('Navigation command sent but no confirmation received',
-              Colors.orange);
-        }
-      } else {
-        _showSnackBar('Failed to send navigation command', Colors.red);
-      }
-    } catch (e) {
-      _showSnackBar('Error starting navigation: $e', Colors.red);
-    } finally {
-      setState(() {
-        _scriptExecutionInProgress = false;
-      });
-    }
-  }
-
-  Future<void> _stopAllScripts() async {
-    if (_scriptExecutionInProgress) {
-      _showSnackBar('Another script operation is in progress', Colors.orange);
-      return;
-    }
-
-    setState(() {
-      _scriptExecutionInProgress = true;
-    });
-
-    try {
-      _showSnackBar(
-          'Executing kill.sh to stop all processes...', Colors.orange);
-
-      // Use the kill.sh script on Raspberry Pi to stop everything
-      final success = _webSocketService.sendScriptCommand(
-        widget.deviceId,
-        'stop_all_scripts', // This will execute kill.sh
-      );
-
-      if (success) {
-        _showSnackBar(
-            'Kill script executed. Stopping all processes...', Colors.orange);
-
-        // Wait for kill.sh to complete its work
-        await Future.delayed(Duration(seconds: 8));
-
-        // Update UI state to reflect all processes stopped
         setState(() {
-          _scriptStatus.forEach((key, value) {
-            _scriptStatus[key] = 'stopped';
-          });
-          _robotControlActive = false;
-          _mappingActive = false;
-          _currentLinear = 0.0;
-          _currentAngular = 0.0;
+          _scriptStatus['navigation'] = 'running';
         });
-
-        _showSnackBar(
-            'All processes killed successfully via kill.sh!', Colors.green);
+        _showModernSnackBar(
+            '✅ Robot Navigation started successfully!', SnackBarType.success);
       } else {
-        _showSnackBar('Failed to execute kill.sh script', Colors.red);
+        _showModernSnackBar(
+            '❌ Failed to start Robot Navigation', SnackBarType.error);
       }
     } catch (e) {
-      _showSnackBar('Error executing kill script: $e', Colors.red);
+      _showModernSnackBar(
+          '❌ Error starting navigation: $e', SnackBarType.error);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -1056,89 +875,40 @@ void _setupSubscriptions() {
     }
   }
 
-  Future<void> _stopRobotControl() async {
-    if (_scriptExecutionInProgress) {
-      _showSnackBar('Another script operation is in progress', Colors.orange);
-      return;
-    }
+  // Execute slam.sh script - Start SLAM mapping
+  Future<void> _executeSlamScript() async {
+    if (_scriptExecutionInProgress) return;
 
     setState(() {
       _scriptExecutionInProgress = true;
     });
 
     try {
-      final success = _webSocketService.sendScriptCommand(
-        widget.deviceId,
-        'stop_robot_control',
-      );
+      _showModernSnackBar(
+          '🗺️ Starting SLAM Mapping (slam.sh)...', SnackBarType.info);
 
-      if (success) {
-        _showSnackBar('Stopping robot control...', Colors.orange);
-      } else {
-        _showSnackBar('Failed to send stop command', Colors.red);
-      }
-    } catch (e) {
-      _showSnackBar('Error stopping robot control: $e', Colors.red);
-    } finally {
-      setState(() {
-        _scriptExecutionInProgress = false;
+      // Send SLAM start command to backend
+      final success = _webSocketService
+          .sendScriptCommand(widget.deviceId, 'start_slam', options: {
+        'script_type': 'slam',
+        'map_name': 'slam_map_${DateTime.now().millisecondsSinceEpoch}',
+        'auto_start': true
       });
-    }
-  }
-
-  Future<void> _stopSLAM() async {
-    if (_scriptExecutionInProgress) {
-      _showSnackBar('Another script operation is in progress', Colors.orange);
-      return;
-    }
-
-    setState(() {
-      _scriptExecutionInProgress = true;
-    });
-
-    try {
-      final success = _webSocketService.sendScriptCommand(
-        widget.deviceId,
-        'stop_slam',
-      );
 
       if (success) {
-        _showSnackBar('Stopping SLAM...', Colors.orange);
+        setState(() {
+          _scriptStatus['slam'] = 'running';
+          _mappingActive = true;
+          _robotTrail.clear(); // Clear trail for new mapping session
+        });
+        _showModernSnackBar(
+            '✅ SLAM Mapping started successfully!', SnackBarType.success);
       } else {
-        _showSnackBar('Failed to send stop command', Colors.red);
+        _showModernSnackBar(
+            '❌ Failed to start SLAM Mapping', SnackBarType.error);
       }
     } catch (e) {
-      _showSnackBar('Error stopping SLAM: $e', Colors.red);
-    } finally {
-      setState(() {
-        _scriptExecutionInProgress = false;
-      });
-    }
-  }
-
-  Future<void> _stopNavigation() async {
-    if (_scriptExecutionInProgress) {
-      _showSnackBar('Another script operation is in progress', Colors.orange);
-      return;
-    }
-
-    setState(() {
-      _scriptExecutionInProgress = true;
-    });
-
-    try {
-      final success = _webSocketService.sendScriptCommand(
-        widget.deviceId,
-        'stop_navigation',
-      );
-
-      if (success) {
-        _showSnackBar('Stopping navigation...', Colors.orange);
-      } else {
-        _showSnackBar('Failed to send stop command', Colors.red);
-      }
-    } catch (e) {
-      _showSnackBar('Error stopping navigation: $e', Colors.red);
+      _showModernSnackBar('❌ Error starting SLAM: $e', SnackBarType.error);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -3120,6 +2890,42 @@ void _setupSubscriptions() {
     );
   }
 
+  // Simple status chip for the new control interface
+  Widget _buildSimpleStatusChip(String label, String status) {
+    Color statusColor;
+
+    switch (status) {
+      case 'running':
+        statusColor = Colors.green;
+        break;
+      case 'ready':
+        statusColor = Colors.blue;
+        break;
+      case 'stopped':
+        statusColor = Colors.grey;
+        break;
+      default:
+        statusColor = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: statusColor.withOpacity(0.5)),
+      ),
+      child: Text(
+        '$label: ${status.toUpperCase()}',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: statusColor,
+        ),
+      ),
+    );
+  }
+
   Widget _buildEnhancedMapOverlayControls() {
     return Container(
       decoration: BoxDecoration(
@@ -3670,56 +3476,22 @@ void _setupSubscriptions() {
   Widget _buildMappingControlButtons() {
     return Column(
       children: [
-        // Main control button - Start Complete System
+        // Emergency Kill Button - Always Available
         Container(
           width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 16),
           child: ElevatedButton.icon(
-            onPressed: !_scriptExecutionInProgress
-                ? (_robotControlActive ||
-                        _mappingActive ||
-                        _scriptStatus['navigation'] == 'running')
-                    ? null // Disable if any system is running
-                    : _startRobotControl // Start complete system
-                : null,
-            icon: const Icon(Icons.rocket_launch, size: 24),
+            onPressed: !_scriptExecutionInProgress ? _executeKillScript : null,
+            icon: const Icon(Icons.power_settings_new, size: 24),
             label: const Text(
-              'START COMPLETE SYSTEM\n(Robot → SLAM → Navigation)',
+              'EMERGENCY KILL',
               textAlign: TextAlign.center,
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ),
-
-        // Stop All button with kill.sh
-        Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ElevatedButton.icon(
-            onPressed: !_scriptExecutionInProgress
-                ? (_robotControlActive ||
-                        _mappingActive ||
-                        _scriptStatus['navigation'] == 'running')
-                    ? _stopAllScripts // Stop all if any system is running
-                    : null // Disable if nothing is running
-                : null,
-            icon: const Icon(Icons.stop_circle, size: 24),
-            label: const Text(
-              'STOP ALL (kill.sh)',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -3727,67 +3499,70 @@ void _setupSubscriptions() {
           ),
         ),
 
-        // Individual control buttons
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _robotControlActive
-                    ? _stopRobotControl
-                    : _startRobotControl,
-                icon:
-                    Icon(_robotControlActive ? Icons.pause : Icons.play_arrow),
-                label: Text(_robotControlActive ? 'Stop Robot' : 'Start Robot'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      _robotControlActive ? Colors.orange : Colors.blue,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
+        // Robot Navigation Button (nav2.sh)
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ElevatedButton.icon(
+            onPressed: !_scriptExecutionInProgress ? _executeNav2Script : null,
+            icon: const Icon(Icons.navigation, size: 24),
+            label: const Text(
+              'START ROBOT NAVIGATION',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.all(18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _mappingActive ? _stopSLAM : _startSLAM,
-                icon: Icon(_mappingActive ? Icons.stop : Icons.play_arrow),
-                label: Text(_mappingActive ? 'Stop SLAM' : 'Start SLAM'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      _mappingActive ? Colors.orange : Colors.purple,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
+          ),
+        ),
+
+        // SLAM Mapping Button (slam.sh)
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ElevatedButton.icon(
+            onPressed: !_scriptExecutionInProgress ? _executeSlamScript : null,
+            icon: const Icon(Icons.map, size: 24),
+            label: const Text(
+              'START SLAM MAPPING',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.all(18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _scriptStatus['navigation'] == 'running'
-                    ? _stopNavigation
-                    : _startNavigation,
-                icon: Icon(_scriptStatus['navigation'] == 'running'
-                    ? Icons.stop
-                    : Icons.play_arrow),
-                label: Text(_scriptStatus['navigation'] == 'running'
-                    ? 'Stop Nav'
-                    : 'Start Nav'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _scriptStatus['navigation'] == 'running'
-                      ? Colors.orange
-                      : Colors.indigo,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ),
+        ),
+
+        // Status Display
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildSimpleStatusChip('Kill', 'ready'),
+              _buildSimpleStatusChip(
+                  'Nav2', _scriptStatus['navigation'] ?? 'stopped'),
+              _buildSimpleStatusChip(
+                  'SLAM', _scriptStatus['slam'] ?? 'stopped'),
+            ],
+          ),
         ),
       ],
     );

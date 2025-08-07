@@ -10,9 +10,9 @@ class UtilityServices {
   }
 
   // Network utilities
-  async discoverAGVsOnNetwork() {
+  async discoverAMRsOnNetwork() {
     try {
-      console.log('🔍 Discovering AGVs on network...');
+      console.log('🔍 Discovering AMRs on network...');
       
       const interfaces = await this.getNetworkInterfaces();
       const discoveries = [];
@@ -20,16 +20,16 @@ class UtilityServices {
       for (const [name, info] of interfaces) {
         if (info.family === 'IPv4' && !info.internal) {
           const subnet = this.getSubnet(info.address, info.netmask);
-          const agvs = await this.scanSubnetForAGVs(subnet);
-          discoveries.push(...agvs);
+          const AMRs = await this.scanSubnetForAMRs(subnet);
+          discoveries.push(...AMRs);
         }
       }
       
-      console.log(`✅ Discovery complete. Found ${discoveries.length} potential AGVs`);
+      console.log(`✅ Discovery complete. Found ${discoveries.length} potential AMRs`);
       return discoveries;
       
     } catch (error) {
-      console.error('❌ Error during AGV discovery:', error);
+      console.error('❌ Error during AMR discovery:', error);
       return [];
     }
   }
@@ -60,13 +60,13 @@ class UtilityServices {
     }
   }
 
-  async scanSubnetForAGVs(subnet) {
+  async scanSubnetForAMRs(subnet) {
     try {
-      console.log(`📡 Scanning subnet ${subnet} for AGVs...`);
+      console.log(`📡 Scanning subnet ${subnet} for AMRs...`);
       const baseIp = subnet.split('/')[0].split('.').slice(0, 3).join('.');
-      const agvs = [];
+      const AMRs = [];
       
-      // Scan common AGV IP ranges (last octet 100-200)
+      // Scan common AMR IP ranges (last octet 100-200)
       const pingPromises = [];
       for (let i = 100; i <= 200; i++) {
         const ip = `${baseIp}.${i}`;
@@ -78,14 +78,14 @@ class UtilityServices {
       for (let i = 0; i < results.length; i++) {
         if (results[i].status === 'fulfilled' && results[i].value) {
           const ip = `${baseIp}.${i + 100}`;
-          const agvInfo = await this.checkIfAGV(ip);
-          if (agvInfo) {
-            agvs.push(agvInfo);
+          const AMRInfo = await this.checkIfAMR(ip);
+          if (AMRInfo) {
+            AMRs.push(AMRInfo);
           }
         }
       }
       
-      return agvs;
+      return AMRs;
     } catch (error) {
       console.error(`Error scanning subnet ${subnet}:`, error);
       return [];
@@ -101,9 +101,9 @@ class UtilityServices {
     }
   }
 
-  async checkIfAGV(ip) {
+  async checkIfAMR(ip) {
     try {
-      // Try to connect to common ROS/AGV ports
+      // Try to connect to common ROS/AMR ports
       const commonPorts = [11311, 7400, 7401, 9090];
       
       for (const port of commonPorts) {
@@ -112,9 +112,9 @@ class UtilityServices {
           return {
             ipAddress: ip,
             port: port,
-            type: 'agv',
+            type: 'AMR',
             status: 'discovered',
-            name: `AGV_${ip.split('.')[3]}`,
+            name: `AMR_${ip.split('.')[3]}`,
             capabilities: ['navigation', 'mapping'],
             discoveredAt: new Date().toISOString()
           };
@@ -208,7 +208,7 @@ class UtilityServices {
   }
 
   // Validation utilities
-  validateAGVCommand(command, params) {
+  validateAMRCommand(command, params) {
     const validCommands = {
       move: {
         required: [],
@@ -344,15 +344,15 @@ class UtilityServices {
   }
 
   // Logging utilities
-  logAGVEvent(agvId, event, data = {}) {
+  logAMREvent(AMRId, event, data = {}) {
     const logEntry = {
       timestamp: new Date().toISOString(),
-      agvId,
+      AMRId,
       event,
       data
     };
     
-    console.log(`📝 AGV Event: ${JSON.stringify(logEntry)}`);
+    console.log(`📝 AMR Event: ${JSON.stringify(logEntry)}`);
     return logEntry;
   }
 

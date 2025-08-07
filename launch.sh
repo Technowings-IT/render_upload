@@ -1,5 +1,5 @@
 #!/bin/bash
-# launch.sh - Main launch script for AGV Fleet Management System
+# launch.sh - Main launch script for AMR Fleet Management System
 
 set -e
 
@@ -11,14 +11,14 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-BACKEND_DIR="agv-fleet-backend"
-FRONTEND_DIR="agv_fleet_management"
+BACKEND_DIR="AMR-fleet-backend"
+FRONTEND_DIR="AMR_fleet_management"
 DEFAULT_ROS_DOMAIN_ID=0
 
 print_banner() {
     echo -e "${BLUE}"
     echo "╔═══════════════════════════════════════════════════════════════╗"
-    echo "║                 AGV Fleet Management System                   ║"
+    echo "║                 AMR Fleet Management System                   ║"
     echo "║                        Launch Script                          ║"
     echo "╚═══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
@@ -33,7 +33,7 @@ print_usage() {
     echo "  stop            Stop all services"
     echo "  backend         Start only backend server"
     echo "  frontend        Start only frontend application"
-    echo "  agv-sim         Start AGV simulator"
+    echo "  AMR-sim         Start AMR simulator"
     echo "  status          Check system status"
     echo "  logs            Show system logs"
     echo "  clean           Clean build artifacts and logs"
@@ -86,7 +86,7 @@ check_dependencies() {
 }
 
 setup_system() {
-    log "Setting up AGV Fleet Management System..."
+    log "Setting up AMR Fleet Management System..."
     
     check_dependencies
     
@@ -157,9 +157,9 @@ start_backend() {
     if [[ "$USE_DOCKER" == "true" ]]; then
         log "Starting backend with Docker..."
         if [[ "$DEV_MODE" == "true" ]]; then
-            docker-compose -f docker-compose.dev.yml up -d agv-backend-dev
+            docker-compose -f docker-compose.dev.yml up -d AMR-backend-dev
         else
-            docker-compose up -d agv-backend
+            docker-compose up -d AMR-backend
         fi
     else
         # Check if already running
@@ -211,18 +211,18 @@ start_frontend() {
     log "Frontend application started ✓"
 }
 
-start_agv_simulator() {
-    log "Starting AGV simulator..."
+start_AMR_simulator() {
+    log "Starting AMR simulator..."
     
     # Source ROS2
     source /opt/ros/jazzy/setup.bash
     export ROS_DOMAIN_ID=$ROS_DOMAIN_ID_VALUE
     
-    # Start TurtleBot3 simulator as AGV simulator
+    # Start TurtleBot3 simulator as AMR simulator
     if command -v ros2 launch turtlebot3_gazebo &> /dev/null; then
         ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py &
-        echo $! > agv_sim.pid
-        log "AGV simulator started ✓"
+        echo $! > AMR_sim.pid
+        log "AMR simulator started ✓"
     else
         warn "TurtleBot3 simulator not found. Install with:"
         warn "sudo apt install ros-jazzy-turtlebot3*"
@@ -249,10 +249,10 @@ stop_services() {
             rm "$FRONTEND_DIR/frontend.pid"
         fi
         
-        # Stop AGV simulator
-        if [ -f "agv_sim.pid" ]; then
-            kill $(cat "agv_sim.pid") 2>/dev/null || true
-            rm "agv_sim.pid"
+        # Stop AMR simulator
+        if [ -f "AMR_sim.pid" ]; then
+            kill $(cat "AMR_sim.pid") 2>/dev/null || true
+            rm "AMR_sim.pid"
         fi
         
         # Kill any remaining processes
@@ -268,7 +268,7 @@ show_status() {
     echo ""
     
     # Backend status
-    if pgrep -f "node.*app.js" > /dev/null || docker ps | grep agv-backend > /dev/null 2>&1; then
+    if pgrep -f "node.*app.js" > /dev/null || docker ps | grep AMR-backend > /dev/null 2>&1; then
         echo -e "Backend Server:     ${GREEN}Running ✓${NC}"
     else
         echo -e "Backend Server:     ${RED}Stopped ✗${NC}"
@@ -295,7 +295,7 @@ show_status() {
     
     # Docker status (if applicable)
     if [[ "$USE_DOCKER" == "true" ]]; then
-        if docker ps | grep agv- > /dev/null 2>&1; then
+        if docker ps | grep AMR- > /dev/null 2>&1; then
             echo -e "Docker Services:    ${GREEN}Running ✓${NC}"
         else
             echo -e "Docker Services:    ${RED}Stopped ✗${NC}"
@@ -363,7 +363,7 @@ VERBOSE="false"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        setup|start|stop|backend|frontend|agv-sim|status|logs|clean|help)
+        setup|start|stop|backend|frontend|AMR-sim|status|logs|clean|help)
             COMMAND="$1"
             shift
             ;;
@@ -413,8 +413,8 @@ case $COMMAND in
     frontend)
         start_frontend
         ;;
-    agv-sim)
-        start_agv_simulator
+    AMR-sim)
+        start_AMR_simulator
         ;;
     status)
         show_status
@@ -437,15 +437,15 @@ esac
 
 # Additional utility scripts
 
-# agv_monitor.sh - System monitoring script
+# AMR_monitor.sh - System monitoring script
 #!/bin/bash
 
-# AGV System Monitor
+# AMR System Monitor
 INTERVAL=5
 
 while true; do
     clear
-    echo "AGV Fleet Management - System Monitor"
+    echo "AMR Fleet Management - System Monitor"
     echo "======================================"
     echo "Time: $(date)"
     echo ""
@@ -472,14 +472,14 @@ done
 
 ---
 
-# agv_deploy.sh - Deployment script
+# AMR_deploy.sh - Deployment script
 #!/bin/bash
 
-# AGV Fleet Management Deployment Script
+# AMR Fleet Management Deployment Script
 
-DEPLOY_USER="agv"
+DEPLOY_USER="AMR"
 DEPLOY_HOST="your-server.com"
-DEPLOY_PATH="/opt/agv-fleet"
+DEPLOY_PATH="/opt/AMR-fleet"
 
 log() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
@@ -489,16 +489,16 @@ deploy_backend() {
     log "Deploying backend to $DEPLOY_HOST..."
     
     # Build and upload
-    tar -czf agv-backend.tar.gz agv-fleet-backend/
-    scp agv-backend.tar.gz $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/
+    tar -czf AMR-backend.tar.gz AMR-fleet-backend/
+    scp AMR-backend.tar.gz $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/
     
     # Remote deployment
     ssh $DEPLOY_USER@$DEPLOY_HOST << EOF
         cd $DEPLOY_PATH
-        tar -xzf agv-backend.tar.gz
-        cd agv-fleet-backend
+        tar -xzf AMR-backend.tar.gz
+        cd AMR-fleet-backend
         npm install --production
-        pm2 restart agv-backend || pm2 start app.js --name agv-backend
+        pm2 restart AMR-backend || pm2 start app.js --name AMR-backend
 EOF
     
     log "Backend deployment completed"
@@ -507,7 +507,7 @@ EOF
 deploy_frontend() {
     log "Building and deploying frontend..."
     
-    cd agv_fleet_management
+    cd AMR_fleet_management
     flutter build web
     
     # Upload to web server

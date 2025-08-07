@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🏥 AGV Fleet Management Backend Health Check"
+echo "🏥 AMR Fleet Management Backend Health Check"
 
 # Check if server is running
 if curl -f http://localhost:3000/api/health >/dev/null 2>&1; then

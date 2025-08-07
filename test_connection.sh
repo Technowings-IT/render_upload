@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# AGV Fleet Management - Connection Test Script
+# AMR Fleet Management - Connection Test Script
 
-echo "🔧 AGV Fleet Management Connection Test"
+echo "🔧 AMR Fleet Management Connection Test"
 echo "========================================"
 
 # Get current machine IP

@@ -18,7 +18,7 @@ async function testRobotControlSpecific() {
         // Check the log file
         console.log('\n📋 Reading log file...');
         const fs = require('fs');
-        const logPath = '/home/vidit-agrawal/ agv-fleet-management /backend/storage/logs/ros_script_manager.log';
+        const logPath = '/home/vidit-agrawal/ AMR-fleet-management /backend/storage/logs/ros_script_manager.log';
         
         if (fs.existsSync(logPath)) {
             const logs = fs.readFileSync(logPath, 'utf8');
@@ -34,7 +34,7 @@ async function testRobotControlSpecific() {
         
         // Check logs even on error
         const fs = require('fs');
-        const logPath = '/home/vidit-agrawal/ agv-fleet-management /backend/storage/logs/ros_script_manager.log';
+        const logPath = '/home/vidit-agrawal/ AMR-fleet-management /backend/storage/logs/ros_script_manager.log';
         
         if (fs.existsSync(logPath)) {
             const logs = fs.readFileSync(logPath, 'utf8');

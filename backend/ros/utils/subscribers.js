@@ -781,11 +781,11 @@ function subscribeToBattery() {
 }
 
 /**
- * Subscribe to essential topics for AGV operation (REMOVED /map as requested)
+ * Subscribe to essential topics for AMR operation (REMOVED /map as requested)
  * FIXED: Enhanced error handling for missing Nav2 packages
  */
 function subscribeToAllTopics() {
-    console.log(`📥 Subscribing to essential AGV topics for device: ${currentDeviceId}...`);
+    console.log(`📥 Subscribing to essential AMR topics for device: ${currentDeviceId}...`);
 
     // Core position tracking (PRIORITY)
     console.log('🎯 Priority 1: Position tracking...');
@@ -875,9 +875,9 @@ function subscribeToAllTopics() {
             console.log('🚨 No active subscriptions! Check if ROS2 topics are being published');
             console.log('💡 Try: ros2 topic list');
         } else if (successCount < 3) {
-            console.log('⚠️ Limited subscriptions active. Some AGV features may not work');
+            console.log('⚠️ Limited subscriptions active. Some AMR features may not work');
         } else {
-            console.log('✅ Good subscription coverage - AGV monitoring should work well');
+            console.log('✅ Good subscription coverage - AMR monitoring should work well');
         }
     }, 3000);
 }

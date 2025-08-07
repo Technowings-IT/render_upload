@@ -21,7 +21,7 @@ const config = {
 
     // ROS2 Configuration
     ROS2: {
-        NODE_NAME: 'agv_fleet_backend',
+        NODE_NAME: 'AMR_fleet_backend',
         TOPICS: {
             CMD_VEL: '/cmd_vel',
             ODOM: '/diff_drive_controller/odom',
@@ -46,8 +46,8 @@ const config = {
         }
     },
 
-    // AGV Configuration
-    AGV: {
+    // AMR Configuration
+    AMR: {
         MAX_LINEAR_SPEED: 1.0,   // ✅ FIXED: Reduced for safety
         MAX_ANGULAR_SPEED: 1.5,  // ✅ FIXED: Reduced for safety
         DEFAULT_LINEAR_SPEED: 0.3,
@@ -123,8 +123,8 @@ const config = {
             'http://localhost:8080',
             'http://127.0.0.1:3000',
             'http://127.0.0.1:8080',
-            'http://192.168.0.64:3000', // ✅ FIXED: Your AGV IP
-            'http://192.168.0.63:3000',  // ✅ FIXED: Your backend IP
+            'http://192.168.0.64:3000', // ✅ FIXED: Your AMR IP
+            'http://192.168.0.76:3000',  // ✅ FIXED: Your backend IP
             'http://192.168.0.*:*',      // ✅ FIXED: Allow entire subnet
             '*' // ✅ FIXED: Allow all origins for development
         ],
@@ -241,17 +241,17 @@ const config = {
             PORT: 8888,
             BROADCAST_INTERVAL: 5000,
             TIMEOUT: 10000,
-            // ✅ NEW: AGV subnet configuration
-            AGV_SUBNET: '192.168.0',
-            AGV_IP_RANGE: {
+            // ✅ NEW: AMR subnet configuration
+            AMR_SUBNET: '192.168.0',
+            AMR_IP_RANGE: {
                 START: 100,
                 END: 200
             },
-            KNOWN_AGVS: [
+            KNOWN_AMRS: [
                 {
                     id: 'piros',
                     ip: '192.168.0.103',
-                    name: 'Primary AGV'
+                    name: 'Primary AMR'
                 }
             ]
         },
@@ -282,7 +282,7 @@ const config = {
         MOCK_ROS: process.env.MOCK_ROS === 'true',
         DEBUG_WEBSOCKET: process.env.DEBUG_WS === 'true',
         VERBOSE_LOGGING: process.env.VERBOSE === 'true',
-        SIMULATE_AGV: process.env.SIMULATE_AGV === 'true'
+        SIMULATE_AMR: process.env.SIMULATE_AMR === 'true'
     }
 };
 // ✅ ADD: Network discovery helper
@@ -328,8 +328,8 @@ function validateConfig() {
         errors.push('Invalid server port');
     }
 
-    if (config.AGV.MAX_LINEAR_SPEED <= 0 || config.AGV.MAX_ANGULAR_SPEED <= 0) {
-        errors.push('Invalid AGV speed limits');
+    if (config.AMR.MAX_LINEAR_SPEED <= 0 || config.AMR.MAX_ANGULAR_SPEED <= 0) {
+        errors.push('Invalid AMR speed limits');
     }
 
     if (config.WEBSOCKET.PING_INTERVAL < 1000) {
@@ -337,8 +337,8 @@ function validateConfig() {
     }
 
     // ✅ NEW: Validate network configuration
-    if (config.NETWORK.DISCOVERY.AGV_IP_RANGE.START >= config.NETWORK.DISCOVERY.AGV_IP_RANGE.END) {
-        errors.push('Invalid AGV IP range');
+    if (config.NETWORK.DISCOVERY.AMR_IP_RANGE.START >= config.NETWORK.DISCOVERY.AMR_IP_RANGE.END) {
+        errors.push('Invalid AMR IP range');
     }
 
     if (errors.length > 0) {
@@ -349,7 +349,7 @@ function validateConfig() {
     console.log(`📡 Server will listen on: ${config.SERVER.HOST}:${config.SERVER.PORT}`);
     console.log(`🔌 WebSocket ping interval: ${config.WEBSOCKET.PING_INTERVAL}ms`);
     console.log(`⏱️ Connection timeout: ${config.WEBSOCKET.CONNECTION_TIMEOUT}ms`);
-    console.log(`🚗 Max speeds: ${config.AGV.MAX_LINEAR_SPEED}m/s linear, ${config.AGV.MAX_ANGULAR_SPEED}rad/s angular`);
+    console.log(`🚗 Max speeds: ${config.AMR.MAX_LINEAR_SPEED}m/s linear, ${config.AMR.MAX_ANGULAR_SPEED}rad/s angular`);
     
     return true;
 }

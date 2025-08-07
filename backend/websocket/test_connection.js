@@ -2,11 +2,11 @@
 const http = require('http');
 const WebSocket = require('ws');
 
-const SERVER_HOST = '192.168.0.63';
+const SERVER_HOST = '192.168.0.76';
 const SERVER_PORT = 3000;
 
 async function testBackendServer() {
-    console.log('🚀 Testing AGV Fleet Management Backend...\n');
+    console.log('🚀 Testing AMR Fleet Management Backend...\n');
     
     // Test 1: HTTP Health Check
     console.log('1️⃣ Testing HTTP API...');

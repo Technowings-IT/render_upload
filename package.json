@@ -1,7 +1,7 @@
 {
-  "name": "agv-fleet-backend",
+  "name": "AMR-fleet-backend",
   "version": "1.0.0",
-  "description": "AGV Fleet Management Backend",
+  "description": "AMR Fleet Management Backend",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",

@@ -13,7 +13,7 @@ import '../models/odom.dart' as odom;
 
 enum DeviceType { phone, tablet, desktop }
 
-enum AGVMode { defaultMode, autonomous, mapping }
+enum AMRMode { defaultMode, autonomous, mapping }
 
 class EnhancedMapPage extends StatefulWidget {
   final String? deviceId;
@@ -236,17 +236,17 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         });
       }
     } catch (e) {
-      print('❌ Error loading devices: $e');
-      if (e is ApiException) {
-        if (e.isNetworkError) {
-          _showErrorSnackBar(
-              'Network error: Cannot reach server. Check IP address.');
-        } else {
-          _showErrorSnackBar('Failed to load devices: ${e.message}');
-        }
-      } else {
-        _showErrorSnackBar('Failed to load devices: $e');
-      }
+      // print('❌ Error loading devices: $e');
+      // if (e is ApiException) {
+      //   if (e.isNetworkError) {
+      //     _showErrorSnackBar(
+      //         'Network error: Cannot reach server. Check IP address.');
+      //   } else {
+      //     _showErrorSnackBar('Failed to load devices: ${e.message}');
+      //   }
+      // } else {
+      //   _showErrorSnackBar('Failed to load devices: $e');
+      // }
       if (mounted) {
         setState(() {
           _connectedDevices = <Map<String, dynamic>>[];
@@ -952,11 +952,11 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           PopupMenuItem(
             child: ListTile(
               leading: Icon(Icons.send, color: theme.successColor, size: 18),
-              title: Text('Send to AGV',
+              title: Text('Send to AMR',
                   style: theme.bodyMedium.copyWith(fontSize: 12)),
               dense: true,
             ),
-            onTap: _sendMapToAGV,
+            onTap: _sendMapToAMR,
           ),
         ],
       ),
@@ -1461,10 +1461,10 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             ),
             ListTile(
               leading: Icon(Icons.send, color: theme.successColor),
-              title: Text('Send to AGV'),
+              title: Text('Send to AMR'),
               onTap: () {
                 Navigator.pop(context);
-                _sendMapToAGV();
+                _sendMapToAMR();
               },
             ),
             ListTile(
@@ -1521,7 +1521,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               ),
               const SizedBox(height: 8),
               Text(
-                'Choose a connected AGV device to edit its map',
+                'Choose a connected AMR device to edit its map',
                 style: theme.bodyLarge.copyWith(
                     fontSize: _deviceType == DeviceType.phone ? 14 : 16),
                 textAlign: TextAlign.center,
@@ -2424,9 +2424,9 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
               ),
               const SizedBox(height: 8),
               ModernActionButton(
-                label: 'Send to AGV',
+                label: 'Send to AMR',
                 icon: Icons.send,
-                onPressed: _currentMap != null ? _sendMapToAGV : () {},
+                onPressed: _currentMap != null ? _sendMapToAMR : () {},
                 backgroundColor: theme.successColor,
               ),
               const SizedBox(height: 8),
@@ -2530,7 +2530,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
                   const SizedBox(height: 12),
                   Text('Map Editor',
                       style: theme.headlineLarge.copyWith(color: Colors.white)),
-                  Text('AGV Navigation System',
+                  Text('AMR Navigation System',
                       style: theme.bodySmall.copyWith(color: Colors.white70)),
                 ],
               ),
@@ -2787,7 +2787,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     }
   }
 
-  void _sendMapToAGV() async {
+  void _sendMapToAMR() async {
     if (_currentMap == null || _selectedDeviceId == null) return;
 
     try {
@@ -2823,9 +2823,9 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         },
       });
 
-      _showInfoSnackBar('Map sent to AGV successfully');
+      _showInfoSnackBar('Map sent to AMR successfully');
     } catch (e) {
-      _showErrorSnackBar('Failed to send map to AGV: $e');
+      _showErrorSnackBar('Failed to send map to AMR: $e');
     }
   }
 
@@ -3036,7 +3036,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   // (Removed duplicate and unused _buildErrorBanner method)
 }
 
-/// AGV operation modes for compact mode selector
+/// AMR operation modes for compact mode selector
 // Removed duplicate DeviceType enum declaration
 
 // Enhanced SavedMapsScreen with map loading capability

@@ -1,19 +1,90 @@
-// routes/orderRoutes.js - Complete Order Management System
+// routes/enhanced_order_routes.js - Enhanced Order Management with ROS Integration
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
 const router = express.Router();
+
+// Import ROS publishers with error handling
+let rosPublishers = null;
+try {
+    rosPublishers = require('../ros/utils/publishers');
+} catch (error) {
+    console.warn('⚠️ ROS publishers not available:', error.message);
+}
 
 // Storage paths
 const ORDERS_FILE = path.join(__dirname, '../storage/orders.json');
 const DEVICES_FILE = path.join(__dirname, '../storage/devices.json');
 
 // ==========================================
-// ORDER CRUD OPERATIONS
+// DEVICE-SPECIFIC ORDER ENDPOINTS
 // ==========================================
 
 /**
- * Get all orders for a device
+ * Get order statistics for analytics
+ * GET /api/orders/stats
+ */
+router.get('/stats', async (req, res) => {
+    try {
+        const { deviceId, timeRange = '7d' } = req.query;
+        
+        console.log(`� Getting order statistics for timeRange: ${timeRange}`);
+        
+        const orders = await loadOrders();
+        
+        // Filter by device if specified
+        let filteredOrders = deviceId 
+            ? orders.filter(order => order.deviceId === deviceId)
+            : orders;
+        
+        // Filter by time range
+        const now = new Date();
+        const timeRangeMs = parseTimeRange(timeRange);
+        const startDate = new Date(now.getTime() - timeRangeMs);
+        
+        filteredOrders = filteredOrders.filter(order => 
+            new Date(order.createdAt) >= startDate
+        );
+        
+        // Calculate statistics
+        const stats = {
+            total: filteredOrders.length,
+            completed: filteredOrders.filter(o => o.status === 'completed').length,
+            active: filteredOrders.filter(o => o.status === 'active').length,
+            pending: filteredOrders.filter(o => o.status === 'pending').length,
+            cancelled: filteredOrders.filter(o => o.status === 'cancelled').length,
+            failed: filteredOrders.filter(o => o.status === 'failed').length,
+        };
+        
+        stats.completionRate = stats.total > 0 
+            ? Math.round((stats.completed / stats.total) * 100) 
+            : 0;
+        
+        // Calculate daily breakdown for charts
+        const dailyStats = calculateDailyStats(filteredOrders, timeRangeMs);
+        
+        res.json({
+            success: true,
+            stats,
+            dailyStats,
+            timeRange,
+            deviceId: deviceId || 'all',
+            calculatedAt: new Date().toISOString()
+        });
+        
+        console.log(`✅ Order statistics calculated: ${stats.total} orders, ${stats.completionRate}% completion rate`);
+        
+    } catch (error) {
+        console.error('❌ Error getting order statistics:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Get orders for a specific device
  * GET /api/orders/:deviceId
  */
 router.get('/:deviceId', async (req, res) => {
@@ -21,7 +92,7 @@ router.get('/:deviceId', async (req, res) => {
         const { deviceId } = req.params;
         const { status, limit = 50, offset = 0 } = req.query;
         
-        console.log(`📋 Getting orders for device: ${deviceId}`);
+        console.log(`� Getting orders for device: ${deviceId}`);
         
         const orders = await loadOrders();
         let deviceOrders = orders.filter(order => order.deviceId === deviceId);
@@ -31,235 +102,33 @@ router.get('/:deviceId', async (req, res) => {
             deviceOrders = deviceOrders.filter(order => order.status === status);
         }
         
-        // Sort by creation time (newest first)
+        // Sort by creation date (newest first)
         deviceOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         
         // Apply pagination
-        const total = deviceOrders.length;
-        const paginatedOrders = deviceOrders.slice(
-            parseInt(offset), 
-            parseInt(offset) + parseInt(limit)
-        );
+        const startIndex = parseInt(offset);
+        const endIndex = startIndex + parseInt(limit);
+        const paginatedOrders = deviceOrders.slice(startIndex, endIndex);
         
         res.json({
             success: true,
             orders: paginatedOrders,
-            pagination: {
-                total,
-                limit: parseInt(limit),
-                offset: parseInt(offset),
-                hasMore: parseInt(offset) + parseInt(limit) < total
-            },
-            deviceId
-        });
-        
-    } catch (error) {
-        console.error('❌ Error getting orders:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-/**
- * Get all orders across all devices (for dashboard)
- * GET /api/orders
- */
-router.get('/', async (req, res) => {
-    try {
-        const { status, deviceId, limit = 100, offset = 0 } = req.query;
-        
-        console.log('📋 Getting all orders');
-        
-        let orders = await loadOrders();
-        
-        // Filter by device if provided
-        if (deviceId) {
-            orders = orders.filter(order => order.deviceId === deviceId);
-        }
-        
-        // Filter by status if provided
-        if (status) {
-            orders = orders.filter(order => order.status === status);
-        }
-        
-        // Sort by creation time (newest first)
-        orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        
-        // Apply pagination
-        const total = orders.length;
-        const paginatedOrders = orders.slice(
-            parseInt(offset), 
-            parseInt(offset) + parseInt(limit)
-        );
-        
-        // Add device names
-        const devices = await loadDevices();
-        const ordersWithDeviceNames = paginatedOrders.map(order => ({
-            ...order,
-            deviceName: devices.find(d => d.id === order.deviceId)?.name || order.deviceId
-        }));
-        
-        res.json({
-            success: true,
-            orders: ordersWithDeviceNames,
-            pagination: {
-                total,
-                limit: parseInt(limit),
-                offset: parseInt(offset),
-                hasMore: parseInt(offset) + parseInt(limit) < total
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Error getting all orders:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-/**
- * Create a new order
- * POST /api/orders/:deviceId
- */
-router.post('/:deviceId', async (req, res) => {
-    try {
-        const { deviceId } = req.params;
-        const { name, waypoints, priority = 0, description = '' } = req.body;
-        
-        console.log(`📝 Creating order for device: ${deviceId}`);
-        
-        // Validate required fields
-        if (!name || !waypoints || !Array.isArray(waypoints) || waypoints.length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'Name and waypoints are required'
-            });
-        }
-        
-        // Validate waypoints
-        for (let i = 0; i < waypoints.length; i++) {
-            const waypoint = waypoints[i];
-            if (!waypoint.name || !waypoint.type || !waypoint.position) {
-                return res.status(400).json({
-                    success: false,
-                    error: `Invalid waypoint at index ${i}: name, type, and position are required`
-                });
-            }
-        }
-        
-        // Check if device exists
-        const devices = await loadDevices();
-        const device = devices.find(d => d.id === deviceId);
-        if (!device) {
-            return res.status(404).json({
-                success: false,
-                error: `Device not found: ${deviceId}`
-            });
-        }
-        
-        // Create new order
-        const order = {
-            id: generateOrderId(deviceId),
             deviceId,
-            name: name.trim(),
-            description: description.trim(),
-            waypoints: waypoints.map((wp, index) => ({
-                id: `${deviceId}_wp_${Date.now()}_${index}`,
-                stepNumber: index + 1,
-                name: wp.name.trim(),
-                type: wp.type, // pickup, drop, charging, waypoint
-                position: {
-                    x: parseFloat(wp.position.x),
-                    y: parseFloat(wp.position.y),
-                    z: parseFloat(wp.position.z || 0)
-                },
-                orientation: wp.orientation || 0,
-                metadata: wp.metadata || {},
-                completed: false,
-                completedAt: null
-            })),
-            status: 'pending', // pending, active, paused, completed, failed, cancelled
-            priority: parseInt(priority),
-            currentWaypoint: 0,
-            progress: {
-                totalWaypoints: waypoints.length,
-                completedWaypoints: 0,
-                percentage: 0
+            pagination: {
+                total: deviceOrders.length,
+                limit: parseInt(limit),
+                offset: parseInt(offset),
+                hasMore: endIndex < deviceOrders.length
             },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            startedAt: null,
-            completedAt: null,
-            estimatedDuration: null,
-            actualDuration: null,
-            metadata: {
-                createdBy: 'dashboard',
-                version: '1.0'
-            }
-        };
-        
-        // Save order
-        const orders = await loadOrders();
-        orders.push(order);
-        await saveOrders(orders);
-        
-        // Update global order queue
-        updateGlobalOrderQueue(deviceId, order);
-        
-        res.json({
-            success: true,
-            message: 'Order created successfully',
-            order,
-            deviceId
-        });
-        
-        console.log(`✅ Order created: ${order.id} for device: ${deviceId}`);
-        
-    } catch (error) {
-        console.error('❌ Error creating order:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-/**
- * Get specific order
- * GET /api/orders/:deviceId/:orderId
- */
-router.get('/:deviceId/:orderId', async (req, res) => {
-    try {
-        const { deviceId, orderId } = req.params;
-        
-        const orders = await loadOrders();
-        const order = orders.find(o => o.id === orderId && o.deviceId === deviceId);
-        
-        if (!order) {
-            return res.status(404).json({
-                success: false,
-                error: 'Order not found'
-            });
-        }
-        
-        // Add device name
-        const devices = await loadDevices();
-        const device = devices.find(d => d.id === deviceId);
-        
-        res.json({
-            success: true,
-            order: {
-                ...order,
-                deviceName: device?.name || deviceId
+            filters: {
+                status: status || 'all'
             }
         });
         
+        console.log(`✅ Retrieved ${paginatedOrders.length}/${deviceOrders.length} orders for ${deviceId}`);
+        
     } catch (error) {
-        console.error('❌ Error getting order:', error);
+        console.error('❌ Error getting orders for device:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -267,128 +136,64 @@ router.get('/:deviceId/:orderId', async (req, res) => {
     }
 });
 
-/**
- * Update order status
- * PUT /api/orders/:deviceId/:orderId/status
- */
-router.put('/:deviceId/:orderId/status', async (req, res) => {
-    try {
-        const { deviceId, orderId } = req.params;
-        const { status, currentWaypoint, reason } = req.body;
+// Helper function to parse time range
+function parseTimeRange(timeRange) {
+    const ranges = {
+        '1h': 60 * 60 * 1000,
+        '6h': 6 * 60 * 60 * 1000,
+        '24h': 24 * 60 * 60 * 1000,
+        '7d': 7 * 24 * 60 * 60 * 1000,
+        '30d': 30 * 24 * 60 * 60 * 1000,
+        '90d': 90 * 24 * 60 * 60 * 1000
+    };
+    
+    return ranges[timeRange] || ranges['7d'];
+}
+
+// Helper function to calculate daily statistics
+function calculateDailyStats(orders, timeRangeMs) {
+    const days = Math.ceil(timeRangeMs / (24 * 60 * 60 * 1000));
+    const dailyStats = [];
+    
+    for (let i = days - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        date.setHours(0, 0, 0, 0);
         
-        console.log(`🔄 Updating order status: ${orderId} to ${status}`);
+        const nextDate = new Date(date);
+        nextDate.setDate(nextDate.getDate() + 1);
         
-        const validStatuses = ['pending', 'active', 'paused', 'completed', 'failed', 'cancelled'];
-        if (!validStatuses.includes(status)) {
-            return res.status(400).json({
-                success: false,
-                error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
-            });
-        }
-        
-        const orders = await loadOrders();
-        const orderIndex = orders.findIndex(o => o.id === orderId && o.deviceId === deviceId);
-        
-        if (orderIndex === -1) {
-            return res.status(404).json({
-                success: false,
-                error: 'Order not found'
-            });
-        }
-        
-        const order = orders[orderIndex];
-        const previousStatus = order.status;
-        
-        // Update order
-        order.status = status;
-        order.updatedAt = new Date().toISOString();
-        
-        if (currentWaypoint !== undefined) {
-            order.currentWaypoint = parseInt(currentWaypoint);
-            order.progress.completedWaypoints = parseInt(currentWaypoint);
-            order.progress.percentage = Math.round((parseInt(currentWaypoint) / order.waypoints.length) * 100);
-            
-            // Mark waypoints as completed
-            order.waypoints.forEach((wp, index) => {
-                if (index < parseInt(currentWaypoint)) {
-                    wp.completed = true;
-                    if (!wp.completedAt) {
-                        wp.completedAt = new Date().toISOString();
-                    }
-                }
-            });
-        }
-        
-        // Handle status-specific logic
-        switch (status) {
-            case 'active':
-                if (previousStatus === 'pending') {
-                    order.startedAt = new Date().toISOString();
-                }
-                break;
-                
-            case 'completed':
-                order.completedAt = new Date().toISOString();
-                order.progress.completedWaypoints = order.waypoints.length;
-                order.progress.percentage = 100;
-                
-                // Mark all waypoints as completed
-                order.waypoints.forEach(wp => {
-                    wp.completed = true;
-                    if (!wp.completedAt) {
-                        wp.completedAt = new Date().toISOString();
-                    }
-                });
-                
-                // Calculate actual duration
-                if (order.startedAt) {
-                    const startTime = new Date(order.startedAt);
-                    const endTime = new Date(order.completedAt);
-                    order.actualDuration = Math.round((endTime - startTime) / 1000); // seconds
-                }
-                break;
-                
-            case 'failed':
-            case 'cancelled':
-                if (reason) {
-                    order.metadata.failureReason = reason;
-                }
-                break;
-        }
-        
-        orders[orderIndex] = order;
-        await saveOrders(orders);
-        
-        // Update global order queue
-        updateGlobalOrderQueue(deviceId, order);
-        
-        res.json({
-            success: true,
-            message: `Order status updated from ${previousStatus} to ${status}`,
-            order,
-            previousStatus
+        const dayOrders = orders.filter(order => {
+            const orderDate = new Date(order.createdAt);
+            return orderDate >= date && orderDate < nextDate;
         });
         
-        console.log(`✅ Order ${orderId} status updated: ${previousStatus} → ${status}`);
-        
-    } catch (error) {
-        console.error('❌ Error updating order status:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
+        dailyStats.push({
+            date: date.toISOString().split('T')[0],
+            total: dayOrders.length,
+            completed: dayOrders.filter(o => o.status === 'completed').length,
+            failed: dayOrders.filter(o => o.status === 'failed').length,
+            cancelled: dayOrders.filter(o => o.status === 'cancelled').length
         });
     }
-});
+    
+    return dailyStats;
+}
+
+// ==========================================
+// ENHANCED ORDER EXECUTION WITH ROS
+// ==========================================
 
 /**
- * Execute order (start it)
+ * Execute order with real-time ROS publishing
  * POST /api/orders/:deviceId/:orderId/execute
  */
 router.post('/:deviceId/:orderId/execute', async (req, res) => {
     try {
         const { deviceId, orderId } = req.params;
+        const { realTimeExecution = true, waypointDelay = 3000 } = req.body;
         
-        console.log(`▶️ Executing order: ${orderId}`);
+        console.log(`🚀 Executing order: ${orderId} for device: ${deviceId}`);
         
         const orders = await loadOrders();
         const orderIndex = orders.findIndex(o => o.id === orderId && o.deviceId === deviceId);
@@ -409,10 +214,9 @@ router.post('/:deviceId/:orderId/execute', async (req, res) => {
             });
         }
         
-        // Update order status
+        // Update order status to active
         order.status = 'active';
         order.updatedAt = new Date().toISOString();
-        
         if (!order.startedAt) {
             order.startedAt = new Date().toISOString();
         }
@@ -420,22 +224,41 @@ router.post('/:deviceId/:orderId/execute', async (req, res) => {
         orders[orderIndex] = order;
         await saveOrders(orders);
         
-        // Update global order queue
-        updateGlobalOrderQueue(deviceId, order);
+        // If real-time execution is requested, execute waypoints sequentially
+        if (realTimeExecution && order.waypoints && order.waypoints.length > 0) {
+            // Execute in background to return response immediately
+            executeOrderWaypoints(deviceId, order, waypointDelay).catch(error => {
+                console.error(`❌ Background order execution failed: ${error}`);
+                updateOrderStatusInBackground(deviceId, orderId, 'failed', error.message);
+            });
+            
+            res.json({
+                success: true,
+                message: 'Order execution started with real-time ROS publishing',
+                order,
+                execution: {
+                    mode: 'real-time',
+                    totalWaypoints: order.waypoints.length,
+                    waypointDelay: waypointDelay,
+                    estimatedDuration: `${(order.waypoints.length * waypointDelay) / 1000}s`,
+                    rosAvailable: !!rosPublishers
+                }
+            });
+        } else {
+            // Basic execution without real-time waypoint publishing
+            res.json({
+                success: true,
+                message: 'Order execution started',
+                order,
+                execution: {
+                    mode: 'basic',
+                    note: 'Use real-time execution for automatic waypoint publishing',
+                    rosAvailable: !!rosPublishers
+                }
+            });
+        }
         
-        // TODO: Send order to ROS navigation stack
-        // This would typically involve:
-        // 1. Publishing navigation goals to ROS
-        // 2. Setting up goal monitoring
-        // 3. Handling feedback and status updates
-        
-        res.json({
-            success: true,
-            message: 'Order execution started',
-            order
-        });
-        
-        console.log(`✅ Order execution started: ${orderId}`);
+        console.log(`✅ Order execution initiated: ${orderId}`);
         
     } catch (error) {
         console.error('❌ Error executing order:', error);
@@ -447,223 +270,378 @@ router.post('/:deviceId/:orderId/execute', async (req, res) => {
 });
 
 /**
- * Pause order
- * POST /api/orders/:deviceId/:orderId/pause
+ * Execute order waypoints sequentially with ROS publishing
  */
-router.post('/:deviceId/:orderId/pause', async (req, res) => {
+async function executeOrderWaypoints(deviceId, order, waypointDelay = 3000) {
+    console.log(`🎯 Starting waypoint execution for order: ${order.id}`);
+    console.log(`📍 Total waypoints: ${order.waypoints.length}`);
+    
     try {
-        const { deviceId, orderId } = req.params;
-        
-        console.log(`⏸️ Pausing order: ${orderId}`);
-        
-        const orders = await loadOrders();
-        const orderIndex = orders.findIndex(o => o.id === orderId && o.deviceId === deviceId);
-        
-        if (orderIndex === -1) {
-            return res.status(404).json({
-                success: false,
-                error: 'Order not found'
-            });
-        }
-        
-        const order = orders[orderIndex];
-        
-        if (order.status !== 'active') {
-            return res.status(400).json({
-                success: false,
-                error: `Cannot pause order with status: ${order.status}`
-            });
-        }
-        
-        order.status = 'paused';
-        order.updatedAt = new Date().toISOString();
-        
-        orders[orderIndex] = order;
-        await saveOrders(orders);
-        
-        // Update global order queue
-        updateGlobalOrderQueue(deviceId, order);
-        
-        // TODO: Send pause command to ROS navigation stack
-        
-        res.json({
-            success: true,
-            message: 'Order paused',
-            order
-        });
-        
-        console.log(`✅ Order paused: ${orderId}`);
-        
-    } catch (error) {
-        console.error('❌ Error pausing order:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-/**
- * Delete order
- * DELETE /api/orders/:deviceId/:orderId
- */
-router.delete('/:deviceId/:orderId', async (req, res) => {
-    try {
-        const { deviceId, orderId } = req.params;
-        
-        console.log(`🗑️ Deleting order: ${orderId}`);
-        
-        const orders = await loadOrders();
-        const orderIndex = orders.findIndex(o => o.id === orderId && o.deviceId === deviceId);
-        
-        if (orderIndex === -1) {
-            return res.status(404).json({
-                success: false,
-                error: 'Order not found'
-            });
-        }
-        
-        const order = orders[orderIndex];
-        
-        // Don't allow deletion of active orders
-        if (order.status === 'active') {
-            return res.status(400).json({
-                success: false,
-                error: 'Cannot delete active order. Pause or cancel it first.'
-            });
-        }
-        
-        orders.splice(orderIndex, 1);
-        await saveOrders(orders);
-        
-        // Update global order queue
-        removeFromGlobalOrderQueue(deviceId, orderId);
-        
-        res.json({
-            success: true,
-            message: 'Order deleted successfully',
-            deletedOrder: order
-        });
-        
-        console.log(`✅ Order deleted: ${orderId}`);
-        
-    } catch (error) {
-        console.error('❌ Error deleting order:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-/**
- * Get order statistics
- * GET /api/orders/:deviceId/stats
- */
-router.get('/:deviceId/stats', async (req, res) => {
-    try {
-        const { deviceId } = req.params;
-        const { timeRange = '7d' } = req.query;
-        
-        const orders = await loadOrders();
-        const deviceOrders = orders.filter(o => o.deviceId === deviceId);
-        
-        // Calculate time range
-        const now = new Date();
-        let startDate;
-        switch (timeRange) {
-            case '1d': startDate = new Date(now - 24 * 60 * 60 * 1000); break;
-            case '7d': startDate = new Date(now - 7 * 24 * 60 * 60 * 1000); break;
-            case '30d': startDate = new Date(now - 30 * 24 * 60 * 60 * 1000); break;
-            default: startDate = new Date(now - 7 * 24 * 60 * 60 * 1000);
-        }
-        
-        const recentOrders = deviceOrders.filter(o => new Date(o.createdAt) >= startDate);
-        
-        const stats = {
-            total: deviceOrders.length,
-            recent: recentOrders.length,
-            byStatus: {
-                pending: deviceOrders.filter(o => o.status === 'pending').length,
-                active: deviceOrders.filter(o => o.status === 'active').length,
-                paused: deviceOrders.filter(o => o.status === 'paused').length,
-                completed: deviceOrders.filter(o => o.status === 'completed').length,
-                failed: deviceOrders.filter(o => o.status === 'failed').length,
-                cancelled: deviceOrders.filter(o => o.status === 'cancelled').length
-            },
-            averageDuration: calculateAverageDuration(deviceOrders.filter(o => o.actualDuration)),
-            totalWaypoints: deviceOrders.reduce((sum, o) => sum + o.waypoints.length, 0),
-            successRate: calculateSuccessRate(deviceOrders),
-            timeRange
-        };
-        
-        res.json({
-            success: true,
-            stats,
-            deviceId
-        });
-        
-    } catch (error) {
-        console.error('❌ Error getting order stats:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-/**
- * Get available map stations for order creation
- * GET /api/orders/:deviceId/stations
- */
-router.get('/:deviceId/stations', async (req, res) => {
-    try {
-        const { deviceId } = req.params;
-        
-        // Check if device has map data
-        const deviceMaps = global.deviceMaps || {};
-        const mapData = deviceMaps[deviceId];
-        
-        if (!mapData || !mapData.shapes) {
-            return res.json({
-                success: true,
-                stations: [],
-                message: 'No map data available for this device'
-            });
-        }
-        
-        // Extract stations from map shapes
-        const stations = mapData.shapes.map(shape => ({
-            id: shape.id,
-            name: shape.name,
-            type: shape.type,
-            position: shape.center || (shape.points && shape.points[0]) || { x: 0, y: 0, z: 0 },
-            metadata: {
-                color: shape.color,
-                createdAt: shape.createdAt,
-                sides: shape.sides
+        for (let i = 0; i < order.waypoints.length; i++) {
+            const waypoint = order.waypoints[i];
+            const position = waypoint.position;
+            
+            console.log(`🚶 Executing waypoint ${i + 1}/${order.waypoints.length}: ${waypoint.name}`);
+            console.log(`📍 Position: (${position.x}, ${position.y}) @ ${waypoint.orientation || 0}rad`);
+            
+            // Publish navigation goal to ROS target_pose topic (if ROS is available)
+            if (rosPublishers && rosPublishers.publishGoalWithId) {
+                const goalResult = await rosPublishers.publishGoalWithId(
+                    position.x,
+                    position.y,
+                    waypoint.orientation || 0,
+                    `${order.id}_wp_${i}_${Date.now()}`
+                );
+                
+                if (!goalResult.success) {
+                    throw new Error(`Failed to publish waypoint ${i + 1}: ${goalResult.error}`);
+                }
+                
+                console.log(`✅ Published waypoint ${i + 1} goal ID: ${goalResult.goalId}`);
+            } else {
+                console.log(`⚠️ ROS not available, simulating waypoint ${i + 1} execution`);
+                // Simulate execution when ROS is not available
             }
-        }));
+            
+            // Update order progress
+            await updateOrderProgress(deviceId, order.id, i + 1);
+            
+            // Wait before next waypoint (except for last one)
+            if (i < order.waypoints.length - 1) {
+                console.log(`⏳ Waiting ${waypointDelay / 1000}s before next waypoint...`);
+                await delay(waypointDelay);
+            }
+        }
         
-        // Group by type
-        const stationsByType = {
-            pickup: stations.filter(s => s.type === 'pickup'),
-            drop: stations.filter(s => s.type === 'drop'),
-            charging: stations.filter(s => s.type === 'charging'),
-            waypoint: stations.filter(s => s.type === 'waypoint'),
-            other: stations.filter(s => !['pickup', 'drop', 'charging', 'waypoint'].includes(s.type))
-        };
+        // Mark order as completed
+        await updateOrderStatusInBackground(deviceId, order.id, 'completed');
+        console.log(`🎉 Order execution completed successfully: ${order.id}`);
+        
+        // Broadcast completion via WebSocket if available
+        broadcastOrderUpdate(deviceId, order.id, 'completed');
+        
+    } catch (error) {
+        console.error(`❌ Order execution failed: ${error}`);
+        await updateOrderStatusInBackground(deviceId, order.id, 'failed', error.message);
+        broadcastOrderUpdate(deviceId, order.id, 'failed', error.message);
+        throw error;
+    }
+}
+
+/**
+ * Publish single waypoint goal
+ * POST /api/orders/:deviceId/:orderId/waypoint/:waypointIndex
+ */
+router.post('/:deviceId/:orderId/waypoint/:waypointIndex', async (req, res) => {
+    try {
+        const { deviceId, orderId, waypointIndex } = req.params;
+        
+        console.log(`🎯 Publishing waypoint ${waypointIndex} for order: ${orderId}`);
+        
+        const orders = await loadOrders();
+        const order = orders.find(o => o.id === orderId && o.deviceId === deviceId);
+        
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                error: 'Order not found'
+            });
+        }
+        
+        const waypointIdx = parseInt(waypointIndex);
+        if (waypointIdx < 0 || waypointIdx >= order.waypoints.length) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid waypoint index'
+            });
+        }
+        
+        const waypoint = order.waypoints[waypointIdx];
+        const position = waypoint.position;
+        
+        // Publish navigation goal
+        if (rosPublishers && rosPublishers.publishGoalWithId) {
+            const goalResult = await rosPublishers.publishGoalWithId(
+                position.x,
+                position.y,
+                waypoint.orientation || 0,
+                `${orderId}_wp_${waypointIdx}_${Date.now()}`
+            );
+            
+            if (goalResult.success) {
+                // Update waypoint completion status
+                waypoint.completed = false; // Will be completed when robot reaches
+                waypoint.publishedAt = new Date().toISOString();
+                
+                await saveOrders(orders);
+                
+                res.json({
+                    success: true,
+                    message: `Waypoint ${waypointIdx + 1} published successfully`,
+                    waypoint: {
+                        index: waypointIdx,
+                        name: waypoint.name,
+                        position,
+                        goalId: goalResult.goalId
+                    },
+                    goalResult
+                });
+            } else {
+                res.status(500).json({
+                    success: false,
+                    error: `Failed to publish waypoint: ${goalResult.error}`
+                });
+            }
+        } else {
+            // ROS not available - simulate waypoint publishing
+            waypoint.completed = false;
+            waypoint.publishedAt = new Date().toISOString();
+            waypoint.simulated = true;
+            
+            await saveOrders(orders);
+            
+            res.json({
+                success: true,
+                message: `Waypoint ${waypointIdx + 1} queued (ROS simulation mode)`,
+                waypoint: {
+                    index: waypointIdx,
+                    name: waypoint.name,
+                    position,
+                    goalId: `sim_${Date.now()}`,
+                    simulated: true
+                },
+                goalResult: {
+                    success: true,
+                    goalId: `sim_${Date.now()}`,
+                    simulated: true
+                }
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Error publishing waypoint:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Cancel order execution and navigation
+ * POST /api/orders/:deviceId/:orderId/cancel
+ */
+router.post('/:deviceId/:orderId/cancel', async (req, res) => {
+    try {
+        const { deviceId, orderId } = req.params;
+        const { reason } = req.body;
+        
+        console.log(`🛑 Cancelling order: ${orderId}`);
+        
+        // Cancel current navigation goal in ROS (if available)
+        let cancelResult = { success: true, simulated: !rosPublishers };
+        if (rosPublishers && rosPublishers.cancelCurrentGoal) {
+            cancelResult = await rosPublishers.cancelCurrentGoal();
+        } else {
+            console.log('⚠️ ROS not available, simulating goal cancellation');
+        }
+        
+        // Update order status
+        const statusResult = await updateOrderStatusInBackground(
+            deviceId, 
+            orderId, 
+            'cancelled',
+            reason || 'Cancelled by user'
+        );
+        
+        if (statusResult) {
+            res.json({
+                success: true,
+                message: 'Order cancelled successfully',
+                orderId,
+                cancelResult,
+                timestamp: new Date().toISOString()
+            });
+            
+            broadcastOrderUpdate(deviceId, orderId, 'cancelled', reason);
+        } else {
+            res.status(404).json({
+                success: false,
+                error: 'Order not found'
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Error cancelling order:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Emergency stop for device (stops all orders and navigation)
+ * POST /api/orders/:deviceId/emergency_stop
+ */
+router.post('/:deviceId/emergency_stop', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        
+        console.log(`🚨 EMERGENCY STOP for device: ${deviceId}`);
+        
+        // Send emergency stop command to ROS (if available)
+        let emergencyResult = { success: true, simulated: !rosPublishers };
+        let cancelResult = { success: true, simulated: !rosPublishers };
+        
+        if (rosPublishers && rosPublishers.emergencyStop && rosPublishers.cancelCurrentGoal) {
+            emergencyResult = await rosPublishers.emergencyStop();
+            cancelResult = await rosPublishers.cancelCurrentGoal();
+        } else {
+            console.log('⚠️ ROS not available, simulating emergency stop');
+        }
+        
+        // Set all active orders for this device to cancelled
+        const orders = await loadOrders();
+        let updatedCount = 0;
+        
+        for (let order of orders) {
+            if (order.deviceId === deviceId && 
+                (order.status === 'active' || order.status === 'pending')) {
+                order.status = 'cancelled';
+                order.updatedAt = new Date().toISOString();
+                order.metadata.emergencyStop = true;
+                order.metadata.emergencyReason = 'Emergency stop activated';
+                updatedCount++;
+            }
+        }
+        
+        await saveOrders(orders);
         
         res.json({
             success: true,
-            stations,
-            stationsByType,
+            message: `Emergency stop activated for device ${deviceId}`,
             deviceId,
-            totalStations: stations.length
+            ordersAffected: updatedCount,
+            emergencyResult,
+            cancelResult,
+            timestamp: new Date().toISOString()
+        });
+        
+        // Broadcast emergency stop
+        broadcastEmergencyStop(deviceId, updatedCount);
+        
+        console.log(`🛑 Emergency stop completed for ${deviceId}: ${updatedCount} orders affected`);
+        
+    } catch (error) {
+        console.error('❌ Error in emergency stop:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Get order execution status with ROS navigation info
+ * GET /api/orders/:deviceId/:orderId/execution_status
+ */
+router.get('/:deviceId/:orderId/execution_status', async (req, res) => {
+    try {
+        const { deviceId, orderId } = req.params;
+        
+        const orders = await loadOrders();
+        const order = orders.find(o => o.id === orderId && o.deviceId === deviceId);
+        
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                error: 'Order not found'
+            });
+        }
+        
+        // Get ROS navigation status (if available)
+        let navStatus = { status: 'unknown', simulated: !rosPublishers };
+        if (rosPublishers && rosPublishers.getNavigationStatus) {
+            navStatus = await rosPublishers.getNavigationStatus();
+        } else {
+            navStatus = {
+                status: 'simulated',
+                simulated: true,
+                message: 'ROS navigation not available'
+            };
+        }
+        
+        res.json({
+            success: true,
+            order: {
+                id: order.id,
+                name: order.name,
+                status: order.status,
+                progress: order.progress,
+                currentWaypoint: order.currentWaypoint,
+                totalWaypoints: order.waypoints.length,
+                startedAt: order.startedAt,
+                updatedAt: order.updatedAt
+            },
+            navigation: navStatus,
+            execution: {
+                isActive: order.status === 'active',
+                nextWaypoint: order.currentWaypoint < order.waypoints.length 
+                    ? order.waypoints[order.currentWaypoint] 
+                    : null
+            },
+            timestamp: new Date().toISOString()
         });
         
     } catch (error) {
-        console.error('❌ Error getting stations:', error);
+        console.error('❌ Error getting execution status:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Batch execute multiple orders
+ * POST /api/orders/:deviceId/batch_execute
+ */
+router.post('/:deviceId/batch_execute', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { orderIds, orderDelay = 60000, waypointDelay = 3000 } = req.body;
+        
+        if (!Array.isArray(orderIds) || orderIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'orderIds must be a non-empty array'
+            });
+        }
+        
+        console.log(`📦 Starting batch execution of ${orderIds.length} orders for ${deviceId}`);
+        
+        // Execute batch in background
+        executeBatchOrders(deviceId, orderIds, orderDelay, waypointDelay).catch(error => {
+            console.error(`❌ Batch execution failed: ${error}`);
+        });
+        
+        res.json({
+            success: true,
+            message: `Batch execution started for ${orderIds.length} orders`,
+            deviceId,
+            orderIds,
+            execution: {
+                totalOrders: orderIds.length,
+                orderDelay: orderDelay,
+                waypointDelay: waypointDelay,
+                estimatedTotalTime: `${(orderIds.length * orderDelay) / 1000 / 60}min`
+            },
+            startedAt: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error starting batch execution:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -674,6 +652,158 @@ router.get('/:deviceId/stations', async (req, res) => {
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================
+
+async function executeBatchOrders(deviceId, orderIds, orderDelay, waypointDelay) {
+    const results = [];
+    
+    for (let i = 0; i < orderIds.length; i++) {
+        const orderId = orderIds[i];
+        console.log(`📋 Executing batch order ${i + 1}/${orderIds.length}: ${orderId}`);
+        
+        try {
+            const orders = await loadOrders();
+            const order = orders.find(o => o.id === orderId && o.deviceId === deviceId);
+            
+            if (order) {
+                await executeOrderWaypoints(deviceId, order, waypointDelay);
+                results.push({ orderId, success: true });
+            } else {
+                results.push({ orderId, success: false, error: 'Order not found' });
+            }
+            
+        } catch (error) {
+            console.error(`❌ Batch order ${orderId} failed: ${error}`);
+            results.push({ orderId, success: false, error: error.message });
+        }
+        
+        // Wait between orders (except for last one)
+        if (i < orderIds.length - 1) {
+            console.log(`⏳ Waiting ${orderDelay / 1000}s before next batch order...`);
+            await delay(orderDelay);
+        }
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    console.log(`🏁 Batch execution completed: ${successCount}/${orderIds.length} successful`);
+    
+    broadcastBatchExecutionComplete(deviceId, orderIds.length, successCount, results);
+}
+
+async function updateOrderProgress(deviceId, orderId, currentWaypoint) {
+    try {
+        const orders = await loadOrders();
+        const orderIndex = orders.findIndex(o => o.id === orderId && o.deviceId === deviceId);
+        
+        if (orderIndex !== -1) {
+            const order = orders[orderIndex];
+            order.currentWaypoint = currentWaypoint;
+            order.progress.completedWaypoints = currentWaypoint;
+            order.progress.percentage = Math.round((currentWaypoint / order.waypoints.length) * 100);
+            order.updatedAt = new Date().toISOString();
+            
+            // Mark completed waypoints
+            for (let i = 0; i < currentWaypoint && i < order.waypoints.length; i++) {
+                order.waypoints[i].completed = true;
+                if (!order.waypoints[i].completedAt) {
+                    order.waypoints[i].completedAt = new Date().toISOString();
+                }
+            }
+            
+            orders[orderIndex] = order;
+            await saveOrders(orders);
+            
+            console.log(`📈 Order progress updated: ${orderId} - ${currentWaypoint}/${order.waypoints.length} (${order.progress.percentage}%)`);
+        }
+    } catch (error) {
+        console.error(`❌ Error updating order progress: ${error}`);
+    }
+}
+
+async function updateOrderStatusInBackground(deviceId, orderId, status, reason = null) {
+    try {
+        const orders = await loadOrders();
+        const orderIndex = orders.findIndex(o => o.id === orderId && o.deviceId === deviceId);
+        
+        if (orderIndex !== -1) {
+            const order = orders[orderIndex];
+            order.status = status;
+            order.updatedAt = new Date().toISOString();
+            
+            if (status === 'completed') {
+                order.completedAt = new Date().toISOString();
+                order.progress.percentage = 100;
+                order.progress.completedWaypoints = order.waypoints.length;
+            }
+            
+            if (reason) {
+                order.metadata.statusReason = reason;
+            }
+            
+            orders[orderIndex] = order;
+            await saveOrders(orders);
+            
+            console.log(`🔄 Order status updated: ${orderId} → ${status}`);
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error(`❌ Error updating order status: ${error}`);
+        return false;
+    }
+}
+
+// WebSocket broadcasting functions (implement based on your WebSocket setup)
+function broadcastOrderUpdate(deviceId, orderId, status, reason = null) {
+    try {
+        if (global.webSocketBroadcast) {
+            global.webSocketBroadcast('order_update', {
+                deviceId,
+                orderId,
+                status,
+                reason,
+                timestamp: new Date().toISOString()
+            });
+        }
+    } catch (error) {
+        console.error('❌ Error broadcasting order update:', error);
+    }
+}
+
+function broadcastEmergencyStop(deviceId, affectedOrders) {
+    try {
+        if (global.webSocketBroadcast) {
+            global.webSocketBroadcast('emergency_stop', {
+                deviceId,
+                affectedOrders,
+                timestamp: new Date().toISOString()
+            });
+        }
+    } catch (error) {
+        console.error('❌ Error broadcasting emergency stop:', error);
+    }
+}
+
+function broadcastBatchExecutionComplete(deviceId, totalOrders, successCount, results) {
+    try {
+        if (global.webSocketBroadcast) {
+            global.webSocketBroadcast('batch_execution_complete', {
+                deviceId,
+                totalOrders,
+                successCount,
+                failedCount: totalOrders - successCount,
+                results,
+                timestamp: new Date().toISOString()
+            });
+        }
+    } catch (error) {
+        console.error('❌ Error broadcasting batch execution complete:', error);
+    }
+}
+
+// Utility functions
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 async function loadOrders() {
     try {
@@ -698,16 +828,6 @@ async function saveOrders(orders) {
     }
 }
 
-async function loadDevices() {
-    try {
-        const data = await fs.readFile(DEVICES_FILE, 'utf8');
-        return JSON.parse(data);
-    } catch (error) {
-        console.warn('⚠️ No devices file found, returning empty array');
-        return [];
-    }
-}
-
 async function ensureOrdersFileExists() {
     try {
         await fs.access(ORDERS_FILE);
@@ -715,61 +835,6 @@ async function ensureOrdersFileExists() {
         console.log('📁 Creating orders.json file');
         await fs.writeFile(ORDERS_FILE, JSON.stringify([], null, 2));
     }
-}
-
-function generateOrderId(deviceId) {
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 8);
-    return `order_${deviceId}_${timestamp}_${random}`;
-}
-
-function updateGlobalOrderQueue(deviceId, order) {
-    try {
-        if (!global.deviceOrders) {
-            global.deviceOrders = {};
-        }
-        
-        if (!global.deviceOrders[deviceId]) {
-            global.deviceOrders[deviceId] = [];
-        }
-        
-        // Update or add order
-        const existingIndex = global.deviceOrders[deviceId].findIndex(o => o.id === order.id);
-        if (existingIndex !== -1) {
-            global.deviceOrders[deviceId][existingIndex] = order;
-        } else {
-            global.deviceOrders[deviceId].push(order);
-        }
-        
-        console.log(`🔄 Global order queue updated for device: ${deviceId}`);
-    } catch (error) {
-        console.error('❌ Error updating global order queue:', error);
-    }
-}
-
-function removeFromGlobalOrderQueue(deviceId, orderId) {
-    try {
-        if (global.deviceOrders && global.deviceOrders[deviceId]) {
-            global.deviceOrders[deviceId] = global.deviceOrders[deviceId].filter(o => o.id !== orderId);
-            console.log(`🗑️ Order removed from global queue: ${orderId}`);
-        }
-    } catch (error) {
-        console.error('❌ Error removing from global order queue:', error);
-    }
-}
-
-function calculateAverageDuration(completedOrders) {
-    if (completedOrders.length === 0) return 0;
-    
-    const totalDuration = completedOrders.reduce((sum, order) => sum + (order.actualDuration || 0), 0);
-    return Math.round(totalDuration / completedOrders.length);
-}
-
-function calculateSuccessRate(orders) {
-    if (orders.length === 0) return 0;
-    
-    const completedOrders = orders.filter(o => o.status === 'completed').length;
-    return Math.round((completedOrders / orders.length) * 100);
 }
 
 module.exports = router;

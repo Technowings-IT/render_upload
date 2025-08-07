@@ -6,13 +6,8 @@ import 'signup_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class EnhancedLoginScreen extends StatefulWidget {
-  final bool isDarkMode;
-  final Function(bool) onThemeToggle;
-
   const EnhancedLoginScreen({
     super.key,
-    required this.isDarkMode,
-    required this.onThemeToggle,
   });
 
   @override
@@ -130,7 +125,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
   }
 
   ThemeColors _getThemeColors() {
-    return widget.isDarkMode ? ThemeColors.dark() : ThemeColors.light();
+    return ThemeColors.light();
   }
 
   DeviceType _getDeviceType(BuildContext context) {
@@ -192,7 +187,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
           iconSize: 26.0,
         );
       case DeviceType.tablet:
-        final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+        final isLandscape =
+            MediaQuery.of(context).orientation == Orientation.landscape;
         return ResponsiveDimensions(
           horizontalPadding: isLandscape ? 80.0 : 50.0,
           verticalPadding: isCompact ? 24.0 : 36.0,
@@ -244,7 +240,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Save credentials if remember me is checked
       if (_rememberMe) {
         await prefs.setString('remembered_username', _usernameController.text);
@@ -366,7 +362,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
               ),
 
             // Glass morphism overlay for desktop/laptop
-            if (deviceType == DeviceType.desktop || deviceType == DeviceType.laptop)
+            if (deviceType == DeviceType.desktop ||
+                deviceType == DeviceType.laptop)
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
@@ -381,13 +378,6 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
                   ),
                 ),
               ),
-
-            // Theme toggle button
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 20,
-              right: 20,
-              child: _buildThemeToggle(dimensions, colors),
-            ),
 
             // Main content
             SafeArea(
@@ -421,7 +411,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
                                 SizedBox(height: dimensions.spacing),
                                 _buildDivider(dimensions, colors),
                                 SizedBox(height: dimensions.spacing),
-                                _buildSocialLogin(dimensions, colors, deviceType),
+                                _buildSocialLogin(
+                                    dimensions, colors, deviceType),
                                 SizedBox(height: dimensions.spacing * 1.2),
                                 _buildSignUpSection(dimensions, colors),
                               ],
@@ -440,45 +431,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
     );
   }
 
-  Widget _buildThemeToggle(ResponsiveDimensions dimensions, ThemeColors colors) {
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.cardBackground,
-        borderRadius: BorderRadius.circular(dimensions.borderRadius),
-        boxShadow: [
-          BoxShadow(
-            color: colors.shadow,
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            widget.onThemeToggle(!widget.isDarkMode);
-          },
-          borderRadius: BorderRadius.circular(dimensions.borderRadius),
-          child: Padding(
-            padding: EdgeInsets.all(dimensions.spacing / 3),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              child: Icon(
-                widget.isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                key: ValueKey(widget.isDarkMode),
-                color: colors.primary,
-                size: dimensions.iconSize,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnimatedBackground(int index, ResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildAnimatedBackground(
+      int index, ResponsiveDimensions dimensions, ThemeColors colors) {
     final random = (index * 54321) % 1000;
     final screenSize = MediaQuery.of(context).size;
     final left = (random % 100) / 100 * screenSize.width;
@@ -517,7 +471,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
     );
   }
 
-  Widget _buildLogoSection(ResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildLogoSection(
+      ResponsiveDimensions dimensions, ThemeColors colors) {
     return Column(
       children: [
         AnimatedBuilder(
@@ -545,7 +500,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
                   ],
                 ),
                 child: Image.asset(
-                  widget.isDarkMode ? 'assets/TW_WHITE.png' : 'assets/login_logo.png',
+                  'assets/login_logo.png',
                   width: dimensions.logoSize,
                   height: dimensions.logoHeight,
                   fit: BoxFit.contain,
@@ -673,7 +628,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: TextStyle(
-            color: colors.textSecondary.withOpacity(0.7),
+            color: colors.textSecondary.withOpacity(0.8),
             fontSize: dimensions.subtitleSize,
           ),
           prefixIcon: Container(
@@ -699,11 +654,12 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
     );
   }
 
-  Widget _buildRememberForgot(ResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildRememberForgot(
+      ResponsiveDimensions dimensions, ThemeColors colors) {
     final deviceType = _getDeviceType(context);
-    final useColumn = deviceType == DeviceType.mobile && 
-                      MediaQuery.of(context).size.width < 400;
-    
+    final useColumn = deviceType == DeviceType.mobile &&
+        MediaQuery.of(context).size.width < 400;
+
     if (useColumn) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -756,7 +712,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
         ],
       );
     }
-    
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -811,7 +767,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
     );
   }
 
-  Widget _buildLoginButton(ResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildLoginButton(
+      ResponsiveDimensions dimensions, ThemeColors colors) {
     return Container(
       width: double.infinity,
       height: dimensions.buttonHeight,
@@ -900,11 +857,13 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
     );
   }
 
-  Widget _buildSocialLogin(ResponsiveDimensions dimensions, ThemeColors colors, DeviceType deviceType) {
+  Widget _buildSocialLogin(ResponsiveDimensions dimensions, ThemeColors colors,
+      DeviceType deviceType) {
     final isCompact = deviceType == DeviceType.mobile;
     final screenWidth = MediaQuery.of(context).size.width;
-    final useWrap = screenWidth < 500;
-    
+    final useWrap =
+        screenWidth < 600; // Increased threshold to handle overflow better
+
     final buttons = [
       _buildSocialButton(
         icon: Icons.g_mobiledata_rounded,
@@ -922,33 +881,47 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
       ),
       _buildSocialButton(
         icon: Icons.fingerprint_rounded,
-        label: isCompact ? '' : 'Biometric',
+        label: isCompact ? '' : 'Bio',
         dimensions: dimensions,
         colors: colors,
         onTap: () {},
       ),
     ];
-    
+
     if (useWrap) {
       return Wrap(
         alignment: WrapAlignment.center,
-        spacing: dimensions.spacing / 2,
+        spacing: dimensions.spacing / 3,
         runSpacing: dimensions.spacing / 3,
-        children: buttons,
+        children: buttons
+            .map(
+              (button) => ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth:
+                      (screenWidth - dimensions.horizontalPadding * 2) / 3 -
+                          dimensions.spacing / 2,
+                  minWidth: 80,
+                ),
+                child: button,
+              ),
+            )
+            .toList(),
       );
     }
-    
+
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         for (int i = 0; i < buttons.length; i++) ...[
-          Flexible(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 150),
-              child: buttons[i],
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: dimensions.spacing / 6),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 120, minWidth: 80),
+                child: buttons[i],
+              ),
             ),
           ),
-          if (i < buttons.length - 1) SizedBox(width: dimensions.spacing / 2),
         ],
       ],
     );
@@ -962,7 +935,9 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
     required VoidCallback onTap,
   }) {
     final isIconOnly = label.isEmpty;
-    
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 400;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -972,8 +947,11 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
         },
         borderRadius: BorderRadius.circular(dimensions.borderRadius / 1.5),
         child: Container(
+          width: double.infinity,
           padding: EdgeInsets.symmetric(
-            horizontal: isIconOnly ? dimensions.spacing / 2 : dimensions.spacing,
+            horizontal: isIconOnly || isSmallScreen
+                ? dimensions.spacing / 3
+                : dimensions.spacing / 2,
             vertical: dimensions.spacing / 2,
           ),
           decoration: BoxDecoration(
@@ -986,20 +964,25 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
                 color: colors.textPrimary,
                 size: dimensions.iconSize,
               ),
-              if (!isIconOnly) ...[
+              if (!isIconOnly && !isSmallScreen) ...[
                 SizedBox(width: dimensions.spacing / 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: dimensions.subtitleSize - 2,
-                    fontWeight: FontWeight.w500,
+                Flexible(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: dimensions.subtitleSize - 3,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ],
@@ -1010,7 +993,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
     );
   }
 
-  Widget _buildSignUpSection(ResponsiveDimensions dimensions, ThemeColors colors) {
+  Widget _buildSignUpSection(
+      ResponsiveDimensions dimensions, ThemeColors colors) {
     return Container(
       padding: EdgeInsets.all(dimensions.cardPadding / 1.5),
       decoration: BoxDecoration(
@@ -1041,10 +1025,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
                 context,
                 PageRouteBuilder(
                   pageBuilder: (context, animation, secondaryAnimation) =>
-                      EnhancedSignupScreen(
-                        isDarkMode: widget.isDarkMode,
-                        onThemeToggle: widget.onThemeToggle,
-                      ),
+                      EnhancedSignupScreen(),
                   transitionsBuilder:
                       (context, animation, secondaryAnimation, child) {
                     return SlideTransition(
@@ -1069,7 +1050,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
               ),
               backgroundColor: colors.primary.withOpacity(0.1),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(dimensions.borderRadius / 2),
+                borderRadius:
+                    BorderRadius.circular(dimensions.borderRadius / 2),
               ),
             ),
             child: Text(
@@ -1166,18 +1148,18 @@ class ThemeColors {
     return ThemeColors(
       primary: const Color(0xFFFF4757),
       secondary: const Color(0xFF5F27CD),
-      background: const Color(0xFFF8F9FA),
+      background: Colors.white,
       backgroundGradient: const [
-        Color(0xFFF5F7FA),
-        Color(0xFFE9ECEF),
-        Color(0xFFDEE2E6),
+        Colors.white,
+        Color(0xFFFAFAFA),
+        Color(0xFFF5F5F5),
       ],
       cardBackground: Colors.white,
-      textPrimary: const Color(0xFF2C3E50),
-      textSecondary: const Color(0xFF7F8C8D),
-      border: const Color(0xFFE1E8ED),
-      inputBackground: const Color(0xFFF7F9FC),
-      inputBorder: const Color(0xFFDAE1E7),
+      textPrimary: Colors.black,
+      textSecondary: const Color(0xFF666666),
+      border: const Color(0xFFE0E0E0),
+      inputBackground: Colors.white,
+      inputBorder: const Color(0xFFCCCCCC),
       buttonGradient: const [
         Color(0xFFFF4757),
         Color(0xFFFF6B7A),
@@ -1201,11 +1183,11 @@ class ThemeColors {
         Color(0xFF0F0F0F),
       ],
       cardBackground: const Color(0xFF1A1A1A),
-      textPrimary: Colors.white,
-      textSecondary: Colors.white60,
+      textPrimary: Colors.black,
+      textSecondary: const Color(0xFF333333),
       border: Colors.white.withOpacity(0.1),
-      inputBackground: Colors.white.withOpacity(0.05),
-      inputBorder: Colors.white.withOpacity(0.15),
+      inputBackground: const Color(0xFFF8F9FA),
+      inputBorder: const Color(0xFFD1D5DB),
       buttonGradient: const [
         Color(0xFFFF4757),
         Color(0xFFFF3742),

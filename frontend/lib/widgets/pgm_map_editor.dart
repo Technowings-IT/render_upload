@@ -422,6 +422,22 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
           ),
         ),
         const SizedBox(width: 8),
+        // Deploy to Pi button
+        ElevatedButton.icon(
+          onPressed: _deployToRaspberryPi,
+          icon: const Icon(Icons.upload, size: 16),
+          label: const Text(
+            'Deploy to Pi',
+            style: TextStyle(fontSize: 12),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            minimumSize: const Size(0, 32),
+          ),
+        ),
+        const SizedBox(width: 8),
         // Tools menu button
         IconButton(
           onPressed: _showMobileToolsDialog,

@@ -19,7 +19,7 @@ User opens Dashboard → Device Card → "Interactive Map Order"
 
 // Frontend API call:
 const orderData = {
-  deviceId: 'AGV-001',
+  deviceId: 'AMR-001',
   name: 'Pickup-Drop Route A→B',
   priority: 5,
   waypoints: [
@@ -50,16 +50,16 @@ const orderData = {
 // 2. BACKEND CREATES ORDER
 // ==========================================
 
-// POST /api/orders/AGV-001
+// POST /api/orders/AMR-001
 // Backend creates order with ID: order_1738324200123
 const createdOrder = {
   id: 'order_1738324200123',
-  deviceId: 'AGV-001',
+  deviceId: 'AMR-001',
   name: 'Pickup-Drop Route A→B',
   status: 'pending',
   waypoints: [
     {
-      id: 'AGV-001_wp_1738324200123_0',
+      id: 'AMR-001_wp_1738324200123_0',
       stepNumber: 1,
       name: 'Station A',
       type: 'pickup',
@@ -67,7 +67,7 @@ const createdOrder = {
       completed: false
     },
     {
-      id: 'AGV-001_wp_1738324200123_1', 
+      id: 'AMR-001_wp_1738324200123_1', 
       stepNumber: 2,
       name: 'Station B',
       type: 'drop',
@@ -94,7 +94,7 @@ User clicks "Execute"
 
 // Frontend calls enhanced execution API:
 await apiService.executeOrderEnhanced({
-  deviceId: 'AGV-001',
+  deviceId: 'AMR-001',
   orderId: 'order_1738324200123',
   immediateStart: true,
   executionMode: 'sequential'
@@ -107,7 +107,7 @@ await apiService.executeOrderEnhanced({
 // enhanced_order_execution.js creates execution context:
 const executionContext = {
   orderId: 'order_1738324200123',
-  deviceId: 'AGV-001',
+  deviceId: 'AMR-001',
   currentWaypointIndex: 0,
   status: 'initializing',
   startTime: '2025-01-31T10:35:00Z'
@@ -117,7 +117,7 @@ const executionContext = {
 // Example broadcast payload:
 const orderExecutionStartedPayload = {
   type: 'order_execution_started',
-  deviceId: 'AGV-001',
+  deviceId: 'AMR-001',
   orderId: 'order_1738324200123',
   executionContext: { /* ... */ }
 };
@@ -154,7 +154,7 @@ const result = publishers.publishGoal(
 // Broadcasts waypoint start:
 const waypointExecutionStartedPayload = {
   type: 'waypoint_execution_started',
-  deviceId: 'AGV-001',
+  deviceId: 'AMR-001',
   waypointIndex: 0,
   waypoint: { name: 'Station A', type: 'pickup', position: { x: 5.2, y: 8.1, z: 0.0 }, orientation: 0.0, metadata: { createdAt: '2025-01-31T10:30:00Z', color: '0xFF0000FF' } },
   progress: { current: 1, total: 2, percentage: 50 }
@@ -185,7 +185,7 @@ order.progress.percentage = 50;
 // Example broadcast for waypoint completion:
 const waypointExecutionCompletedPayload = {
   type: 'waypoint_execution_completed',
-  deviceId: 'AGV-001',
+  deviceId: 'AMR-001',
   waypointIndex: 0,
   success: true,
   progress: { current: 1, total: 2, percentage: 50 }
@@ -223,7 +223,7 @@ order.progress.percentage = 100;
 // Final broadcast:
 const orderExecutionCompletedPayload = {
   type: 'order_execution_completed',
-  deviceId: 'AGV-001',
+  deviceId: 'AMR-001',
   orderId: 'order_1738324200123',
   executionSummary: {
     duration: 10,

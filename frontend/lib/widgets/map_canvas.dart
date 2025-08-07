@@ -265,11 +265,11 @@ class _EnhancedMapCanvasState extends State<EnhancedMapCanvas>
               ),
               SizedBox(width: 8),
 
-              // Upload to AGV Button
+              // Upload to AMR Button
               ElevatedButton.icon(
-                onPressed: _uploadToAGV,
+                onPressed: _uploadToAMR,
                 icon: Icon(Icons.upload),
-                label: Text('Upload to AGV'),
+                label: Text('Upload to AMR'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.purple,
                   foregroundColor: Colors.white,
@@ -753,22 +753,22 @@ class _EnhancedMapCanvasState extends State<EnhancedMapCanvas>
     }
   }
 
-  Future<void> _uploadToAGV() async {
+  Future<void> _uploadToAMR() async {
     if (widget.deviceId == null) {
       _showErrorSnackBar('No device selected');
       return;
     }
 
     try {
-      _showInfoSnackBar('Uploading map to AGV...');
+      _showInfoSnackBar('Uploading map to AMR...');
 
-      final response = await _apiService.uploadMapToAGV(
+      final response = await _apiService.uploadMapToAMR(
         deviceId: widget.deviceId!,
         mapName: 'edited_map_${DateTime.now().millisecondsSinceEpoch}',
       );
 
       if (response['success'] == true) {
-        _showSuccessSnackBar('Map uploaded to AGV successfully!');
+        _showSuccessSnackBar('Map uploaded to AMR successfully!');
       } else {
         _showErrorSnackBar('Upload failed: ${response['error']}');
       }

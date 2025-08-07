@@ -149,8 +149,8 @@ async function testROS2Publishing() {
         console.error('❌ Test failed:', error);
         console.error('\nTroubleshooting:');
         console.error('1. Ensure ROS2 Jazzy is properly sourced');
-        console.error('2. Check if your AGV is running and topics are available');
-        console.error('3. Verify network connectivity to AGV');
+        console.error('2. Check if your AMR is running and topics are available');
+        console.error('3. Verify network connectivity to AMR');
         console.error('4. Run "ros2 topic list" to see available topics');
     } finally {
         // Cleanup
@@ -172,7 +172,7 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
     console.log('ROS2 Publishing Test Script');
     console.log('Usage: node test_ros_publishing.js [options]');
     console.log('');
-    console.log('This script tests ROS2 publishing functionality for the AGV Fleet Backend');
+    console.log('This script tests ROS2 publishing functionality for the AMR Fleet Backend');
     console.log('It will:');
     console.log('1. Initialize ROS2 connection');
     console.log('2. Test topic discovery');
@@ -180,7 +180,7 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
     console.log('4. Test joystick control');
     console.log('5. Verify publishers are visible in rqt_graph');
     console.log('');
-    console.log('Make sure your AGV is running and ROS2 is properly sourced before running this test.');
+    console.log('Make sure your AMR is running and ROS2 is properly sourced before running this test.');
     process.exit(0);
 }
 

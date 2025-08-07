@@ -72,8 +72,7 @@ class _SplashScreenState extends State<SplashScreen>
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) =>
               EnhancedLoginScreen(
-                isDarkMode: false, // Set to your desired initial value
-                onThemeToggle: (bool value) {}, // Provide a callback function
+                // isDarkMode: false, // Set to your desired initial value
               ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(

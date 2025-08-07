@@ -1,979 +1,856 @@
-// widgets/fleet_management_widgets.dart - Specialized AGV Fleet Management Components
+// widgets/complete_fleet_management_widget.dart - Complete Fleet Management System
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'dart:math' as math;
-import '../services/theme_service.dart';
-import 'modern_ui_components.dart';
+import '../models/map_data.dart';
+import '../services/api_service.dart';
+import 'enhanced_order_creation_dialog.dart';
+import 'order_table_widget.dart';
+import 'interactive_map_order_creator.dart';
 
-// 🤖 AGV Status Dashboard Widget
-class AGVStatusDashboard extends StatefulWidget {
-  final Map<String, dynamic> agvData;
-  final VoidCallback? onTap;
+class CompleteFleetManagementWidget extends StatefulWidget {
+  final String? deviceId; // null for all devices view
+  final Map<String, MapData> availableMaps;
+  final List<Map<String, dynamic>> availableDevices;
 
-  const AGVStatusDashboard({
+  const CompleteFleetManagementWidget({
     Key? key,
-    required this.agvData,
-    this.onTap,
+    this.deviceId,
+    required this.availableMaps,
+    required this.availableDevices,
   }) : super(key: key);
 
   @override
-  State<AGVStatusDashboard> createState() => _AGVStatusDashboardState();
+  State<CompleteFleetManagementWidget> createState() =>
+      _CompleteFleetManagementWidgetState();
 }
 
-class _AGVStatusDashboardState extends State<AGVStatusDashboard>
-    with TickerProviderStateMixin {
-  late AnimationController _pulseController;
-  late AnimationController _batteryController;
-  late Animation<double> _pulseAnimation;
-  late Animation<double> _batteryAnimation;
+class _CompleteFleetManagementWidgetState
+    extends State<CompleteFleetManagementWidget> with TickerProviderStateMixin {
+  final ApiService _apiService = ApiService();
+
+  late TabController _tabController;
+
+  // State
+  List<Map<String, dynamic>> _orders = [];
+  Map<String, List<MapShape>> _deviceStations = {};
+  bool _isLoading = false;
+  String? _selectedDeviceId;
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    );
-    _batteryController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    );
-
-    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-    _batteryAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _batteryController, curve: Curves.easeOutCubic),
-    );
-
-    if (widget.agvData['status'] == 'active') {
-      _pulseController.repeat(reverse: true);
-    }
-    _batteryController.forward();
+    _tabController = TabController(length: 3, vsync: this);
+    _selectedDeviceId = widget.deviceId ?? widget.availableDevices.first['id'];
+    _loadStations();
+    _loadOrders();
   }
 
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    _batteryController.dispose();
-    super.dispose();
+  Future<void> _loadStations() async {
+    setState(() => _isLoading = true);
+
+    try {
+      for (final deviceId in widget.availableMaps.keys) {
+        final mapData = widget.availableMaps[deviceId];
+        if (mapData != null) {
+          _deviceStations[deviceId] = mapData.shapes
+              .where((shape) => [
+                    'pickup',
+                    'drop',
+                    'charging',
+                    'waypoint',
+                    'pick_up',
+                    'charge_1',
+                    'charge_2'
+                  ].contains(shape.type))
+              .toList();
+        }
+      }
+      print('🏪 Loaded stations for ${_deviceStations.length} devices');
+    } catch (e) {
+      print('❌ Error loading stations: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadOrders() async {
+    try {
+      final response = widget.deviceId != null
+          ? await _apiService.getOrders(widget.deviceId!)
+          : await _apiService.getAllOrders();
+
+      final responseMap = response as Map<String, dynamic>;
+      if (responseMap['success'] == true) {
+        setState(() {
+          _orders =
+              List<Map<String, dynamic>>.from(responseMap['orders'] ?? []);
+        });
+      }
+    } catch (e) {
+      print('❌ Error loading orders: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Provider.of<ThemeService>(context);
-    final isOnline = widget.agvData['status'] == 'online' ||
-        widget.agvData['status'] == 'active';
-    final batteryLevel = widget.agvData['battery'] ?? 85;
-    final speed = widget.agvData['speed'] ?? 0.0;
-    final position = widget.agvData['position'] ?? {'x': 0.0, 'y': 0.0};
+    return Scaffold(
+      body: Column(
+        children: [
+          _buildHeader(),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildOrdersView(),
+                _buildStationsView(),
+                _buildMapView(),
+              ],
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: _buildFloatingActionButtons(),
+    );
+  }
 
-    return ModernGlassCard(
-      onTap: widget.onTap,
-      showGlow: isOnline,
-      glowColor: isOnline ? theme.successColor : theme.errorColor,
+  Widget _buildHeader() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade700, Colors.blue.shade900],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         children: [
-          // Header with AGV info
+          // Title and device selector
           Row(
             children: [
-              AnimatedBuilder(
-                animation: _pulseAnimation,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: isOnline ? _pulseAnimation.value : 1.0,
-                    child: Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          colors: isOnline
-                              ? [
-                                  theme.successColor,
-                                  theme.successColor.withOpacity(0.7)
-                                ]
-                              : [
-                                  theme.errorColor,
-                                  theme.errorColor.withOpacity(0.7)
-                                ],
-                        ),
-                        borderRadius: theme.borderRadiusMedium,
-                        boxShadow: isOnline ? theme.neonGlow : null,
-                      ),
-                      child: Icon(
-                        Icons.smart_toy,
-                        color: Colors.white,
-                        size: 30,
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 16),
+              Icon(Icons.engineering, color: Colors.white, size: 32),
+              SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.agvData['name'] ?? 'AGV Unit',
-                      style: theme.headlineMedium,
+                      'Fleet Management System',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     Text(
-                      'ID: ${widget.agvData['id'] ?? 'unknown'}',
-                      style: theme.bodySmall,
-                    ),
-                    RoboticStatusIndicator(
-                      status: widget.agvData['status'] ?? 'offline',
-                      label:
-                          (widget.agvData['status'] ?? 'offline').toUpperCase(),
-                      animated: isOnline,
+                      'Complete order and station management',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
               ),
-              _buildBatteryIndicator(batteryLevel, theme),
+              _buildDeviceSelector(),
             ],
           ),
 
-          const SizedBox(height: 20),
+          SizedBox(height: 16),
 
-          // Technical data grid
-          _buildTechnicalDataGrid(speed, position, theme),
-
-          const SizedBox(height: 16),
-
-          // Action buttons
-          Row(
-            children: [
-              Expanded(
-                child: ModernActionButton(
-                  label: 'Control',
-                  icon: Icons.gamepad,
-                  onPressed: () => _openControl(),
-                  isSecondary: true,
+          // Tab bar
+          Material(
+            color: Colors.transparent,
+            child: TabBar(
+              controller: _tabController,
+              indicatorColor: Colors.white,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white.withOpacity(0.7),
+              tabs: [
+                Tab(
+                  icon: Icon(Icons.list_alt),
+                  text: 'Orders (${_orders.length})',
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ModernActionButton(
-                  label: 'Monitor',
-                  icon: Icons.monitor,
-                  onPressed: () => _openMonitor(),
+                Tab(
+                  icon: Icon(Icons.location_on),
+                  text: 'Stations (${_getStationCount()})',
                 ),
-              ),
-            ],
+                Tab(
+                  icon: Icon(Icons.map),
+                  text: 'Map View',
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBatteryIndicator(int batteryLevel, ThemeService theme) {
-    Color batteryColor;
-    if (batteryLevel > 60)
-      batteryColor = theme.successColor;
-    else if (batteryLevel > 30)
-      batteryColor = theme.warningColor;
-    else
-      batteryColor = theme.errorColor;
+  Widget _buildDeviceSelector() {
+    if (widget.deviceId != null) {
+      // Single device mode
+      return Container(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          'Device: ${widget.deviceId}',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
 
-    return AnimatedBuilder(
-      animation: _batteryAnimation,
-      builder: (context, child) {
-        return Column(
-          children: [
-            Stack(
+    // Multi-device selector
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.3)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedDeviceId,
+          dropdownColor: Colors.blue.shade800,
+          style: TextStyle(color: Colors.white),
+          items: [
+            DropdownMenuItem<String>(
+              value: 'all',
+              child: Text('All Devices'),
+            ),
+            ...widget.availableDevices.map((device) {
+              return DropdownMenuItem<String>(
+                value: device['id'],
+                child: Text(device['name'] ?? device['id']),
+              );
+            }),
+          ],
+          onChanged: (value) {
+            setState(() {
+              _selectedDeviceId = value;
+            });
+            _loadOrders();
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrdersView() {
+    return OrdersTableWidget(
+      deviceId: _selectedDeviceId == 'all' ? null : _selectedDeviceId,
+      onOrderUpdated: (order) => _loadOrders(),
+      onOrderExecuted: (order) => _executeOrder(order),
+    );
+  }
+
+  Widget _buildStationsView() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Stations header
+          Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.purple.shade50, Colors.purple.shade100],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.purple.shade200),
+            ),
+            child: Row(
               children: [
-                Container(
-                  width: 40,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: batteryColor, width: 2),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                Container(
-                  width: 38 * (batteryLevel / 100) * _batteryAnimation.value,
-                  height: 16,
-                  margin: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    color: batteryColor,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Positioned(
-                  right: -4,
-                  top: 6,
-                  child: Container(
-                    width: 4,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: batteryColor,
-                      borderRadius: const BorderRadius.only(
-                        topRight: Radius.circular(2),
-                        bottomRight: Radius.circular(2),
+                Icon(Icons.location_city, color: Colors.purple.shade700),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Station Management',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.purple.shade700,
+                        ),
                       ),
-                    ),
+                      Text(
+                        'Manage pickup, drop, charging, and waypoint stations',
+                        style: TextStyle(color: Colors.purple.shade600),
+                      ),
+                    ],
                   ),
                 ),
+                _buildStationSummary(),
               ],
             ),
-            const SizedBox(height: 4),
+          ),
+
+          SizedBox(height: 16),
+
+          // Station list
+          Expanded(
+            child: _buildStationList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStationSummary() {
+    final stationCounts = <String, int>{};
+
+    for (final stations in _deviceStations.values) {
+      for (final station in stations) {
+        stationCounts[station.type] = (stationCounts[station.type] ?? 0) + 1;
+      }
+    }
+
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          _buildStationTypeBadge(
+              'pickup', stationCounts['pickup'] ?? 0, Colors.green),
+          SizedBox(height: 4),
+          _buildStationTypeBadge(
+              'drop', stationCounts['drop'] ?? 0, Colors.blue),
+          SizedBox(height: 4),
+          _buildStationTypeBadge(
+              'charging', stationCounts['charging'] ?? 0, Colors.orange),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStationTypeBadge(String type, int count, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        SizedBox(width: 6),
+        Text(
+          '$type: $count',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStationList() {
+    if (_deviceStations.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.location_off, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
             Text(
-              '$batteryLevel%',
-              style: theme.bodySmall.copyWith(
-                color: batteryColor,
-                fontWeight: FontWeight.bold,
-              ),
+              'No Stations Available',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+            Text('Load maps to view stations'),
           ],
-        );
+        ),
+      );
+    }
+
+    final stationsToShow =
+        _selectedDeviceId == 'all' || _selectedDeviceId == null
+            ? _deviceStations.values.expand((stations) => stations).toList()
+            : _deviceStations[_selectedDeviceId] ?? [];
+
+    return ListView.builder(
+      itemCount: stationsToShow.length,
+      itemBuilder: (context, index) {
+        final station = stationsToShow[index];
+        return _buildStationCard(station, index + 1);
       },
     );
   }
 
-  Widget _buildTechnicalDataGrid(
-      double speed, Map<String, dynamic> position, ThemeService theme) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.isDarkMode
-            ? Colors.white.withOpacity(0.05)
-            : Colors.black.withOpacity(0.05),
-        borderRadius: theme.borderRadiusSmall,
-        border: Border.all(
-          color: theme.isDarkMode
-              ? Colors.white.withOpacity(0.1)
-              : Colors.black.withOpacity(0.1),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildDataItem(
-                'SPEED', '${speed.toStringAsFixed(1)} m/s', Icons.speed, theme),
-          ),
-          _buildVerticalDivider(theme),
-          Expanded(
-            child: _buildDataItem(
-                'X POS',
-                '${position['x']?.toStringAsFixed(2) ?? '0.00'}',
-                Icons.straighten,
-                theme),
-          ),
-          _buildVerticalDivider(theme),
-          Expanded(
-            child: _buildDataItem(
-                'Y POS',
-                '${position['y']?.toStringAsFixed(2) ?? '0.00'}',
-                Icons.straighten,
-                theme),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildStationCard(MapShape station, int index) {
+    final color = _getStationTypeColor(station.type);
 
-  Widget _buildDataItem(
-      String label, String value, IconData icon, ThemeService theme) {
-    return Column(
-      children: [
-        Icon(icon, color: theme.accentColor, size: 16),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: theme.monospace.copyWith(
-            color: theme.accentColor,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: theme.bodySmall.copyWith(fontSize: 10),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildVerticalDivider(ThemeService theme) {
-    return Container(
-      width: 1,
-      height: 40,
-      color: theme.isDarkMode
-          ? Colors.white.withOpacity(0.2)
-          : Colors.black.withOpacity(0.2),
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-    );
-  }
-
-  void _openControl() {
-    print('Opening AGV control for ${widget.agvData['id']}');
-  }
-
-  void _openMonitor() {
-    print('Opening AGV monitor for ${widget.agvData['id']}');
-  }
-}
-
-// 📊 Real-time Fleet Metrics Widget
-class FleetMetricsWidget extends StatefulWidget {
-  final Map<String, dynamic> metricsData;
-
-  const FleetMetricsWidget({
-    Key? key,
-    required this.metricsData,
-  }) : super(key: key);
-
-  @override
-  State<FleetMetricsWidget> createState() => _FleetMetricsWidgetState();
-}
-
-class _FleetMetricsWidgetState extends State<FleetMetricsWidget>
-    with TickerProviderStateMixin {
-  late AnimationController _chartController;
-  late List<AnimationController> _barControllers;
-  late List<Animation<double>> _barAnimations;
-
-  @override
-  void initState() {
-    super.initState();
-    _chartController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    );
-
-    _barControllers = List.generate(
-        4,
-        (index) => AnimationController(
-              duration: Duration(milliseconds: 800 + (index * 200)),
-              vsync: this,
-            ));
-
-    _barAnimations = _barControllers
-        .map(
-          (controller) => Tween<double>(begin: 0.0, end: 1.0).animate(
-            CurvedAnimation(parent: controller, curve: Curves.easeOutCubic),
-          ),
-        )
-        .toList();
-
-    _startAnimations();
-  }
-
-  void _startAnimations() async {
-    _chartController.forward();
-    for (int i = 0; i < _barControllers.length; i++) {
-      await Future.delayed(Duration(milliseconds: 100 * i));
-      _barControllers[i].forward();
-    }
-  }
-
-  @override
-  void dispose() {
-    _chartController.dispose();
-    for (final controller in _barControllers) {
-      controller.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Provider.of<ThemeService>(context);
-
-    return ModernGlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.infoColor.withOpacity(0.1),
-                  borderRadius: theme.borderRadiusSmall,
-                ),
-                child: Icon(Icons.analytics, color: theme.infoColor, size: 24),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Fleet Metrics', style: theme.headlineMedium),
-                    Text('Real-time performance data', style: theme.bodySmall),
-                  ],
-                ),
-              ),
-              _buildMetricBadge('99.2%', 'UPTIME', theme.successColor, theme),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Animated metrics chart
-          _buildAnimatedMetricsChart(theme),
-
-          const SizedBox(height: 16),
-
-          // Key metrics row
-          _buildKeyMetricsRow(theme),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAnimatedMetricsChart(ThemeService theme) {
-    final metrics = [
-      {'label': 'Efficiency', 'value': 94, 'color': theme.successColor},
-      {'label': 'Battery Avg', 'value': 78, 'color': theme.warningColor},
-      {'label': 'Tasks/Hr', 'value': 86, 'color': theme.infoColor},
-      {'label': 'Utilization', 'value': 92, 'color': theme.accentColor},
-    ];
-
-    return Container(
-      height: 120,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.isDarkMode
-            ? Colors.white.withOpacity(0.03)
-            : Colors.black.withOpacity(0.03),
-        borderRadius: theme.borderRadiusSmall,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: metrics.asMap().entries.map((entry) {
-          final index = entry.key;
-          final metric = entry.value;
-
-          return AnimatedBuilder(
-            animation: _barAnimations[index],
-            builder: (context, child) {
-              return Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    '${((metric['value'] as int) * _barAnimations[index].value).toInt()}%',
-                    style: theme.bodySmall.copyWith(
-                      color: metric['color'] as Color,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: 20,
-                    height: 60 * _barAnimations[index].value,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [
-                          metric['color'] as Color,
-                          (metric['color'] as Color).withOpacity(0.5),
-                        ],
-                      ),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(4),
-                        topRight: Radius.circular(4),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (metric['color'] as Color).withOpacity(0.3),
-                          blurRadius: 4,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    metric['label'] as String,
-                    style: theme.bodySmall.copyWith(fontSize: 10),
-                  ),
-                ],
-              );
-            },
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildKeyMetricsRow(ThemeService theme) {
-    return Row(
-      children: [
-        Expanded(
-            child:
-                _buildMetricBadge('24', 'ACTIVE AGVS', theme.infoColor, theme)),
-        const SizedBox(width: 12),
-        Expanded(
-            child: _buildMetricBadge(
-                '847', 'TASKS TODAY', theme.successColor, theme)),
-        const SizedBox(width: 12),
-        Expanded(
-            child: _buildMetricBadge(
-                '2.3s', 'AVG RESPONSE', theme.warningColor, theme)),
-      ],
-    );
-  }
-
-  Widget _buildMetricBadge(
-      String value, String label, Color color, ThemeService theme) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: theme.borderRadiusSmall,
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: theme.headlineMedium.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
+    return Card(
+      margin: EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        leading: Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [color, color.withOpacity(0.7)],
             ),
+            borderRadius: BorderRadius.circular(8),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: theme.bodySmall.copyWith(fontSize: 10),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// 🗺️ Mission Control Panel Widget
-class MissionControlPanel extends StatefulWidget {
-  final List<Map<String, dynamic>> activeMissions;
-  final VoidCallback? onCreateMission;
-
-  const MissionControlPanel({
-    Key? key,
-    required this.activeMissions,
-    this.onCreateMission,
-  }) : super(key: key);
-
-  @override
-  State<MissionControlPanel> createState() => _MissionControlPanelState();
-}
-
-class _MissionControlPanelState extends State<MissionControlPanel>
-    with TickerProviderStateMixin {
-  late AnimationController _scanController;
-  late Animation<double> _scanAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _scanController = AnimationController(
-      duration: const Duration(milliseconds: 3000),
-      vsync: this,
-    );
-    _scanAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _scanController, curve: Curves.linear),
-    );
-    _scanController.repeat();
-  }
-
-  @override
-  void dispose() {
-    _scanController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Provider.of<ThemeService>(context);
-
-    return ModernGlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Mission control header
-          Row(
-            children: [
-              AnimatedBuilder(
-                animation: _scanAnimation,
-                builder: (context, child) {
-                  return Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: theme.successColor.withOpacity(0.1),
-                      borderRadius: theme.borderRadiusSmall,
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.successColor
-                              .withOpacity(_scanAnimation.value * 0.3),
-                          blurRadius: 8,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.radar,
-                      color: theme.successColor,
-                      size: 24,
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Mission Control', style: theme.headlineMedium),
-                    Text('${widget.activeMissions.length} active missions',
-                        style: theme.bodySmall),
-                  ],
-                ),
-              ),
-              ModernActionButton(
-                label: 'New Mission',
-                icon: Icons.add_task,
-                onPressed: widget.onCreateMission ?? () {},
-                isSecondary: true,
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Active missions list
-          if (widget.activeMissions.isEmpty)
-            _buildEmptyMissionsState(theme)
-          else
-            ...widget.activeMissions.take(3).map(
-                  (mission) => _buildMissionCard(mission, theme),
-                ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyMissionsState(ThemeService theme) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: theme.isDarkMode
-            ? Colors.white.withOpacity(0.03)
-            : Colors.black.withOpacity(0.03),
-        borderRadius: theme.borderRadiusMedium,
-        border: Border.all(
-          color: theme.isDarkMode
-              ? Colors.white.withOpacity(0.1)
-              : Colors.black.withOpacity(0.1),
-        ),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.assignment_outlined,
-            size: 48,
-            color: theme.accentColor.withOpacity(0.5),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No Active Missions',
-            style: theme.headlineMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Fleet is standing by for new orders',
-            style: theme.bodySmall,
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMissionCard(Map<String, dynamic> mission, ThemeService theme) {
-    final progress = mission['progress'] ?? 0;
-    final status = mission['status'] ?? 'pending';
-    final agvId = mission['agvId'] ?? 'unknown';
-
-    Color statusColor;
-    switch (status) {
-      case 'active':
-        statusColor = theme.infoColor;
-        break;
-      case 'completed':
-        statusColor = theme.successColor;
-        break;
-      case 'failed':
-        statusColor = theme.errorColor;
-        break;
-      default:
-        statusColor = theme.warningColor;
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.05),
-        borderRadius: theme.borderRadiusMedium,
-        border: Border.all(color: statusColor.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: statusColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                mission['name'] ?? 'Mission',
-                style: theme.bodyLarge.copyWith(fontWeight: FontWeight.w600),
-              ),
-              const Spacer(),
-              Text(
-                status.toUpperCase(),
-                style: theme.bodySmall.copyWith(
-                  color: statusColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'AGV: $agvId',
-            style: theme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: progress / 100.0,
-            backgroundColor: theme.isDarkMode
-                ? Colors.white.withOpacity(0.1)
-                : Colors.black.withOpacity(0.1),
-            valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-            borderRadius: BorderRadius.circular(4),
-            minHeight: 4,
-          ),
-          const SizedBox(height: 8),
-          Row(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                '$progress% Complete',
-                style: theme.bodySmall.copyWith(
-                  color: statusColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                mission['eta'] ?? 'Calculating...',
-                style: theme.bodySmall,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ⚡ Emergency Control Panel
-class EmergencyControlPanel extends StatefulWidget {
-  final VoidCallback? onEmergencyStop;
-  final VoidCallback? onResetAll;
-
-  const EmergencyControlPanel({
-    Key? key,
-    this.onEmergencyStop,
-    this.onResetAll,
-  }) : super(key: key);
-
-  @override
-  State<EmergencyControlPanel> createState() => _EmergencyControlPanelState();
-}
-
-class _EmergencyControlPanelState extends State<EmergencyControlPanel>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _alertController;
-  late Animation<double> _alertAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _alertController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-    _alertAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _alertController, curve: Curves.easeInOut),
-    );
-    _alertController.repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _alertController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Provider.of<ThemeService>(context);
-
-    return ModernGlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              AnimatedBuilder(
-                animation: _alertAnimation,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _alertAnimation.value,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: theme.errorColor.withOpacity(0.2),
-                        borderRadius: theme.borderRadiusSmall,
-                        boxShadow: [
-                          BoxShadow(
-                            color: theme.errorColor.withOpacity(0.3),
-                            blurRadius: 8,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.emergency,
-                        color: theme.errorColor,
-                        size: 24,
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 12),
-              Text('Emergency Controls', style: theme.headlineMedium),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Emergency stop button
-          Container(
-            width: double.infinity,
-            height: 60,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [theme.errorColor, theme.errorColor.withOpacity(0.8)],
-              ),
-              borderRadius: theme.borderRadiusMedium,
-              boxShadow: [
-                BoxShadow(
-                  color: theme.errorColor.withOpacity(0.4),
-                  blurRadius: 12,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: ElevatedButton.icon(
-              onPressed: () => _showEmergencyDialog(context, theme),
-              icon: Icon(Icons.stop, color: Colors.white, size: 28),
-              label: Text(
-                'EMERGENCY STOP ALL',
+                index.toString(),
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  letterSpacing: 1.2,
+                  fontSize: 16,
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: theme.borderRadiusMedium,
-                ),
+              Icon(
+                _getStationTypeIcon(station.type),
+                color: Colors.white,
+                size: 16,
               ),
-            ),
+            ],
           ),
-
-          const SizedBox(height: 16),
-
-          // Reset button
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: widget.onResetAll,
-              icon: Icon(Icons.refresh),
-              label: Text('Reset All Systems'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: theme.warningColor,
-                side: BorderSide(color: theme.warningColor),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-            ),
-          ),
-        ],
+        ),
+        title: Text(
+          station.name,
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Type: ${station.type.toUpperCase()}'),
+            Text(
+                'Position: (${station.center.x.toStringAsFixed(2)}, ${station.center.y.toStringAsFixed(2)})'),
+          ],
+        ),
+        trailing: PopupMenuButton<String>(
+          onSelected: (value) => _handleStationAction(station, value),
+          itemBuilder: (context) => [
+            PopupMenuItem(value: 'edit', child: Text('Edit Station')),
+            PopupMenuItem(value: 'orders', child: Text('View Orders')),
+            PopupMenuItem(value: 'test', child: Text('Test Navigation')),
+            PopupMenuDivider(),
+            PopupMenuItem(
+                value: 'delete',
+                child: Text('Delete', style: TextStyle(color: Colors.red))),
+          ],
+        ),
       ),
     );
   }
 
-  void _showEmergencyDialog(BuildContext context, ThemeService theme) {
+  Widget _buildMapView() {
+    if (widget.availableMaps.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.map_outlined, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'No Maps Available',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            Text('Load device maps to view station layout'),
+          ],
+        ),
+      );
+    }
+
+    final deviceId = _selectedDeviceId == 'all'
+        ? widget.availableMaps.keys.first
+        : _selectedDeviceId;
+    final mapData = widget.availableMaps[deviceId];
+
+    if (mapData == null) {
+      return Center(child: Text('No map data for selected device'));
+    }
+
+    return InteractiveMapOrderCreator(
+      deviceId: deviceId!,
+      mapData: mapData,
+      onOrderCreated: (orderData) {
+        _loadOrders();
+        _showMessage('Order created successfully!', Colors.green);
+      },
+    );
+  }
+
+  Widget _buildFloatingActionButtons() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        // Quick create order button
+        FloatingActionButton.extended(
+          heroTag: "createOrder",
+          onPressed: _showOrderCreationOptions,
+          icon: Icon(Icons.add_task),
+          label: Text('Create Order'),
+          backgroundColor: Colors.green,
+        ),
+
+        SizedBox(height: 12),
+
+        // Emergency stop button
+        FloatingActionButton(
+          heroTag: "emergencyStop",
+          onPressed: _showEmergencyStopDialog,
+          child: Icon(Icons.emergency, color: Colors.white),
+          backgroundColor: Colors.red,
+          mini: true,
+        ),
+      ],
+    );
+  }
+
+  void _showOrderCreationOptions() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor:
-            theme.isDarkMode ? const Color(0xFF262640) : Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: theme.borderRadiusMedium,
-        ),
-        title: Row(
+        title: Text('Create Order'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.warning, color: theme.errorColor, size: 32),
-            const SizedBox(width: 12),
-            Text(
-              'EMERGENCY STOP',
-              style: TextStyle(
-                color: theme.errorColor,
-                fontWeight: FontWeight.bold,
-              ),
+            ListTile(
+              leading: Icon(Icons.touch_app, color: Colors.blue),
+              title: Text('Station-Based Order'),
+              subtitle: Text('Select from and to stations'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _showStationBasedOrderDialog();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.map, color: Colors.green),
+              title: Text('Interactive Map Order'),
+              subtitle: Text('Click coordinates on map'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _showInteractiveMapDialog();
+              },
             ),
           ],
         ),
-        content: Text(
-          'This will immediately stop all AGV operations and movement. Confirm emergency stop?',
-          style: theme.bodyMedium,
+      ),
+    );
+  }
+
+  void _showStationBasedOrderDialog() {
+    final selectedDeviceId = _selectedDeviceId == 'all'
+        ? widget.availableDevices.first['id']
+        : _selectedDeviceId;
+    final mapData = widget.availableMaps[selectedDeviceId];
+
+    if (mapData == null) {
+      _showMessage('No map available for selected device', Colors.red);
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => EnhancedOrderCreationDialog(
+        deviceId: selectedDeviceId!,
+        mapData: mapData,
+        onOrderCreated: (orderData) {
+          _loadOrders();
+          _showMessage('Order created successfully!', Colors.green);
+        },
+      ),
+    );
+  }
+
+  void _showInteractiveMapDialog() {
+    final selectedDeviceId = _selectedDeviceId == 'all'
+        ? widget.availableDevices.first['id']
+        : _selectedDeviceId;
+    final mapData = widget.availableMaps[selectedDeviceId];
+
+    if (mapData == null) {
+      _showMessage('No map available for selected device', Colors.red);
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => InteractiveMapOrderCreator(
+          deviceId: selectedDeviceId!,
+          mapData: mapData,
+          onOrderCreated: (orderData) {
+            _loadOrders();
+            _showMessage('Order created successfully!', Colors.green);
+          },
         ),
+      ),
+    );
+  }
+
+  void _showEmergencyStopDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('EMERGENCY STOP'),
+          ],
+        ),
+        content: Text(
+            'This will immediately halt all AMR operations across the fleet. Confirm emergency stop?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(context).pop(),
             child: Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context);
-              widget.onEmergencyStop?.call();
+              Navigator.of(context).pop();
+              _performEmergencyStop();
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: theme.errorColor,
-              foregroundColor: Colors.white,
-            ),
-            child: Text('EMERGENCY STOP'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child:
+                Text('EMERGENCY STOP', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
+  }
+
+  // Helper methods
+  int _getStationCount() {
+    if (_selectedDeviceId == 'all' || _selectedDeviceId == null) {
+      return _deviceStations.values
+          .fold(0, (total, stations) => total + stations.length);
+    }
+    return _deviceStations[_selectedDeviceId]?.length ?? 0;
+  }
+
+  Color _getStationTypeColor(String type) {
+    switch (type.toLowerCase()) {
+      case 'pickup':
+      case 'pick_up':
+        return Colors.green;
+      case 'drop':
+        return Colors.blue;
+      case 'charging':
+      case 'charge_1':
+      case 'charge_2':
+        return Colors.orange;
+      case 'waypoint':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getStationTypeIcon(String type) {
+    switch (type.toLowerCase()) {
+      case 'pickup':
+      case 'pick_up':
+        return Icons.outbox;
+      case 'drop':
+        return Icons.inbox;
+      case 'charging':
+      case 'charge_1':
+      case 'charge_2':
+        return Icons.battery_charging_full;
+      case 'waypoint':
+        return Icons.place;
+      default:
+        return Icons.location_on;
+    }
+  }
+
+  void _handleStationAction(MapShape station, String action) {
+    switch (action) {
+      case 'edit':
+        _editStation(station);
+        break;
+      case 'orders':
+        _viewStationOrders(station);
+        break;
+      case 'test':
+        _testStationNavigation(station);
+        break;
+      case 'delete':
+        _deleteStation(station);
+        break;
+    }
+  }
+
+  void _editStation(MapShape station) {
+    _showMessage('Station editing feature coming soon!', Colors.blue);
+  }
+
+  void _viewStationOrders(MapShape station) {
+    // Show orders that use this station
+    final stationOrders = _orders.where((order) {
+      final waypoints = order['waypoints'] as List<dynamic>? ?? [];
+      return waypoints.any((wp) =>
+          wp['metadata']?['stationId'] == station.id ||
+          wp['name'] == station.name);
+    }).toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Orders for ${station.name}'),
+        content: Container(
+          width: 400,
+          height: 300,
+          child: stationOrders.isEmpty
+              ? Center(child: Text('No orders use this station'))
+              : ListView.builder(
+                  itemCount: stationOrders.length,
+                  itemBuilder: (context, index) {
+                    final order = stationOrders[index];
+                    return ListTile(
+                      title: Text(order['name'] ?? 'Order'),
+                      subtitle: Text('Status: ${order['status']}'),
+                      trailing:
+                          Text(order['createdAt']?.substring(0, 10) ?? ''),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _testStationNavigation(MapShape station) async {
+    try {
+      // Send test navigation command to station coordinates
+      final response = await _apiService.publishGoal(
+        _selectedDeviceId!,
+        station.center.x,
+        station.center.y,
+      );
+
+      if (response['success'] == true) {
+        _showMessage('Test navigation sent to ${station.name}', Colors.green);
+      } else {
+        throw Exception(response['error'] ?? 'Navigation test failed');
+      }
+    } catch (e) {
+      _showMessage('Navigation test failed: $e', Colors.red);
+    }
+  }
+
+  void _deleteStation(MapShape station) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Station'),
+        content: Text(
+            'Are you sure you want to delete "${station.name}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _showMessage(
+                  'Station deletion feature coming soon!', Colors.orange);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _executeOrder(Map<String, dynamic> order) async {
+    try {
+      // Get waypoints and publish navigation goals
+      final waypoints = order['waypoints'] as List<dynamic>? ?? [];
+
+      for (int i = 0; i < waypoints.length; i++) {
+        final waypoint = waypoints[i];
+        final position = waypoint['position'] as Map<String, dynamic>? ?? {};
+
+        final x = position['x']?.toDouble() ?? 0.0;
+        final y = position['y']?.toDouble() ?? 0.0;
+
+        print(
+            '🎯 Publishing navigation goal ${i + 1}/${waypoints.length}: ($x, $y)');
+
+        // Publish to target_pose topic
+        final response = await _apiService.publishGoal(order['deviceId'], x, y);
+
+        if (response['success'] != true) {
+          throw Exception(
+              'Failed to publish waypoint ${i + 1}: ${response['error']}');
+        }
+
+        // Wait between waypoints (3 seconds as mentioned in requirements)
+        if (i < waypoints.length - 1) {
+          await Future.delayed(Duration(seconds: 3));
+        }
+      }
+
+      _showMessage('Order execution completed successfully!', Colors.green);
+    } catch (e) {
+      _showMessage('Order execution failed: $e', Colors.red);
+    }
+  }
+
+  Future<void> _performEmergencyStop() async {
+    try {
+      // Send emergency stop to all devices
+      final devices = _selectedDeviceId == 'all'
+          ? widget.availableDevices.map((d) => d['id'] as String).toList()
+          : [_selectedDeviceId!];
+
+      for (final deviceId in devices) {
+        await _apiService.emergencyStop(deviceId);
+      }
+
+      _showMessage('EMERGENCY STOP activated for all devices!', Colors.red);
+    } catch (e) {
+      _showMessage('Emergency stop failed: $e', Colors.red);
+    }
+  }
+
+  void _showMessage(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 }

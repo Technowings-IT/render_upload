@@ -1,5 +1,5 @@
 #!/bin/bash
-# setup.sh - Automated setup script for AGV Fleet Management System
+# setup.sh - Automated setup script for AMR Fleet Management System
 
 set -e
 
@@ -13,9 +13,9 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
-PROJECT_NAME="agv-fleet-management"
-BACKEND_DIR="agv-fleet-backend"
-FRONTEND_DIR="agv_fleet_management"
+PROJECT_NAME="AMR-fleet-management"
+BACKEND_DIR="AMR-fleet-backend"
+FRONTEND_DIR="AMR_fleet_management"
 NODE_VERSION="18"
 FLUTTER_CHANNEL="stable"
 ROS_DISTRO="jazzy"
@@ -29,10 +29,10 @@ print_banner() {
     echo -e "${BLUE}"
     echo "╔═══════════════════════════════════════════════════════════════════════════════╗"
     echo "║                                                                               ║"
-    echo "║                    AGV Fleet Management System                                ║"
+    echo "║                    AMR Fleet Management System                                ║"
     echo "║                         Automated Setup Script                                ║"
     echo "║                                                                               ║"
-    echo "║  This script will install and configure the complete AGV fleet management     ║"
+    echo "║  This script will install and configure the complete AMR fleet management     ║"
     echo "║  system including ROS2, Node.js, Flutter, and all dependencies.               ║"
     echo "║                                                                               ║"
     echo "╚═══════════════════════════════════════════════════════════════════════════════╝"
@@ -147,7 +147,7 @@ install_ros2() {
     # Install development tools
     sudo apt install -y ros-dev-tools
     
-    # Install additional ROS2 packages for AGV
+    # Install additional ROS2 packages for AMR
     sudo apt install -y \
         ros-$ROS_DISTRO-navigation2 \
         ros-$ROS_DISTRO-nav2-bringup \
@@ -283,9 +283,9 @@ setup_backend() {
         # Here you would copy the package.json content we created earlier
         cat > package.json << 'EOF'
 {
-  "name": "agv-fleet-backend",
+  "name": "AMR-fleet-backend",
   "version": "1.0.0",
-  "description": "Backend server for AGV Fleet Management System with ROS2 integration",
+  "description": "Backend server for AMR Fleet Management System with ROS2 integration",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
@@ -358,7 +358,7 @@ create_launch_script() {
     
     cat > launch.sh << 'EOF'
 #!/bin/bash
-# AGV Fleet Management System Launch Script
+# AMR Fleet Management System Launch Script
 
 # Colors
 GREEN='\033[0;32m'
@@ -376,10 +376,10 @@ error() {
 
 case $1 in
     start)
-        log "Starting AGV Fleet Management System..."
+        log "Starting AMR Fleet Management System..."
         
         # Start backend
-        cd agv-fleet-backend
+        cd AMR-fleet-backend
         source /opt/ros/jazzy/setup.bash
         npm start &
         BACKEND_PID=$!
@@ -387,7 +387,7 @@ case $1 in
         cd ..
         
         # Start frontend (web)
-        cd agv_fleet_management
+        cd AMR_fleet_management
         flutter run -d chrome &
         FRONTEND_PID=$!
         echo $FRONTEND_PID > frontend.pid
@@ -396,18 +396,18 @@ case $1 in
         log "System started! Backend PID: $BACKEND_PID, Frontend PID: $FRONTEND_PID"
         ;;
     stop)
-        log "Stopping AGV Fleet Management System..."
+        log "Stopping AMR Fleet Management System..."
         
         # Stop backend
-        if [[ -f "agv-fleet-backend/backend.pid" ]]; then
-            kill $(cat agv-fleet-backend/backend.pid) 2>/dev/null || true
-            rm agv-fleet-backend/backend.pid
+        if [[ -f "AMR-fleet-backend/backend.pid" ]]; then
+            kill $(cat AMR-fleet-backend/backend.pid) 2>/dev/null || true
+            rm AMR-fleet-backend/backend.pid
         fi
         
         # Stop frontend
-        if [[ -f "agv_fleet_management/frontend.pid" ]]; then
-            kill $(cat agv_fleet_management/frontend.pid) 2>/dev/null || true
-            rm agv_fleet_management/frontend.pid
+        if [[ -f "AMR_fleet_management/frontend.pid" ]]; then
+            kill $(cat AMR_fleet_management/frontend.pid) 2>/dev/null || true
+            rm AMR_fleet_management/frontend.pid
         fi
         
         log "System stopped"
@@ -467,12 +467,12 @@ install_additional_tools() {
 create_desktop_entry() {
     log "Creating desktop entry..."
     
-    cat > ~/.local/share/applications/agv-fleet-management.desktop << EOF
+    cat > ~/.local/share/applications/AMR-fleet-management.desktop << EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=AGV Fleet Management
-Comment=AGV Fleet Management System
+Name=AMR Fleet Management
+Comment=AMR Fleet Management System
 Exec=/bin/bash -c "cd $(pwd) && ./launch.sh start"
 Icon=applications-engineering
 Terminal=true
@@ -531,7 +531,7 @@ print_completion_message() {
     echo -e "${GREEN}║                    INSTALLATION COMPLETED!                    ║${NC}"
     echo -e "${GREEN}╚═══════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "${CYAN}🎉 AGV Fleet Management System has been successfully installed!${NC}"
+    echo -e "${CYAN}🎉 AMR Fleet Management System has been successfully installed!${NC}"
     echo ""
     echo -e "${YELLOW}Next steps:${NC}"
     echo "1. Open a new terminal or run: source ~/.bashrc"
@@ -540,12 +540,12 @@ print_completion_message() {
     echo "4. Open your browser and go to: http://localhost:3000"
     echo ""
     echo -e "${YELLOW}Important notes:${NC}"
-    echo "• Make sure to configure your AGV devices in the .env file"
+    echo "• Make sure to configure your AMR devices in the .env file"
     echo "• Set the correct ROS_DOMAIN_ID for your network"
     echo "• Check the documentation in the docs/ directory"
     echo "• For production deployment, see configs/ directory"
     echo ""
-    echo -e "${CYAN}For support, visit: https://github.com/yourusername/agv-fleet-management${NC}"
+    echo -e "${CYAN}For support, visit: https://github.com/yourusername/AMR-fleet-management${NC}"
     echo ""
 }
 
@@ -560,7 +560,7 @@ main() {
     echo "• Node.js $NODE_VERSION"
     echo "• Flutter"
     echo "• Docker & Docker Compose"
-    echo "• AGV Fleet Management System"
+    echo "• AMR Fleet Management System"
     echo ""
     read -p "Do you want to continue? (y/N): " -n 1 -r
     echo

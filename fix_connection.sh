@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# AGV Fleet Management - Connection Fix Script
+# AMR Fleet Management - Connection Fix Script
 
-echo "🔧 AGV Fleet Management Connection Fix"
+echo "🔧 AMR Fleet Management Connection Fix"
 echo "====================================="
 
-cd "/home/vidit-agrawal/ agv-fleet-management "
+cd "/home/vidit-agrawal/ AMR-fleet-management "
 
 # Get current IP
 CURRENT_IP=$(ip addr show | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}' | cut -d'/' -f1 | head -1)
@@ -65,7 +65,7 @@ echo ""
 echo "✅ Fix completed! Ready to restart Flutter app."
 echo ""
 echo "🚀 To start the Flutter app:"
-echo "   cd /home/vidit-agrawal/ agv-fleet-management /frontend"
+echo "   cd /home/vidit-agrawal/ AMR-fleet-management /frontend"
 echo "   flutter run -d linux"
 echo ""
 echo "📱 Or for web:"

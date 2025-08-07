@@ -40,8 +40,8 @@ async function initializeROS() {
         
         // Always create a new node (if previous one was destroyed)
         if (!rosNode) {
-            rosNode = new rclnodejs.Node('agv_fleet_backend_node');
-            console.log('✅ ROS2 node created: agv_fleet_backend_node');
+            rosNode = new rclnodejs.Node('AMR_fleet_backend_node');
+            console.log('✅ ROS2 node created: AMR_fleet_backend_node');
         } else {
             console.log('✅ ROS2 node already exists, reusing...');
         }
@@ -112,7 +112,7 @@ async function initializeROS() {
             // Try to continue with node creation
             try {
                 if (!rosNode) {
-                    rosNode = new rclnodejs.Node('agv_fleet_backend_node');
+                    rosNode = new rclnodejs.Node('AMR_fleet_backend_node');
                     console.log('✅ ROS2 node created after context reuse');
                 }
                 
