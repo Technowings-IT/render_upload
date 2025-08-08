@@ -325,6 +325,20 @@ class EnhancedMessageHandler {
                             this.broadcastScriptStatus(deviceId, scriptType, 'stopped', `${scriptType} stopped`);
                         });
                         break;
+                    // ✅ NEW: Handle execute_script command status broadcasts
+                    case 'execute_script':
+                        const scriptName = options.script_name;
+                        if (scriptName === 'nav2.sh') {
+                            this.broadcastScriptStatus(deviceId, 'navigation', 'running', 'nav2.sh script started on Pi');
+                        } else if (scriptName === 'slam.sh') {
+                            this.broadcastScriptStatus(deviceId, 'slam', 'running', 'slam.sh script started on Pi');
+                        } else if (scriptName === 'kill.sh') {
+                            this.broadcastScriptStatus(deviceId, 'all_scripts', 'stopped', 'kill.sh executed - All processes stopped');
+                            ['robot_control', 'slam', 'navigation'].forEach(scriptType => {
+                                this.broadcastScriptStatus(deviceId, scriptType, 'stopped', `${scriptType} stopped by kill.sh`);
+                            });
+                        }
+                        break;
                 }
                 
             } catch (error) {

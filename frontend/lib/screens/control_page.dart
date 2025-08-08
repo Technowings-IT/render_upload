@@ -776,8 +776,13 @@ class _ControlPageState extends State<ControlPage>
     // Immediate robot stop
     _webSocketService.stopRobot(widget.deviceId);
 
-    // Execute kill.sh for complete system shutdown
-    _webSocketService.sendScriptCommand(widget.deviceId, 'stop_all_scripts');
+    // ✅ FIXED: Execute specific kill.sh script for complete system shutdown
+    _webSocketService
+        .sendScriptCommand(widget.deviceId, 'execute_script', options: {
+      'script_name': 'kill.sh',
+      'script_path': './scripts/kill.sh',
+      'action': 'emergency_kill'
+    });
 
     setState(() {
       _mappingActive = false;
@@ -790,7 +795,7 @@ class _ControlPageState extends State<ControlPage>
       });
     });
 
-    _showSnackBar('EMERGENCY STOP! All systems killed via kill.sh', Colors.red);
+    _showSnackBar('EMERGENCY STOP!', Colors.red);
   }
 
   // ==========================================
@@ -806,15 +811,18 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
-      _showModernSnackBar(
-          '🔴 Executing EMERGENCY KILL (kill.sh)...', SnackBarType.warning);
+      _showSnackBar('🔴 Executing kill', Colors.orange);
 
-      // Send kill command to backend
-      final success = _webSocketService.sendScriptCommand(
-          widget.deviceId, 'kill_all_processes');
+      // ✅ FIXED: Send specific kill.sh script command to backend
+      final success = _webSocketService
+          .sendScriptCommand(widget.deviceId, 'execute_script', options: {
+        'script_name': 'kill.sh',
+        'script_path': './scripts/kill.sh',
+        'action': 'run_only_this_script'
+      });
 
       if (success) {
-        // Reset all statuses
+        // Reset all statuses since kill.sh stops everything
         setState(() {
           _scriptStatus['robot_control'] = 'stopped';
           _scriptStatus['slam'] = 'stopped';
@@ -822,15 +830,12 @@ class _ControlPageState extends State<ControlPage>
           _mappingActive = false;
         });
 
-        _showModernSnackBar(
-            '✅ Emergency kill executed successfully!', SnackBarType.success);
+        _showSnackBar('✅ kill executed successfully on Pi!', Colors.green);
       } else {
-        _showModernSnackBar(
-            '❌ Failed to execute emergency kill', SnackBarType.error);
+        _showSnackBar('❌ Failed to execute kill script', Colors.red);
       }
     } catch (e) {
-      _showModernSnackBar(
-          '❌ Error executing kill script: $e', SnackBarType.error);
+      _showSnackBar('❌ Error executing kill script: $e', Colors.red);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -847,27 +852,26 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
-      _showModernSnackBar(
-          '🤖 Starting Robot Navigation (nav2.sh)...', SnackBarType.info);
+      _showSnackBar('🤖 Starting Navigation script on Pi...', Colors.blue);
 
-      // Send nav2 start command to backend
-      final success = _webSocketService.sendScriptCommand(
-          widget.deviceId, 'start_navigation',
-          options: {'script_type': 'nav2', 'auto_start': true});
+      // ✅ FIXED: Send specific nav2.sh script command to backend
+      final success = _webSocketService
+          .sendScriptCommand(widget.deviceId, 'execute_script', options: {
+        'script_name': 'nav2.sh',
+        'script_path': './scripts/nav2.sh',
+        'action': 'run_only_this_script'
+      });
 
       if (success) {
         setState(() {
           _scriptStatus['navigation'] = 'running';
         });
-        _showModernSnackBar(
-            '✅ Robot Navigation started successfully!', SnackBarType.success);
+        _showSnackBar('✅ Navigation script started successfully on Pi!', Colors.green);
       } else {
-        _showModernSnackBar(
-            '❌ Failed to start Robot Navigation', SnackBarType.error);
+        _showSnackBar('❌ Failed to start Navigation script', Colors.red);
       }
     } catch (e) {
-      _showModernSnackBar(
-          '❌ Error starting navigation: $e', SnackBarType.error);
+      _showSnackBar('❌ Error starting Navigation script: $e', Colors.red);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -884,15 +888,15 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
-      _showModernSnackBar(
-          '🗺️ Starting SLAM Mapping (slam.sh)...', SnackBarType.info);
+      _showSnackBar('🗺️ Starting Slam script on Pi...', Colors.purple);
 
-      // Send SLAM start command to backend
+      // ✅ FIXED: Send specific slam.sh script command to backend
       final success = _webSocketService
-          .sendScriptCommand(widget.deviceId, 'start_slam', options: {
-        'script_type': 'slam',
-        'map_name': 'slam_map_${DateTime.now().millisecondsSinceEpoch}',
-        'auto_start': true
+          .sendScriptCommand(widget.deviceId, 'execute_script', options: {
+        'script_name': 'slam.sh',
+        'script_path': './scripts/slam.sh',
+        'action': 'run_only_this_script',
+        'map_name': 'slam_map_${DateTime.now().millisecondsSinceEpoch}'
       });
 
       if (success) {
@@ -901,14 +905,12 @@ class _ControlPageState extends State<ControlPage>
           _mappingActive = true;
           _robotTrail.clear(); // Clear trail for new mapping session
         });
-        _showModernSnackBar(
-            '✅ SLAM Mapping started successfully!', SnackBarType.success);
+        _showSnackBar('✅ Slam script started successfully on Pi!', Colors.green);
       } else {
-        _showModernSnackBar(
-            '❌ Failed to start SLAM Mapping', SnackBarType.error);
+        _showSnackBar('❌ Failed to start Slam script', Colors.red);
       }
     } catch (e) {
-      _showModernSnackBar('❌ Error starting SLAM: $e', SnackBarType.error);
+      _showSnackBar('❌ Error starting Slam script: $e', Colors.red);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;

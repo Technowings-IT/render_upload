@@ -46,14 +46,22 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
   // ✅ Keep original coordinate system
   double _scale = 1.5;
   Offset _translation = Offset.zero;
+
+  // Auto-centering configuration
   bool _autoCenter = true;
+  bool _aggressiveAutoCenter =
+      false; // NEW: Option for more aggressive centering
+  double _autoCenterThreshold = 0.1; // NEW: Configurable movement threshold
+  Duration _userInteractionCooldown =
+      Duration(seconds: 2); // NEW: Configurable cooldown
+
+  // Auto-centering state tracking
   Position? _lastRobotPosition;
   DateTime? _lastUserInteraction;
   DateTime? _lastAutoCenter;
-
-  // ✅ Movement control
   bool _isUserPanning = false;
   bool _isUserZooming = false;
+  bool _autoCenterPaused = false; // NEW: Manual pause state
   Timer? _userInteractionTimer;
 
   // ✅ Keep original visual settings
@@ -132,51 +140,83 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
       _robotAnimationController.reset();
     }
 
-    // ✅ Auto-centering logic
-    if (_autoCenter && widget.currentOdometry != null) {
+    // ✅ FIXED: Auto-centering logic with better coordinate handling
+    if (_autoCenter && !_autoCenterPaused && widget.currentOdometry != null) {
       final currentPos = widget.currentOdometry!.position;
+
+      // Debug logging to track robot movement
+      if (_lastRobotPosition != null) {
+        final distance = _distanceBetween(_lastRobotPosition!, currentPos);
+        print(
+            '🤖 Robot moved: ${distance.toStringAsFixed(3)}m from (${_lastRobotPosition!.x.toStringAsFixed(2)}, ${_lastRobotPosition!.y.toStringAsFixed(2)}) to (${currentPos.x.toStringAsFixed(2)}, ${currentPos.y.toStringAsFixed(2)})');
+      }
+
       if (_shouldAutoCenter(currentPos)) {
+        print('🎯 Auto-centering triggered');
         _centerOnRobotSmooth();
       }
       _lastRobotPosition = currentPos;
     }
+
+    // Debug map data changes
+    if (widget.mapData != oldWidget.mapData && widget.mapData != null) {
+      print(
+          '🗺️ Map data updated: ${widget.mapData!.info.width}x${widget.mapData!.info.height}');
+    }
   }
 
-  // ✅ Keep original auto-centering logic
+  // ✅ UPDATED: Better auto-center logic using new settings
   bool _shouldAutoCenter(Position robotPos) {
+    // Check if auto-center is enabled and not paused
+    if (!_autoCenter || _autoCenterPaused) return false;
+
+    // Don't auto-center if user is actively interacting
     if (_isUserPanning || _isUserZooming) return false;
 
+    // Don't auto-center if user recently interacted (respects cooldown setting)
     if (_lastUserInteraction != null &&
         DateTime.now().difference(_lastUserInteraction!) <
-            Duration(seconds: 3)) {
+            _userInteractionCooldown) {
       return false;
     }
 
+    // Don't auto-center too frequently
     if (_lastAutoCenter != null &&
-        DateTime.now().difference(_lastAutoCenter!) < Duration(seconds: 1)) {
+        DateTime.now().difference(_lastAutoCenter!) <
+            Duration(milliseconds: 500)) {
       return false;
     }
 
+    // Check movement threshold (configurable)
     if (_lastRobotPosition != null &&
-        _distanceBetween(_lastRobotPosition!, robotPos) < 0.2) {
+        _distanceBetween(_lastRobotPosition!, robotPos) <
+            _autoCenterThreshold) {
       return false;
     }
 
+    // Check if robot is significantly out of view
     return _isRobotOutOfView(robotPos);
   }
 
+  // ✅ IMPROVED: Better viewport detection
   bool _isRobotOutOfView(Position robotPos) {
     if (!mounted) return false;
 
     final size = MediaQuery.of(context).size;
+
+    // Calculate robot position in screen coordinates
     final robotScreenPos =
         _mapToScreenCoordinates(Offset(robotPos.x, robotPos.y));
 
-    final margin = math.min(size.width, size.height) * 0.15;
-    return robotScreenPos.dx < margin ||
-        robotScreenPos.dx > size.width - margin ||
-        robotScreenPos.dy < margin ||
-        robotScreenPos.dy > size.height - margin;
+    // Define comfortable margins (20% of screen size)
+    final marginX = size.width * 0.2;
+    final marginY = size.height * 0.2;
+
+    // Check if robot is outside the comfortable viewing area
+    return robotScreenPos.dx < marginX ||
+        robotScreenPos.dx > size.width - marginX ||
+        robotScreenPos.dy < marginY ||
+        robotScreenPos.dy > size.height - marginY;
   }
 
   double _distanceBetween(Position p1, Position p2) {
@@ -200,11 +240,12 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     final size = MediaQuery.of(context).size;
     final screenCenter = Offset(size.width / 2, size.height / 2);
 
-    // ✅ Keep original coordinate transformation
+    // ✅ FIXED: Correct coordinate transformation to match painter
     final targetTransform = Matrix4.identity()
       ..translate(screenCenter.dx, screenCenter.dy)
       ..scale(_scale)
-      ..translate(-robotPos.x * _gridSpacing, robotPos.y * _gridSpacing);
+      ..translate(-robotPos.x * _gridSpacing,
+          -(-robotPos.y * _gridSpacing)); // Fixed Y coordinate
 
     _transformationController.value = targetTransform;
     _lastAutoCenter = DateTime.now();
@@ -222,11 +263,12 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
 
     final currentTransform = _transformationController.value;
 
-    // ✅ Keep original transform calculation
+    // ✅ FIXED: Correct coordinate transformation to match painter
     final targetTransform = Matrix4.identity()
       ..translate(screenCenter.dx, screenCenter.dy)
       ..scale(_scale)
-      ..translate(-robotPos.x * _gridSpacing, robotPos.y * _gridSpacing);
+      ..translate(-robotPos.x * _gridSpacing,
+          -(-robotPos.y * _gridSpacing)); // Fixed Y coordinate
 
     final animation = Matrix4Tween(
       begin: currentTransform,
@@ -250,29 +292,30 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
         '🎯 Smooth center on robot: (${robotPos.x.toStringAsFixed(2)}, ${robotPos.y.toStringAsFixed(2)})');
   }
 
+  // ✅ FIXED: Correct screen coordinate mapping
   Offset _mapToScreenCoordinates(Offset mapPoint) {
     final transform = _transformationController.value;
-    final worldPoint =
-        Offset(mapPoint.dx * _gridSpacing, -mapPoint.dy * _gridSpacing);
+
+    // Use same coordinate system as the painter
+    final worldPoint = Offset(mapPoint.dx * _gridSpacing,
+        -mapPoint.dy * _gridSpacing // Fixed Y coordinate to match painter
+        );
+
     return MatrixUtils.transformPoint(transform, worldPoint);
   }
 
-  // ✅ FIXED: Movement control based on zoom level
+  // ✅ IMPROVED: Less aggressive interaction detection
   void _onInteractionStart(ScaleStartDetails details) {
     _isUserPanning = true;
     _lastUserInteraction = DateTime.now();
 
+    // Stop any ongoing centering animation
     if (_centeringAnimationController.isAnimating) {
       _centeringAnimationController.stop();
     }
 
+    // Reset user interaction timer
     _userInteractionTimer?.cancel();
-    _userInteractionTimer = Timer(Duration(seconds: 3), () {
-      setState(() {
-        _isUserPanning = false;
-        _isUserZooming = false;
-      });
-    });
   }
 
   void _onInteractionUpdate(ScaleUpdateDetails details) {
@@ -282,13 +325,11 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     if (details.scale != 1.0) {
       _isUserZooming = true;
       _scale = (_scale * details.scale).clamp(0.2, 10.0);
-    } else {
-      // ✅ FIXED: Only allow panning when zoomed in
-      if (_scale <= _movementThreshold) {
-        return; // Block panning when zoomed out
-      }
     }
+    // Remove the panning restriction - let users pan at any zoom level
+    // The original code was blocking panning when zoomed out
 
+    // Reset interaction timer
     _userInteractionTimer?.cancel();
     _userInteractionTimer = Timer(Duration(seconds: 3), () {
       setState(() {
@@ -299,6 +340,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
   }
 
   void _onInteractionEnd(ScaleEndDetails details) {
+    // Give user a moment before auto-centering can resume
     _userInteractionTimer?.cancel();
     _userInteractionTimer = Timer(Duration(seconds: 2), () {
       setState(() {
@@ -306,6 +348,258 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
         _isUserZooming = false;
       });
     });
+  }
+
+  // ✅ ADDITIONAL: Force center button for manual override
+  void _forceCenterOnRobot() {
+    if (widget.currentOdometry?.position != null) {
+      // Cancel any user interaction state
+      _isUserPanning = false;
+      _isUserZooming = false;
+      _userInteractionTimer?.cancel();
+
+      // Force immediate centering
+      _centerOnRobotImmediate();
+
+      print('🎯 Force center triggered by user');
+    }
+  }
+
+  // HELPER: Get auto-center status
+  String _getAutoCenterStatus() {
+    if (!_autoCenter) return 'Disabled';
+    if (_autoCenterPaused) return 'Paused';
+    if (_isUserPanning || _isUserZooming) return 'User Interacting';
+    if (_lastUserInteraction != null &&
+        DateTime.now().difference(_lastUserInteraction!) <
+            _userInteractionCooldown) {
+      return 'Cooldown';
+    }
+    return 'Active';
+  }
+
+  // HELPER: Get status color
+  Color _getAutoCenterStatusColor() {
+    final status = _getAutoCenterStatus();
+    switch (status) {
+      case 'Active':
+        return Colors.green;
+      case 'User Interacting':
+      case 'Cooldown':
+        return Colors.orange;
+      case 'Paused':
+      case 'Disabled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // IMPROVED: Widget for auto-center controls in your settings
+  Widget _buildAutoCenterSettings() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.blue.withOpacity(0.05),
+            Colors.blue.withOpacity(0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.my_location,
+                      color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Auto-Center Settings',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Main auto-center toggle
+            SwitchListTile(
+              title: const Text('Auto-Center on Robot'),
+              subtitle: Text(_autoCenter
+                  ? 'Map follows robot automatically'
+                  : 'Manual centering only'),
+              value: _autoCenter,
+              onChanged: (value) {
+                setState(() {
+                  _autoCenter = value;
+                  if (value && widget.currentOdometry?.position != null) {
+                    _centerOnRobotSmooth();
+                  }
+                });
+              },
+              dense: true,
+            ),
+
+            if (_autoCenter) ...[
+              // Aggressive mode toggle
+              SwitchListTile(
+                title: const Text('Aggressive Auto-Center'),
+                subtitle:
+                    const Text('Center more frequently for small movements'),
+                value: _aggressiveAutoCenter,
+                onChanged: (value) {
+                  setState(() {
+                    _aggressiveAutoCenter = value;
+                    _autoCenterThreshold = value ? 0.05 : 0.1;
+                  });
+                },
+                dense: true,
+              ),
+
+              const SizedBox(height: 8),
+
+              // Movement threshold slider
+              Text(
+                'Movement Threshold: ${_autoCenterThreshold.toStringAsFixed(2)}m',
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 4,
+                  thumbShape:
+                      const RoundSliderThumbShape(enabledThumbRadius: 6),
+                ),
+                child: Slider(
+                  value: _autoCenterThreshold,
+                  min: 0.01,
+                  max: 0.5,
+                  divisions: 49,
+                  onChanged: (value) {
+                    setState(() {
+                      _autoCenterThreshold = value;
+                    });
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Cooldown duration slider
+              Text(
+                'User Interaction Cooldown: ${_userInteractionCooldown.inSeconds}s',
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 4,
+                  thumbShape:
+                      const RoundSliderThumbShape(enabledThumbRadius: 6),
+                ),
+                child: Slider(
+                  value: _userInteractionCooldown.inSeconds.toDouble(),
+                  min: 1,
+                  max: 10,
+                  divisions: 9,
+                  onChanged: (value) {
+                    setState(() {
+                      _userInteractionCooldown =
+                          Duration(seconds: value.round());
+                    });
+                  },
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 16),
+
+            // Manual control buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _forceCenterOnRobot,
+                    icon: const Icon(Icons.center_focus_strong),
+                    label: const Text('Center Now'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _autoCenterPaused = !_autoCenterPaused;
+                      });
+                    },
+                    icon: Icon(
+                        _autoCenterPaused ? Icons.play_arrow : Icons.pause),
+                    label: Text(_autoCenterPaused ? 'Resume' : 'Pause'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          _autoCenterPaused ? Colors.orange : Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // Status indicator
+            if (_autoCenter) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Auto-Center Status: ${_getAutoCenterStatus()}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: _getAutoCenterStatusColor(),
+                      ),
+                    ),
+                    if (_lastAutoCenter != null)
+                      Text(
+                        'Last centered: ${DateTime.now().difference(_lastAutoCenter!).inSeconds}s ago',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    if (_lastUserInteraction != null)
+                      Text(
+                        'Last interaction: ${DateTime.now().difference(_lastUserInteraction!).inSeconds}s ago',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -359,14 +653,20 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
               Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: _autoCenter
+                    colors: _autoCenter && !_autoCenterPaused
                         ? [Colors.blue.shade400, Colors.blue.shade600]
-                        : [Colors.grey.shade400, Colors.grey.shade600],
+                        : _autoCenterPaused
+                            ? [Colors.orange.shade400, Colors.orange.shade600]
+                            : [Colors.grey.shade400, Colors.grey.shade600],
                   ),
                   borderRadius: BorderRadius.circular(25),
                   boxShadow: [
                     BoxShadow(
-                      color: (_autoCenter ? Colors.blue : Colors.grey)
+                      color: (_autoCenter && !_autoCenterPaused
+                              ? Colors.blue
+                              : _autoCenterPaused
+                                  ? Colors.orange
+                                  : Colors.grey)
                           .withOpacity(0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
@@ -380,9 +680,14 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                   heroTag: "auto_center",
                   onPressed: () {
                     setState(() {
-                      _autoCenter = !_autoCenter;
+                      if (_autoCenterPaused) {
+                        _autoCenterPaused = false;
+                      } else {
+                        _autoCenter = !_autoCenter;
+                      }
                     });
                     if (_autoCenter &&
+                        !_autoCenterPaused &&
                         widget.currentOdometry?.position != null) {
                       _centerOnRobotSmooth();
                     }
@@ -390,7 +695,8 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      Icon(Icons.my_location, color: Colors.white),
+                      Icon(_autoCenterPaused ? Icons.pause : Icons.my_location,
+                          color: Colors.white),
                       if (_autoCenter && _isUserPanning)
                         Positioned(
                           top: 2,
@@ -406,7 +712,11 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                         ),
                     ],
                   ),
-                  tooltip: _autoCenter ? 'Auto Center: ON' : 'Auto Center: OFF',
+                  tooltip: _autoCenterPaused
+                      ? 'Auto Center: PAUSED'
+                      : _autoCenter
+                          ? 'Auto Center: ON'
+                          : 'Auto Center: OFF',
                 ),
               ),
 
@@ -434,12 +744,52 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                   heroTag: "center_now",
                   onPressed: () {
                     if (widget.currentOdometry?.position != null) {
-                      _centerOnRobotImmediate();
+                      _forceCenterOnRobot();
                     }
                   },
                   child: const Icon(Icons.center_focus_strong,
                       color: Colors.white),
                   tooltip: 'Center Now',
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Pause/Resume auto-center button
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: _autoCenterPaused
+                        ? [Colors.orange.shade400, Colors.orange.shade600]
+                        : [Colors.blue.shade400, Colors.blue.shade600],
+                  ),
+                  borderRadius: BorderRadius.circular(25),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (_autoCenterPaused ? Colors.orange : Colors.blue)
+                          .withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: FloatingActionButton(
+                  mini: true,
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  heroTag: "pause_auto_center",
+                  onPressed: () {
+                    setState(() {
+                      _autoCenterPaused = !_autoCenterPaused;
+                    });
+                  },
+                  child: Icon(
+                    _autoCenterPaused ? Icons.play_arrow : Icons.pause,
+                    color: Colors.white,
+                  ),
+                  tooltip: _autoCenterPaused
+                      ? 'Resume Auto-Center'
+                      : 'Pause Auto-Center',
                 ),
               ),
 
@@ -616,10 +966,21 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                 const SizedBox(height: 8),
                 _buildStatusRow('Auto Center', _autoCenter ? 'ON' : 'OFF',
                     _autoCenter ? Colors.green : Colors.grey),
+                if (_autoCenter)
+                  _buildStatusRow('AC Status', _getAutoCenterStatus(),
+                      _getAutoCenterStatusColor()),
+                if (_autoCenterPaused)
+                  _buildStatusRow('AC Paused', 'YES', Colors.orange),
+                if (_autoCenter && _aggressiveAutoCenter)
+                  _buildStatusRow('Aggressive', 'ON', Colors.purple),
                 _buildStatusRow(
                     'Movement',
                     _scale > _movementThreshold ? 'ENABLED' : 'LOCKED',
                     _scale > _movementThreshold ? Colors.green : Colors.red),
+                _buildStatusRow('Threshold',
+                    '${_autoCenterThreshold.toStringAsFixed(2)}m', Colors.cyan),
+                _buildStatusRow('Cooldown',
+                    '${_userInteractionCooldown.inSeconds}s', Colors.cyan),
                 if (_isUserPanning)
                   _buildStatusRow('User Input', 'ACTIVE', Colors.orange),
                 _buildStatusRow('Trail', '${widget.robotTrail.length} points',

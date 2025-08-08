@@ -123,7 +123,7 @@ const config = {
             'http://localhost:8080',
             'http://127.0.0.1:3000',
             'http://127.0.0.1:8080',
-            'http://192.168.0.81:3000', // ✅ FIXED: Your AMR IP
+            'http://192.168.0.69:3000', // ✅ FIXED: Your AMR IP
             'http://192.168.0.76:3000',  // ✅ FIXED: Your backend IP
             'http://192.168.0.*:*',      // ✅ FIXED: Allow entire subnet
             '*' // ✅ FIXED: Allow all origins for development

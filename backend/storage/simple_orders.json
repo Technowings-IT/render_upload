@@ -45,8 +45,12 @@
         "y": -24.236542957373604
       }
     ],
-    "status": "pending",
+    "status": "completed",
     "currentCoordinate": 0,
-    "createdAt": "2025-08-07T13:41:30.726Z"
+    "createdAt": "2025-08-07T13:41:30.726Z",
+    "startedAt": "2025-08-07T14:15:53.947Z",
+    "updatedAt": "2025-08-07T14:15:54.256Z",
+    "completedAt": "2025-08-07T14:15:54.256Z",
+    "statusReason": "All coordinates executed successfully"
   }
 ]

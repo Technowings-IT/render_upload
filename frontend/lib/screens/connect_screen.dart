@@ -179,7 +179,7 @@ class _ConnectScreenState extends State<ConnectScreen>
   void _loadSavedConnections() {
     setState(() {
       _manualBackendIpController.text = '192.168.0.75';
-      _manualDeviceIpController.text = '192.168.0.81';
+      _manualDeviceIpController.text = '192.168.0.69';
     });
   }
 
@@ -863,7 +863,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 child: _buildModernTextField(
                   controller: _manualDeviceIpController,
                   label: 'AMR IP Address',
-                  hint: '192.168.0.81',
+                  hint: '192.168.0.69',
                   icon: Icons.smart_toy,
                   theme: theme,
                   keyboardType: TextInputType.numberWithOptions(decimal: true),

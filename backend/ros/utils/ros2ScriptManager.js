@@ -21,7 +21,7 @@ class ROS2ScriptManager extends EventEmitter {
         
         // Raspberry Pi SSH configuration - can be updated via updatePiConfig
         this.piConfig = {
-            host: '192.168.0.81',
+            host: '192.168.0.69',
             username: 'piros',
             password: 'piros',
             port: 22
@@ -31,7 +31,7 @@ class ROS2ScriptManager extends EventEmitter {
         this.piScriptPaths = {
             slam: '/home/piros/scripts/slam.sh',
             navigation: '/home/piros/scripts/nav2.sh',
-            kill: '/home/piros/scripts/kill.sh'
+            kill: '/home/piros/scripts/kill_all.sh'
         };
         
         // Track SSH connections
@@ -467,6 +467,11 @@ class ROS2ScriptManager extends EventEmitter {
                     result = await this.killAllRosProcesses();
                     break;
                     
+                // ✅ NEW: Handle specific script execution
+                case 'execute_script':
+                    result = await this.executeSpecificScript(options);
+                    break;
+                    
                 case 'emergency_stop':
                     result = await this.emergencyStop();
                     break;
@@ -509,6 +514,172 @@ class ROS2ScriptManager extends EventEmitter {
             this.log(`Script command failed: ${error.message}`);
             throw error;
         }
+    }
+
+    // ✅ NEW: Execute specific script directly on Pi
+    async executeSpecificScript(options) {
+        const { script_name, script_path, action, map_name } = options;
+        
+        if (!script_name) {
+            throw new Error('script_name is required');
+        }
+        
+        this.log(`🎯 Executing specific script: ${script_name} on Pi`);
+        this.log(`📂 Script path: ${script_path || 'default'}`);
+        this.log(`🎬 Action: ${action || 'run_only_this_script'}`);
+        
+        try {
+            const result = await this.executePiScript(script_name, script_path, {
+                action,
+                map_name,
+                force_kill_others: false // Only run this script, don't kill others
+            });
+            
+            // Update process status based on script
+            switch (script_name) {
+                case 'nav2.sh':
+                    this.processStatus.navigation = 'running';
+                    break;
+                case 'slam.sh':
+                    this.processStatus.slam = 'running';
+                    break;
+                case 'kill.sh':
+                case 'kill_all.sh':
+                    // Kill script stops everything
+                    this.processStatus.navigation = 'stopped';
+                    this.processStatus.slam = 'stopped';
+                    this.processStatus.robot_control = 'stopped';
+                    break;
+            }
+            
+            return {
+                success: true,
+                message: `${script_name} executed successfully on Pi`,
+                script_name,
+                script_path: script_path || `./scripts/${script_name}`,
+                action: action || 'run_only_this_script',
+                output: result.stdout || '',
+                timestamp: new Date().toISOString()
+            };
+            
+        } catch (error) {
+            this.log(`❌ Failed to execute ${script_name}: ${error.message}`);
+            throw new Error(`Failed to execute ${script_name}: ${error.message}`);
+        }
+    }
+
+        // ✅ NEW: Execute script directly on Pi via SSH
+    async executePiScript(scriptName, scriptPath, options = {}) {
+        return new Promise((resolve, reject) => {
+            const conn = new Client();
+            const timeout = setTimeout(() => {
+                conn.end();
+                reject(new Error(`Script execution timeout for ${scriptName}`));
+            }, 30000); // 30 second timeout
+            
+            conn.on('ready', () => {
+                this.log(`📡 SSH connected for ${scriptName} execution`);
+                
+                // ✅ FIXED: Always use absolute paths from piScriptPaths first
+                let actualPath;
+                const scriptKey = scriptName.replace('.sh', '');
+                
+                // Priority: 1. Predefined paths, 2. Absolute path, 3. Default absolute path
+                if (this.piScriptPaths[scriptKey]) {
+                    actualPath = this.piScriptPaths[scriptKey];
+                    this.log(`🎯 Using predefined path: ${actualPath}`);
+                } else if (scriptPath && scriptPath.startsWith('/')) {
+                    actualPath = scriptPath;
+                    this.log(`🎯 Using provided absolute path: ${actualPath}`);
+                } else {
+                    actualPath = `/home/piros/scripts/${scriptName}`;
+                    this.log(`🎯 Using default absolute path: ${actualPath}`);
+                }
+                
+                // ✅ FIXED: Build command for background execution with nohup
+                let command;
+                switch (scriptName) {
+                    case 'nav2.sh':
+                        // Run nav2 in background with nohup to prevent it from stopping when SSH closes
+                        command = `cd /home/piros/scripts && nohup bash ${actualPath} > /tmp/nav2_output.log 2>&1 & echo $!`;
+                        break;
+                    case 'slam.sh':
+                        const mapName = options.map_name || `slam_map_${Date.now()}`;
+                        // Run SLAM in background with nohup
+                        command = `cd /home/piros/scripts && nohup bash ${actualPath} "${mapName}" > /tmp/slam_output.log 2>&1 & echo $!`;
+                        break;
+                    case 'kill.sh':
+                    case 'kill_all.sh':
+                        // Kill script should run immediately, not in background
+                        command = `chmod +x ${actualPath} && ${actualPath}`;
+                        break;
+                    default:
+                        // Default: run in background
+                        command = `cd /home/piros/scripts && nohup bash ${actualPath} > /tmp/${scriptName}_output.log 2>&1 & echo $!`;
+                }
+                
+                this.log(`🚀 Executing command: ${command}`);
+                
+                conn.exec(command, (err, stream) => {
+                    if (err) {
+                        clearTimeout(timeout);
+                        conn.end();
+                        return reject(new Error(`Failed to execute ${scriptName}: ${err.message}`));
+                    }
+                    
+                    let stdout = '';
+                    let stderr = '';
+                    
+                    stream.on('data', (data) => {
+                        stdout += data.toString();
+                        this.log(`📄 ${scriptName} stdout: ${data.toString().trim()}`);
+                    });
+                    
+                    stream.stderr.on('data', (data) => {
+                        stderr += data.toString();
+                        this.log(`⚠️ ${scriptName} stderr: ${data.toString().trim()}`);
+                    });
+                    
+                    stream.on('close', (code) => {
+                        clearTimeout(timeout);
+                        conn.end();
+                        
+                        this.log(`✅ ${scriptName} execution completed with code: ${code}`);
+                        
+                        // For background processes, store PID if available
+                        if (scriptName !== 'kill.sh' && scriptName !== 'kill_all.sh') {
+                            const pid = stdout.trim();
+                            if (pid && !isNaN(pid)) {
+                                this.processPIDs[scriptKey] = pid;
+                                this.log(`🆔 Stored PID ${pid} for ${scriptName}`);
+                            }
+                        }
+                        
+                        if (code === 0) {
+                            resolve({
+                                success: true,
+                                stdout,
+                                stderr,
+                                exitCode: code,
+                                pid: stdout.trim(),
+                                timestamp: new Date().toISOString()
+                            });
+                        } else {
+                            reject(new Error(`${scriptName} failed with exit code ${code}: ${stderr || stdout}`));
+                        }
+                    });
+                });
+            });
+            
+            conn.on('error', (err) => {
+                clearTimeout(timeout);
+                this.log(`❌ SSH connection error for ${scriptName}: ${err.message}`);
+                reject(new Error(`SSH connection failed: ${err.message}`));
+            });
+            
+            // Connect to Pi
+            conn.connect(this.piConfig);
+        });
     }
 
     // ==========================================
@@ -928,7 +1099,7 @@ class ROS2ScriptManager extends EventEmitter {
     // DEPLOYMENT TO RASPBERRY PI
     // ==========================================
 
-    async deployMapToRaspberryPi(mapName, piAddress = '192.168.0.81') {
+    async deployMapToRaspberryPi(mapName, piAddress = '192.168.0.69') {
         try {
             await this.log(`Deploying map ${mapName} to Raspberry Pi: ${piAddress}`);
             

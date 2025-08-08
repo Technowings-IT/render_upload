@@ -24,7 +24,7 @@ const upload = multer({
 // SSH CONFIGURATION - Add to your config.js
 // ==========================================
 const SSH_CONFIG = {
-    host: process.env.RASPBERRY_PI_HOST || '192.168.0.81', // Default Pi IP
+    host: process.env.RASPBERRY_PI_HOST || '192.168.0.69', // Default Pi IP
     port: process.env.RASPBERRY_PI_PORT || 22,
     username: process.env.RASPBERRY_PI_USER || 'piros',
     password: process.env.RASPBERRY_PI_PASSWORD || 'piros',

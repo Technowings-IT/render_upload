@@ -914,7 +914,7 @@ async function initializeApplication() {
                         id: 'piros', // Changed to match your device name
                         name: 'Primary AMR',
                         type: 'differential_drive',
-                        ipAddress: '192.168.0.81', // Your AMR's IP
+                        ipAddress: '192.168.0.69', // Your AMR's IP
                         capabilities: config.DEVICE.CAPABILITIES,
                         autoConnected: true
                     };
