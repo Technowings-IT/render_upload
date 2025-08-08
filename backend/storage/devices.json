@@ -1,20 +1,17 @@
 [
   {
     "id": "piros",
-    "name": "amr",
+    "name": "mirai-x",
+    "ipAddress": "192.168.0.69",
     "type": "differential_drive",
-    "ipAddress": "192.168.0.81",
     "capabilities": [
       "mapping",
       "navigation",
       "remote_control"
     ],
-    "autoConnected": true,
-    "connectedAt": "2025-08-07T09:48:11.396Z",
-    "lastConnected": "2025-08-07T09:48:11.396Z",
     "status": "disconnected",
-    "lastSaved": "2025-08-07T09:48:11.396Z",
-    "lastStartup": "2025-08-08T06:48:44.086Z",
-    "lastSeen": "2025-08-07T14:14:09.887Z"
+    "connectedAt": "2025-08-08T09:44:49.398Z",
+    "lastSeen": "2025-08-08T09:44:49.398Z",
+    "lastStartup": "2025-08-08T10:03:55.216Z"
   }
 ]

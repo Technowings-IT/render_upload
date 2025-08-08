@@ -55,6 +55,11 @@ class _ConnectScreenState extends State<ConnectScreen>
   String _connectionStatus = 'Initializing...';
   int _currentTabIndex = 0;
 
+  // ✅ Device deletion and retry tracking
+  Set<String> _removingDevices = {};
+  Set<String> _retryingDevices = {};
+  Set<String> _connectingDevices = {};
+
   // Stream subscriptions
   late StreamSubscription _deviceEventsSubscription;
   late StreamSubscription _connectionStateSubscription;
@@ -66,6 +71,36 @@ class _ConnectScreenState extends State<ConnectScreen>
     _initializeConnections();
     _loadSavedConnections();
     _startInitialDiscovery();
+  }
+
+  // ✅ NEW: Helper methods to determine actual device status based on backend connectivity
+  String _getActualDeviceStatus(String deviceStatus) {
+    if (!_isWebSocketConnected) {
+      // If backend is disconnected, all devices are effectively disconnected
+      return 'disconnected';
+    }
+
+    // If backend is connected, return the actual device status
+    return deviceStatus;
+  }
+
+  String _getDeviceStatusLabel(String deviceStatus) {
+    if (!_isWebSocketConnected) {
+      return 'BACKEND DISCONNECTED';
+    }
+
+    switch (deviceStatus) {
+      case 'connecting':
+        return 'CONNECTING';
+      case 'connected':
+        return 'CONNECTED';
+      case 'disconnected':
+        return 'DISCONNECTED';
+      case 'error':
+        return 'ERROR';
+      default:
+        return deviceStatus.toUpperCase();
+    }
   }
 
   @override
@@ -453,6 +488,37 @@ class _ConnectScreenState extends State<ConnectScreen>
                       _connectionStatus,
                       style: theme.bodyLarge,
                     ),
+                    // ✅ NEW: Show device connectivity notice
+                    if (!_isWebSocketConnected &&
+                        _connectedDevices.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: theme.warningColor.withOpacity(0.1),
+                          borderRadius: theme.borderRadiusSmall,
+                          border: Border.all(
+                              color: theme.warningColor.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning,
+                                color: theme.warningColor, size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${_connectedDevices.length} device(s) offline due to backend disconnection',
+                                style: theme.bodySmall.copyWith(
+                                  color: theme.warningColor,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (_detectedBackendIP != null) ...[
                       const SizedBox(height: 12),
                       Container(
@@ -1094,12 +1160,29 @@ class _ConnectScreenState extends State<ConnectScreen>
     final deviceId = device['id']?.toString() ?? '';
     final deviceName = device['name']?.toString() ?? deviceId;
     final deviceStatus = device['status']?.toString() ?? 'unknown';
-    final isOnline = deviceStatus == 'connected';
+
+    // ✅ UPDATED: Device is only truly online if both device is connected AND backend is connected
+    final isDeviceConnected = deviceStatus == 'connected';
+    final isOnline = isDeviceConnected && _isWebSocketConnected;
+
+    final isConnecting =
+        deviceStatus == 'connecting' || _connectingDevices.contains(deviceId);
+    final isRemoving = _removingDevices.contains(deviceId);
+    final isRetrying = _retryingDevices.contains(deviceId);
+
+    // ✅ Don't show device if it's being removed
+    if (isRemoving) {
+      return Container(); // Return empty container for smooth removal animation
+    }
 
     return ModernGlassCard(
-      showGlow: isOnline,
-      glowColor: isOnline ? theme.successColor : theme.errorColor,
-      onTap: () => _navigateToControl(device),
+      showGlow: isOnline || isConnecting,
+      glowColor: isOnline
+          ? theme.successColor
+          : isConnecting
+              ? theme.warningColor
+              : theme.errorColor,
+      onTap: isOnline ? () => _navigateToControl(device) : null,
       child: Row(
         children: [
           // Device icon and status
@@ -1114,11 +1197,29 @@ class _ConnectScreenState extends State<ConnectScreen>
                             theme.successColor,
                             theme.successColor.withOpacity(0.7)
                           ]
-                        : [theme.errorColor, theme.errorColor.withOpacity(0.7)],
+                        : isConnecting
+                            ? [
+                                theme.warningColor,
+                                theme.warningColor.withOpacity(0.7)
+                              ]
+                            : [
+                                theme.errorColor,
+                                theme.errorColor.withOpacity(0.7)
+                              ],
                   ),
                   borderRadius: theme.borderRadiusMedium,
                 ),
-                child: Icon(Icons.smart_toy, color: Colors.white, size: 32),
+                child: isConnecting
+                    ? SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Icon(Icons.smart_toy, color: Colors.white, size: 32),
               ),
               Positioned(
                 right: 0,
@@ -1128,7 +1229,11 @@ class _ConnectScreenState extends State<ConnectScreen>
                   height: 16,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isOnline ? theme.successColor : theme.errorColor,
+                    color: isOnline
+                        ? theme.successColor
+                        : isConnecting
+                            ? theme.warningColor
+                            : theme.errorColor,
                     border: Border.all(color: Colors.white, width: 2),
                     boxShadow: theme.elevationSmall,
                   ),
@@ -1149,15 +1254,28 @@ class _ConnectScreenState extends State<ConnectScreen>
                 Text('ID: $deviceId', style: theme.bodySmall),
                 const SizedBox(height: 8),
                 RoboticStatusIndicator(
-                  status: deviceStatus,
-                  label: deviceStatus.toUpperCase(),
-                  animated: isOnline,
+                  status: _getActualDeviceStatus(deviceStatus),
+                  label: _getDeviceStatusLabel(deviceStatus),
+                  animated: isOnline || isConnecting,
                 ),
                 if (device['ipAddress'] != null) ...[
                   const SizedBox(height: 8),
-                  Text(
-                    'IP: ${device['ipAddress']}',
-                    style: theme.monospace.copyWith(fontSize: 12),
+                  Row(
+                    children: [
+                      Text(
+                        'IP: ${device['ipAddress']}',
+                        style: theme.monospace.copyWith(fontSize: 12),
+                      ),
+                      if (device['port'] != null) ...[
+                        Text(
+                          ':${device['port']}',
+                          style: theme.monospace.copyWith(
+                            fontSize: 12,
+                            color: theme.accentColor,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ],
@@ -1167,17 +1285,72 @@ class _ConnectScreenState extends State<ConnectScreen>
           // Action buttons
           Column(
             children: [
-              ModernActionButton(
-                label: 'Control',
-                icon: Icons.gamepad,
-                onPressed: () => _navigateToControl(device),
-                isSecondary: true,
-              ),
+              // ✅ UPDATED: Primary action button - Control, Retry, or Backend Disconnected
+              if (isOnline)
+                ModernActionButton(
+                  label: 'Control',
+                  icon: Icons.gamepad,
+                  onPressed: () => _navigateToControl(device),
+                  isSecondary: true,
+                )
+              else if (!_isWebSocketConnected) ...[
+                // ✅ NEW: Backend disconnected state
+                ModernActionButton(
+                  label: 'Backend Off',
+                  icon: Icons.wifi_off,
+                  onPressed: () {},
+                  isSecondary: false,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Connect backend first',
+                  style: theme.bodySmall.copyWith(
+                    color: theme.errorColor,
+                    fontSize: 10,
+                  ),
+                ),
+              ] else if (isConnecting) ...[
+                // ✅ Connecting state
+                ModernActionButton(
+                  label: 'Connecting...',
+                  icon: Icons.wifi,
+                  onPressed: () {},
+                  isLoading: true,
+                  isSecondary: false,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Establishing connection',
+                  style: theme.bodySmall.copyWith(
+                    color: theme.warningColor,
+                    fontSize: 10,
+                  ),
+                ),
+              ] else ...[
+                // ✅ Retry button for disconnected devices (only when backend is connected)
+                ModernActionButton(
+                  label: isRetrying ? 'Retrying...' : 'Retry',
+                  icon: isRetrying ? Icons.refresh : Icons.refresh,
+                  onPressed:
+                      isRetrying ? () {} : () => _retryConnection(device),
+                  isLoading: isRetrying,
+                  isSecondary: false,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Device disconnected',
+                  style: theme.bodySmall.copyWith(
+                    color: theme.errorColor,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
-              IconButton(
-                onPressed: () => _showDeviceOptions(device),
-                icon: Icon(Icons.more_vert, color: theme.accentColor),
-              ),
+              if (!isConnecting) // Only show options when not connecting
+                IconButton(
+                  onPressed: () => _showDeviceOptions(device),
+                  icon: Icon(Icons.more_vert, color: theme.accentColor),
+                ),
             ],
           ),
         ],
@@ -1343,6 +1516,7 @@ class _ConnectScreenState extends State<ConnectScreen>
     final deviceId = _manualDeviceIdController.text.trim();
     final deviceName = _manualDeviceNameController.text.trim();
     final deviceIp = _manualDeviceIpController.text.trim();
+    final devicePort = _manualDevicePortController.text.trim();
 
     if (deviceId.isEmpty || deviceIp.isEmpty) {
       _showErrorSnackBar('Device ID and IP Address are required');
@@ -1356,8 +1530,10 @@ class _ConnectScreenState extends State<ConnectScreen>
 
     if (!mounted) return;
 
+    // ✅ Add to connecting tracking
     setState(() {
       _isConnecting = true;
+      _connectingDevices.add(deviceId);
     });
 
     try {
@@ -1366,6 +1542,39 @@ class _ConnectScreenState extends State<ConnectScreen>
             'Backend not connected. Please connect to backend first.');
       }
 
+      // ✅ IMMEDIATE UI UPDATE: Add device to UI instantly with "connecting" status
+      final newDevice = {
+        'id': deviceId,
+        'name': deviceName.isNotEmpty ? deviceName : 'AMR $deviceId',
+        'ipAddress': deviceIp,
+        'port': devicePort.isNotEmpty ? devicePort : '3000',
+        'status': _isWebSocketConnected ? 'connecting' : 'disconnected',
+        'type': 'differential_drive',
+        'capabilities': ['mapping', 'navigation', 'remote_control'],
+        'isTemporary': true, // Mark as temporary for potential rollback
+      };
+
+      // Store original devices for potential rollback
+      final originalDevices =
+          List<Map<String, dynamic>>.from(_connectedDevices);
+
+      setState(() {
+        _connectedDevices.add(newDevice);
+      });
+
+      _showSuccessSnackBar(_isWebSocketConnected
+          ? '🔗 Connecting to ${newDevice['name']} at $deviceIp...'
+          : '📝 ${newDevice['name']} added - will connect when backend is online');
+
+      // Only attempt backend connection if WebSocket is connected
+      if (!_isWebSocketConnected) {
+        // Just add to UI, don't attempt backend connection
+        _showWarningSnackBar(
+            '⚠️ Connect to backend first to establish device connection');
+        return;
+      }
+
+      // Now attempt backend connection
       final result = await _apiService.connectDevice(
         deviceId: deviceId,
         name: deviceName.isNotEmpty ? deviceName : 'AMR $deviceId',
@@ -1377,21 +1586,47 @@ class _ConnectScreenState extends State<ConnectScreen>
       if (!mounted) return; // Check if widget is still mounted
 
       if (result['success'] == true) {
-        _showSuccessSnackBar('AMR device connected successfully');
+        _showSuccessSnackBar('✅ AMR device connected successfully!');
+
+        // Update the temporary device with connected status
+        setState(() {
+          final deviceIndex =
+              _connectedDevices.indexWhere((d) => d['id'] == deviceId);
+          if (deviceIndex != -1) {
+            _connectedDevices[deviceIndex] = {
+              ..._connectedDevices[deviceIndex],
+              'status': 'connected',
+              'isTemporary': false,
+            };
+          }
+        });
+
+        // Refresh to get full device info from backend
         _loadConnectedDevices();
         _clearManualDeviceFields();
         _showNavigationDialog();
       } else {
-        _showErrorSnackBar('Failed to connect device: ${result['error']}');
+        // ✅ ROLLBACK: Remove temporary device if backend connection failed
+        setState(() {
+          _connectedDevices = originalDevices;
+        });
+        _showErrorSnackBar('❌ Failed to connect device: ${result['error']}');
       }
     } catch (e) {
+      // ✅ ROLLBACK: Remove temporary device if connection failed
+      setState(() {
+        _connectedDevices.removeWhere((device) =>
+            device['id'] == deviceId && device['isTemporary'] == true);
+      });
+
       if (mounted) {
-        _showErrorSnackBar('Failed to connect AMR device: $e');
+        _showErrorSnackBar('❌ Failed to connect AMR device: $e');
       }
     } finally {
       if (mounted) {
         setState(() {
           _isConnecting = false;
+          _connectingDevices.remove(deviceId);
         });
       }
     }
@@ -1550,6 +1785,13 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   void _showDeviceOptions(Map<String, dynamic> device) {
     final theme = Provider.of<ThemeService>(context, listen: false);
+    final deviceId = device['id']?.toString() ?? '';
+    final deviceStatus = device['status']?.toString() ?? 'unknown';
+    final isOnline = deviceStatus == 'connected';
+    final isConnecting =
+        deviceStatus == 'connecting' || _connectingDevices.contains(deviceId);
+    final isRemoving = _removingDevices.contains(deviceId);
+    final isRetrying = _retryingDevices.contains(deviceId);
 
     showModalBottomSheet(
       context: context,
@@ -1572,22 +1814,99 @@ class _ConnectScreenState extends State<ConnectScreen>
                 style: theme.headlineLarge,
               ),
               const SizedBox(height: 20),
-              _buildDeviceOption('Control Device', Icons.gamepad, () {
-                Navigator.pop(context);
-                _navigateToControl(device);
-              }, theme),
-              _buildDeviceOption('Map Editor', Icons.map, () {
-                Navigator.pop(context);
-                _navigateToMap(device);
-              }, theme),
+
+              // ✅ Show status message for connecting devices
+              if (isConnecting) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.warningColor.withOpacity(0.1),
+                    borderRadius: theme.borderRadiusMedium,
+                    border:
+                        Border.all(color: theme.warningColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(theme.warningColor),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Device is connecting to the backend...',
+                          style: theme.bodyMedium.copyWith(
+                            color: theme.warningColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+
+              // ✅ Control option (only if online)
+              if (isOnline)
+                _buildDeviceOption('Control Device', Icons.gamepad, () {
+                  Navigator.pop(context);
+                  _navigateToControl(device);
+                }, theme),
+
+              // ✅ Retry connection option (only if offline and not retrying)
+              if (!isOnline && !isConnecting)
+                _buildDeviceOption(
+                  isRetrying ? 'Retrying Connection...' : 'Retry Connection',
+                  isRetrying ? Icons.refresh : Icons.refresh,
+                  isRetrying
+                      ? () {}
+                      : () {
+                          Navigator.pop(context);
+                          _retryConnection(device);
+                        },
+                  theme,
+                  isDisabled: isRetrying,
+                ),
+
+              // ✅ Map editor (disabled during connection)
+              _buildDeviceOption(
+                'Map Editor',
+                Icons.map,
+                isConnecting
+                    ? () {}
+                    : () {
+                        Navigator.pop(context);
+                        _navigateToMap(device);
+                      },
+                theme,
+                isDisabled: isConnecting,
+              ),
+
               _buildDeviceOption('Device Status', Icons.info, () {
                 Navigator.pop(context);
                 _showDeviceStatus(device);
               }, theme),
-              _buildDeviceOption('Remove Device', Icons.delete, () {
-                Navigator.pop(context);
-                _confirmRemoveDevice(device);
-              }, theme, isDestructive: true),
+
+              // ✅ Remove device (disabled during connection)
+              _buildDeviceOption(
+                isRemoving ? 'Removing Device...' : 'Remove Device',
+                Icons.delete,
+                (isRemoving || isConnecting)
+                    ? () {}
+                    : () {
+                        Navigator.pop(context);
+                        _confirmRemoveDevice(device);
+                      },
+                theme,
+                isDestructive: true,
+                isDisabled: isRemoving || isConnecting,
+              ),
             ],
           ),
         ),
@@ -1601,34 +1920,51 @@ class _ConnectScreenState extends State<ConnectScreen>
     VoidCallback onTap,
     ThemeService theme, {
     bool isDestructive = false,
+    bool isDisabled = false,
   }) {
     final color = isDestructive ? theme.errorColor : theme.accentColor;
+    final displayColor = isDisabled ? color.withOpacity(0.5) : color;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: ModernGlassCard(
-        onTap: onTap,
+        onTap: isDisabled ? () {} : onTap,
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: displayColor.withOpacity(0.1),
                 borderRadius: theme.borderRadiusSmall,
               ),
-              child: Icon(icon, color: color),
+              child: isDisabled && title.contains('...')
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(displayColor),
+                      ),
+                    )
+                  : Icon(icon, color: displayColor),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: Text(
                 title,
                 style: theme.bodyLarge.copyWith(
-                  color: isDestructive ? theme.errorColor : null,
+                  color: isDestructive
+                      ? (isDisabled
+                          ? theme.errorColor.withOpacity(0.5)
+                          : theme.errorColor)
+                      : (isDisabled
+                          ? theme.accentColor.withOpacity(0.5)
+                          : null),
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-            Icon(Icons.arrow_forward_ios, color: color, size: 16),
+            Icon(Icons.arrow_forward_ios, color: displayColor, size: 16),
           ],
         ),
       ),
@@ -1769,11 +2105,21 @@ class _ConnectScreenState extends State<ConnectScreen>
   Future<void> _removeDevice(String deviceId) async {
     if (!mounted) return;
 
+    // ✅ Add to removal tracking
     setState(() {
-      _isLoading = true;
+      _removingDevices.add(deviceId);
     });
 
     try {
+      // ✅ IMMEDIATE UI UPDATE: Remove device from UI instantly for better UX
+      final originalDevices =
+          List<Map<String, dynamic>>.from(_connectedDevices);
+
+      setState(() {
+        _connectedDevices
+            .removeWhere((device) => device['id'].toString() == deviceId);
+      });
+
       if (!_apiService.isInitialized) {
         throw Exception('Backend not connected');
       }
@@ -1784,18 +2130,89 @@ class _ConnectScreenState extends State<ConnectScreen>
 
       if (result['success'] == true) {
         _showSuccessSnackBar('Device removed successfully');
+        // Refresh to ensure backend consistency
         _loadConnectedDevices();
       } else {
-        _showErrorSnackBar('Failed to remove device: ${result['error']}');
+        // ✅ ROLLBACK: Restore device to UI if backend removal failed
+        setState(() {
+          _connectedDevices = originalDevices;
+        });
+        throw Exception('Backend removal failed: ${result['error']}');
       }
     } catch (e) {
+      // ✅ ROLLBACK: Refresh to restore correct state after error
+      _loadConnectedDevices();
+
       if (mounted) {
         _showErrorSnackBar('Failed to remove device: $e');
       }
     } finally {
+      // ✅ Remove from removal tracking
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _removingDevices.remove(deviceId);
+        });
+      }
+    }
+  }
+
+  // ✅ UPDATED: Retry connection for disconnected devices
+  Future<void> _retryConnection(Map<String, dynamic> device) async {
+    final deviceId = device['id']?.toString() ?? '';
+    if (!mounted || deviceId.isEmpty) return;
+
+    // ✅ NEW: Check backend connectivity first
+    if (!_isWebSocketConnected) {
+      _showErrorSnackBar(
+          'Connect to backend first before retrying device connection');
+      return;
+    }
+
+    // ✅ Add to retry tracking
+    setState(() {
+      _retryingDevices.add(deviceId);
+    });
+
+    try {
+      if (!_apiService.isInitialized) {
+        throw Exception('Backend not connected');
+      }
+
+      _showSuccessSnackBar('Reconnecting to ${device['name'] ?? deviceId}...');
+
+      // Try to reconnect using the device's stored IP address
+      final deviceIp = device['ipAddress']?.toString() ?? '';
+      if (deviceIp.isNotEmpty) {
+        final result = await _apiService.connectDevice(
+          deviceId: deviceId,
+          name: device['name']?.toString() ?? 'AMR $deviceId',
+          ipAddress: deviceIp,
+          type: device['type']?.toString() ?? 'differential_drive',
+          capabilities: device['capabilities'] ??
+              ['mapping', 'navigation', 'remote_control'],
+        );
+
+        if (!mounted) return;
+
+        if (result['success'] == true) {
+          _showSuccessSnackBar('✅ Device reconnected successfully!');
+          // Refresh device list to get updated status
+          _loadConnectedDevices();
+        } else {
+          _showErrorSnackBar('❌ Failed to reconnect: ${result['error']}');
+        }
+      } else {
+        throw Exception('Device IP address not available');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('❌ Connection retry failed: $e');
+      }
+    } finally {
+      // ✅ Remove from retry tracking
+      if (mounted) {
+        setState(() {
+          _retryingDevices.remove(deviceId);
         });
       }
     }
@@ -1879,6 +2296,26 @@ class _ConnectScreenState extends State<ConnectScreen>
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: theme.borderRadiusMedium),
         duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  void _showWarningSnackBar(String message) {
+    final theme = Provider.of<ThemeService>(context, listen: false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: theme.warningColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: theme.borderRadiusMedium),
+        duration: const Duration(seconds: 3),
       ),
     );
   }

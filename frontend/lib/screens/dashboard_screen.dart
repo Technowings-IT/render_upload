@@ -42,7 +42,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   Map<String, List<Map<String, dynamic>>> _deviceOrders = {};
   Map<String, MapData> _availableMaps = {};
   List<Map<String, dynamic>> _recentAlerts = [];
-  Map<String, dynamic> _systemStats = {};
 
   // UI State
   bool _isLoading = true;
@@ -54,6 +53,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   // ✅ Enhanced map management variables
   Map<String, List<Map<String, dynamic>>> _savedMapsCache = {};
   bool _isLoadingMaps = false;
+
+  // ✅ Order deletion tracking
+  Set<String> _deletingOrders = {};
 
   // Stream subscriptions
   late StreamSubscription _realTimeSubscription;
@@ -92,11 +94,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       // Then try to load live maps (with fallback to saved maps)
       await _loadMapsForAllDevices();
 
-      // Finally load orders and stats
-      await Future.wait([
-        _loadOrdersForAllDevices(),
-        _loadSystemStats(),
-      ]);
+      // Finally load orders
+      await _loadOrdersForAllDevices();
     } catch (e) {
       print('❌ Error initializing dashboard: $e');
       _showErrorSnackBar('Failed to load dashboard data: $e');
@@ -160,7 +159,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       case 'order_completed':
       case 'coordinate_order_failure': // ✅ NEW: Handle coordinate order failures
         _loadOrdersForAllDevices();
-        _loadSystemStats();
         // ✅ NEW: Show restart popup for coordinate order failures
         if (event['type'] == 'coordinate_order_failure' &&
             event['showRestartPopup'] == true) {
@@ -404,29 +402,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  Future<void> _loadSystemStats() async {
-    try {
-      final response = await _apiService.getSystemOrderStats();
-      if (response['success'] == true &&
-          response['stats'] != null &&
-          response['stats'] is Map<String, dynamic>) {
-        setState(() {
-          _systemStats = response['stats'];
-        });
-      } else {
-        setState(() {
-          _systemStats = {}; // fallback to empty map
-        });
-        print('⚠️ System stats missing or invalid: $response');
-      }
-    } catch (e) {
-      print('❌ Error loading system stats: $e');
-      setState(() {
-        _systemStats = {}; // fallback to empty map on error
-      });
-    }
-  }
-
   /// Load all saved maps with detailed information
   Future<void> _loadAllSavedMaps() async {
     if (_isLoadingMaps) return;
@@ -557,11 +532,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       _showSuccessSnackBar(
           '✅ Coordinate order "${orderData['name']}" created successfully with ${(orderData['coordinates'] as List).length} coordinates!');
 
-      // Refresh orders and stats
-      await Future.wait([
-        _loadOrdersForAllDevices(),
-        _loadSystemStats(),
-      ]);
+      // Refresh orders
+      await _loadOrdersForAllDevices();
     } catch (e) {
       _showErrorSnackBar('❌ Error processing coordinate order: $e');
     }
@@ -705,20 +677,52 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // ✅ NEW: Delete order
   Future<void> _deleteOrder(Map<String, dynamic> order) async {
+    final orderId = order['id']?.toString();
+    if (orderId == null) {
+      _showErrorSnackBar('Invalid order ID');
+      return;
+    }
+
+    // ✅ Add to deletion tracking for loading state
+    setState(() {
+      _deletingOrders.add(orderId);
+    });
+
     try {
-      final orderId = order['id'];
       final deviceId = order['deviceId'];
       final coordinates = order['coordinates'] as List? ?? [];
       final isCoordinateOrder = coordinates.isNotEmpty;
 
-      if (orderId == null || deviceId == null) {
-        _showErrorSnackBar('Invalid order or device ID');
+      if (deviceId == null) {
+        _showErrorSnackBar('Invalid device ID');
         return;
       }
 
       print(
           '🗑️ Deleting ${isCoordinateOrder ? 'coordinate' : 'regular'} order: $orderId from device: $deviceId');
 
+      // ✅ ENHANCED: Store original order for potential rollback
+      Map<String, dynamic>? originalOrder;
+      if (_deviceOrders.containsKey(deviceId)) {
+        originalOrder = _deviceOrders[deviceId]!.firstWhere(
+          (o) => o['id'] == orderId,
+          orElse: () => {},
+        );
+      }
+
+      // ✅ ENHANCED: Remove from UI immediately for instant response
+      setState(() {
+        if (_deviceOrders.containsKey(deviceId)) {
+          _deviceOrders[deviceId]!.removeWhere((o) => o['id'] == orderId);
+          print(
+              '🔄 Immediately removed order from UI: ${_deviceOrders[deviceId]!.length} orders remaining');
+        }
+      });
+
+      // Show immediate feedback
+      _showSuccessSnackBar('🗑️ Deleting order "${order['name']}"...');
+
+      // Now attempt backend deletion
       Map<String, dynamic> response;
 
       if (isCoordinateOrder) {
@@ -732,34 +736,50 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (response['success'] == true) {
         print('✅ Order deleted successfully from backend');
 
-        // ✅ FIXED: Force immediate UI update by calling setState
-        setState(() {
-          // Remove the order from local state immediately for instant UI response
-          if (_deviceOrders.containsKey(deviceId)) {
-            _deviceOrders[deviceId]!.removeWhere((o) => o['id'] == orderId);
-            print(
-                '🔄 Removed order from local state: ${_deviceOrders[deviceId]!.length} orders remaining');
-          }
-        });
-
+        // Show success confirmation
         _showSuccessSnackBar(
             '✅ Order "${order['name']}" deleted successfully!');
 
-        // ✅ FIXED: Refresh data from backend to ensure consistency
-        try {
-          await _loadOrdersForAllDevices();
-          await _loadSystemStats();
-          print('🔄 Backend data refreshed successfully');
-        } catch (refreshError) {
+        // ✅ ENHANCED: Refresh data from backend to ensure consistency (in background)
+        _loadOrdersForAllDevices().catchError((refreshError) {
           print('⚠️ Error refreshing data after deletion: $refreshError');
           // UI is already updated, so this is not critical
-        }
+        });
       } else {
+        // ✅ ENHANCED: Rollback UI changes if backend deletion failed
+        print('❌ Backend deletion failed, rolling back UI changes');
+        if (originalOrder != null && originalOrder.isNotEmpty) {
+          setState(() {
+            if (_deviceOrders.containsKey(deviceId)) {
+              _deviceOrders[deviceId]!.add(originalOrder!);
+              // Re-sort to maintain order
+              _deviceOrders[deviceId]!.sort((a, b) {
+                final aTime =
+                    DateTime.tryParse(a['createdAt'] ?? '') ?? DateTime.now();
+                final bTime =
+                    DateTime.tryParse(b['createdAt'] ?? '') ?? DateTime.now();
+                return bTime.compareTo(aTime);
+              });
+            }
+          });
+        }
         _showErrorSnackBar('❌ Failed to delete order: ${response['error']}');
       }
     } catch (e) {
       print('❌ Error deleting order: $e');
+
+      // ✅ ENHANCED: Refresh orders to restore correct state after error
+      _loadOrdersForAllDevices().catchError((refreshError) {
+        print(
+            '⚠️ Error restoring orders after deletion failure: $refreshError');
+      });
+
       _showErrorSnackBar('❌ Error deleting order: $e');
+    } finally {
+      // ✅ Remove from deletion tracking
+      setState(() {
+        _deletingOrders.remove(orderId);
+      });
     }
   }
 
@@ -795,7 +815,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (response['success'] == true) {
         _showSuccessSnackBar('✅ Coordinate order started successfully!');
         await _loadOrdersForAllDevices();
-        await _loadSystemStats();
       } else {
         _showErrorSnackBar('❌ Failed to start order: ${response['error']}');
       }
@@ -815,7 +834,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (response['success'] == true) {
         _showSuccessSnackBar('✅ Order execution stopped');
         await _loadOrdersForAllDevices();
-        await _loadSystemStats();
       } else {
         _showErrorSnackBar('❌ Failed to stop execution: ${response['error']}');
       }
@@ -835,7 +853,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (response['success'] == true) {
         _showSuccessSnackBar('Order execution started!');
         _loadOrdersForAllDevices();
-        _loadSystemStats();
       } else {
         _showErrorSnackBar('Failed to execute order: ${response['error']}');
       }
@@ -854,7 +871,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (response['success'] == true) {
         _showSuccessSnackBar('Order paused!');
         _loadOrdersForAllDevices();
-        _loadSystemStats();
       } else {
         _showErrorSnackBar('Failed to pause order: ${response['error']}');
       }
@@ -1014,7 +1030,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         _loadDevices(),
         _loadMapsForAllDevices(),
         _loadOrdersForAllDevices(),
-        _loadSystemStats(),
         _loadAllSavedMaps(),
       ]);
     } catch (e) {
@@ -1031,10 +1046,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<void> _refreshData() async {
     // Background refresh without showing loading
     try {
-      await Future.wait([
-        _loadOrdersForAllDevices(),
-        _loadSystemStats(),
-      ]);
+      await _loadOrdersForAllDevices();
     } catch (e) {
       print('❌ Background refresh failed: $e');
     }
@@ -1498,11 +1510,21 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // Keep all your existing build methods - they remain the same
   Widget _buildOverviewCards() {
+    // Device statistics
     final totalDevices = _connectedDevices.length;
     final onlineDevices =
         _connectedDevices.where((d) => d['status'] == 'connected').length;
-    final totalOrders = _systemStats['total'] ?? 0;
-    final activeOrders = _systemStats['byStatus']?['active'] ?? 0;
+
+    // ✅ UPDATED: Calculate order statistics from loaded orders in real-time
+    final allOrders = <Map<String, dynamic>>[];
+    _deviceOrders.forEach((deviceId, orders) {
+      allOrders.addAll(orders);
+    });
+
+    final totalOrders = allOrders.length;
+    final activeOrders = allOrders
+        .where((o) => o['status'] == 'active' || o['status'] == 'executing')
+        .length;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1734,7 +1756,24 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildOrderStatsRow() {
-    final stats = _systemStats['byStatus'] ?? {};
+    // ✅ UPDATED: Calculate stats from actual loaded orders for real-time accuracy
+    final allOrders = <Map<String, dynamic>>[];
+    _deviceOrders.forEach((deviceId, orders) {
+      allOrders.addAll(orders);
+    });
+
+    // Calculate counts by status
+    final pendingCount =
+        allOrders.where((o) => o['status'] == 'pending').length;
+    final activeCount = allOrders
+        .where((o) => o['status'] == 'active' || o['status'] == 'executing')
+        .length;
+    final completedCount =
+        allOrders.where((o) => o['status'] == 'completed').length;
+    final failedCount = allOrders
+        .where((o) => o['status'] == 'failed' || o['status'] == 'cancelled')
+        .length;
+
     return Container(
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1744,22 +1783,18 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Row(
         children: [
           Expanded(
-              child: _buildOrderStatItem(
-                  'Pending', stats['pending'] ?? 0, Colors.orange)),
+              child:
+                  _buildOrderStatItem('Pending', pendingCount, Colors.orange)),
+          _buildStatDivider(),
+          Expanded(
+              child: _buildOrderStatItem('Active', activeCount, Colors.blue)),
           _buildStatDivider(),
           Expanded(
               child: _buildOrderStatItem(
-                  'Active',
-                  (stats['active'] ?? 0) + (stats['executing'] ?? 0),
-                  Colors.blue)), // ✅ Include executing
+                  'Completed', completedCount, Colors.green)),
           _buildStatDivider(),
           Expanded(
-              child: _buildOrderStatItem(
-                  'Completed', stats['completed'] ?? 0, Colors.green)),
-          _buildStatDivider(),
-          Expanded(
-              child: _buildOrderStatItem(
-                  'Failed', stats['failed'] ?? 0, Colors.red)),
+              child: _buildOrderStatItem('Failed', failedCount, Colors.red)),
         ],
       ),
     );
@@ -2398,6 +2433,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     final status = order['status'] ?? 'pending';
     final coordinates = order['coordinates'] as List? ?? [];
     final isCoordinateOrder = coordinates.isNotEmpty;
+    final orderId = order['id']?.toString() ?? '';
+    final isDeleting = _deletingOrders.contains(orderId);
     final canDelete = status == 'pending' ||
         status == 'completed' ||
         status == 'failed' ||
@@ -2480,15 +2517,26 @@ class _DashboardScreenState extends State<DashboardScreen>
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () => _showDeleteOrderDialog(order),
-              icon: Icon(Icons.delete, color: Colors.red),
+              onPressed:
+                  isDeleting ? null : () => _showDeleteOrderDialog(order),
+              icon: isDeleting
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                      ),
+                    )
+                  : Icon(Icons.delete, color: Colors.red),
               label: Text(
-                'Delete Order',
-                style: TextStyle(color: Colors.red),
+                isDeleting ? 'Deleting...' : 'Delete Order',
+                style: TextStyle(color: isDeleting ? Colors.grey : Colors.red),
               ),
               style: OutlinedButton.styleFrom(
-                side: BorderSide(color: Colors.red),
-                backgroundColor: Colors.red.shade50,
+                side: BorderSide(color: isDeleting ? Colors.grey : Colors.red),
+                backgroundColor:
+                    isDeleting ? Colors.grey.shade50 : Colors.red.shade50,
               ),
             ),
           ),
@@ -2503,6 +2551,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     final statusColor = _getOrderStatusColor(status);
     final coordinates = order['coordinates'] as List? ?? [];
     final isCoordinateOrder = coordinates.isNotEmpty;
+    final orderId = order['id']?.toString() ?? '';
+    final isDeleting = _deletingOrders.contains(orderId);
     final canDelete = status == 'pending' ||
         status == 'completed' ||
         status == 'failed' ||
@@ -2560,13 +2610,23 @@ class _DashboardScreenState extends State<DashboardScreen>
         if (canDelete) ...[
           SizedBox(width: 4),
           IconButton(
-            onPressed: () => _showDeleteOrderDialog(order),
-            icon: Icon(Icons.delete, color: Colors.red, size: 20),
+            onPressed: isDeleting ? null : () => _showDeleteOrderDialog(order),
+            icon: isDeleting
+                ? SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                    ),
+                  )
+                : Icon(Icons.delete, color: Colors.red, size: 20),
             padding: EdgeInsets.all(4),
             constraints: BoxConstraints(minWidth: 32, minHeight: 32),
-            tooltip: 'Delete Order',
+            tooltip: isDeleting ? 'Deleting...' : 'Delete Order',
             style: IconButton.styleFrom(
-              backgroundColor: Colors.red.shade50,
+              backgroundColor:
+                  isDeleting ? Colors.grey.shade50 : Colors.red.shade50,
               shape: CircleBorder(),
             ),
           ),

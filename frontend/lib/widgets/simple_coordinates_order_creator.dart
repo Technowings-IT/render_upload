@@ -26,11 +26,13 @@ class _SimpleCoordinateOrderCreatorState
     extends State<SimpleCoordinateOrderCreator> {
   final ApiService _apiService = ApiService();
 
-  // SIMPLE STATE - Just what you need
+  // State variables
   List<Map<String, dynamic>> _coordinates = [];
   bool _isCreatingOrder = false;
   bool _isExecutingOrder = false;
   int _currentCoordinateIndex = 0;
+  bool _showSavedOrderPreview = false; // ✅ NEW: Show saved order preview
+  Map<String, dynamic>? _lastSavedOrder; // ✅ NEW: Track last saved order
 
   // ✅ NEW: Map selection functionality
   List<Map<String, dynamic>> _availableMaps = [];
@@ -42,6 +44,7 @@ class _SimpleCoordinateOrderCreatorState
   // Map interaction
   double _mapScale = 1.0;
   Offset _mapOffset = Offset.zero;
+  Size _canvasSize = Size(600, 500); // ✅ NEW: Track actual canvas size
 
   // ✅ NEW: Pan/drag state management
   bool _isPanning = false;
@@ -58,11 +61,34 @@ class _SimpleCoordinateOrderCreatorState
     _orderNameController.text =
         'Order ${DateTime.now().millisecondsSinceEpoch}';
 
-    // ✅ NEW: Load available maps for the device
-    _loadAvailableMaps();
+    // ✅ FIXED: Initialize with YOUR YAML values instead of potentially wrong widget.mapData
+    print('🚀 Initializing with YAML origin values: (-2.02, -5.21)');
 
-    // ✅ NEW: Initialize with the provided map data as default
-    _selectedMapData = widget.mapData;
+    // Create a corrected MapData with your YAML origin values
+    _selectedMapData = MapData(
+      deviceId: widget.deviceId,
+      timestamp: DateTime.now(),
+      info: MapInfo(
+        width: widget.mapData.info.width,
+        height: widget.mapData.info.height,
+        resolution: widget.mapData.info.resolution,
+        origin: odom.Position(
+          x: -2.02, // ✅ YOUR YAML origin X
+          y: -5.21, // ✅ YOUR YAML origin Y
+          z: 0.0,
+        ),
+        originOrientation: widget.mapData.info.originOrientation,
+      ),
+      occupancyData: widget.mapData.occupancyData,
+      shapes: widget.mapData.shapes,
+      version: widget.mapData.version,
+    );
+
+    print(
+        '✅ Initialized with corrected origin: (${_selectedMapData!.info.origin.x}, ${_selectedMapData!.info.origin.y})');
+
+    // Load available maps for the device
+    _loadAvailableMaps();
   }
 
   // ✅ NEW: Load available saved maps for the device
@@ -182,6 +208,7 @@ class _SimpleCoordinateOrderCreatorState
   }
 
   // ✅ NEW: Load selected map data
+// ✅ FIXED: Load selected map data with proper YAML parsing
   Future<void> _loadSelectedMapData(String mapName) async {
     setState(() => _isLoadingMapData = true);
 
@@ -200,18 +227,46 @@ class _SimpleCoordinateOrderCreatorState
         print('🗺️ Raw map data structure:');
         print('   - Keys: ${rawMapData.keys.toList()}');
         print('   - Info: ${rawMapData['info']}');
-        print(
-            '   - Occupancy data type: ${rawMapData['occupancyData']?.runtimeType}');
-        print(
-            '   - Occupancy data length: ${rawMapData['occupancyData']?.length ?? 0}');
 
-        // ✅ ENHANCED: Better data parsing with more fallbacks
+        // ✅ ENHANCED: Better data parsing with YAML origin detection
         final mapInfo = rawMapData['info'] ?? {};
-        final width =
-            mapInfo['width'] ?? 164; // Use the size from your screenshot
+        final width = mapInfo['width'] ?? 164;
         final height = mapInfo['height'] ?? 145;
         final resolution = mapInfo['resolution'] ?? 0.05;
-        final origin = mapInfo['origin'] ?? [-25.0, -25.0];
+
+        // ✅ FIXED: Properly parse origin from YAML with extensive debugging
+        var originX = -2.02; // Your actual YAML value as fallback
+        var originY = -5.21; // Your actual YAML value as fallback
+
+        print('🎯 Parsing origin from map info:');
+        print('   - Raw mapInfo: $mapInfo');
+        print('   - mapInfo keys: ${mapInfo.keys.toList()}');
+
+        if (mapInfo.containsKey('origin')) {
+          final rawOrigin = mapInfo['origin'];
+          print('   - Raw origin value: $rawOrigin');
+          print('   - Origin type: ${rawOrigin.runtimeType}');
+
+          if (rawOrigin is List && rawOrigin.isNotEmpty) {
+            print('   - Origin is List with ${rawOrigin.length} elements');
+            print('   - Origin elements: $rawOrigin');
+
+            if (rawOrigin.length >= 2) {
+              originX = (rawOrigin[0] as num?)?.toDouble() ?? -2.02;
+              originY = (rawOrigin[1] as num?)?.toDouble() ?? -5.21;
+              print('   - Parsed origin: ($originX, $originY)');
+            }
+          } else if (rawOrigin is Map) {
+            print('   - Origin is Map: $rawOrigin');
+            originX = (rawOrigin['x'] as num?)?.toDouble() ?? -2.02;
+            originY = (rawOrigin['y'] as num?)?.toDouble() ?? -5.21;
+            print('   - Parsed origin from map: ($originX, $originY)');
+          } else {
+            print('   - Origin format not recognized, using YAML values');
+          }
+        } else {
+          print('   - No origin found in mapInfo, using YAML values');
+        }
 
         // ✅ ENHANCED: Better occupancy data parsing
         List<int> occupancyData = [];
@@ -225,8 +280,8 @@ class _SimpleCoordinateOrderCreatorState
 
         print('✅ Parsed map data:');
         print('   - Dimensions: ${width}x${height}');
-        print('   - Resolution: $resolution');
-        print('   - Origin: $origin');
+        print('   - Resolution: $resolution meters/cell');
+        print('   - Origin: ($originX, $originY) meters');
         print('   - Occupancy cells: ${occupancyData.length}');
         print('   - Expected cells: ${width * height}');
 
@@ -255,12 +310,8 @@ class _SimpleCoordinateOrderCreatorState
               height: height,
               resolution: resolution,
               origin: odom.Position(
-                x: origin is List && origin.isNotEmpty
-                    ? origin[0].toDouble()
-                    : -25.0,
-                y: origin is List && origin.length > 1
-                    ? origin[1].toDouble()
-                    : -25.0,
+                x: originX, // ✅ FIXED: Use actual parsed origin
+                y: originY, // ✅ FIXED: Use actual parsed origin
                 z: 0.0,
               ),
               originOrientation: odom.Orientation(x: 0, y: 0, z: 0, w: 1),
@@ -271,7 +322,7 @@ class _SimpleCoordinateOrderCreatorState
           );
         });
 
-        print('✅ Map data loaded and set for: $mapName');
+        print('✅ Map data loaded with REAL origin: ($originX, $originY)');
       } else {
         throw Exception(
             'Invalid map data response: ${mapData['error'] ?? 'Unknown error'}');
@@ -280,14 +331,32 @@ class _SimpleCoordinateOrderCreatorState
       print('❌ Error loading map data: $e');
       print('📍 Stack trace: ${StackTrace.current}');
 
-      // Fallback to the provided mapData
+      // ✅ FIXED: Even fallback should use your YAML values
+      print('🔄 Using fallback with YOUR YAML origin values');
       setState(() {
-        _selectedMapData = widget.mapData;
+        _selectedMapData = MapData(
+          deviceId: widget.deviceId,
+          timestamp: DateTime.now(),
+          info: MapInfo(
+            width: 164,
+            height: 145,
+            resolution: 0.05,
+            origin: odom.Position(
+              x: -2.02, // ✅ YOUR actual YAML origin
+              y: -5.21, // ✅ YOUR actual YAML origin
+              z: 0.0,
+            ),
+            originOrientation: odom.Orientation(x: 0, y: 0, z: 0, w: 1),
+          ),
+          occupancyData: widget.mapData.occupancyData, // Use provided data
+          shapes: [],
+          version: 1,
+        );
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to load map data, using default'),
+          content: Text('Using fallback map data with YAML origin'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -332,6 +401,9 @@ class _SimpleCoordinateOrderCreatorState
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          // ✅ NEW: Track actual canvas size for accurate coordinate conversion
+          _canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
+
           return Stack(
             children: [
               // Map Canvas
@@ -353,6 +425,9 @@ class _SimpleCoordinateOrderCreatorState
                         _isExecutingOrder ? _currentCoordinateIndex : -1,
                     canvasSize:
                         Size(constraints.maxWidth, constraints.maxHeight),
+                    savedOrder: _lastSavedOrder, // ✅ NEW: Pass saved order
+                    showSavedOrderPreview:
+                        _showSavedOrderPreview, // ✅ NEW: Control visibility
                   ),
                 ),
               ),
@@ -815,6 +890,70 @@ class _SimpleCoordinateOrderCreatorState
 
           SizedBox(height: 16),
 
+          // ✅ NEW: Saved Order Preview Section
+          if (_showSavedOrderPreview && _lastSavedOrder != null)
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle,
+                          color: Colors.green.shade700, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Previously Saved Order',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                      Spacer(),
+                      IconButton(
+                        icon: Icon(Icons.visibility_off,
+                            color: Colors.green.shade600, size: 20),
+                        onPressed: () {
+                          setState(() {
+                            _showSavedOrderPreview = false;
+                          });
+                        },
+                        tooltip: 'Hide saved order preview',
+                        padding: EdgeInsets.all(4),
+                        constraints: BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    '✅ "${_lastSavedOrder!['name']}" with ${(_lastSavedOrder!['coordinates'] as List).length} waypoints',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.green.shade600,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Green markers on the map show the saved order. The order is available on the dashboard.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.green.shade600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          if (_showSavedOrderPreview && _lastSavedOrder != null)
+            SizedBox(height: 16),
+
           // Coordinate List
           Text(
             'Coordinates (${_coordinates.length})',
@@ -993,7 +1132,7 @@ class _SimpleCoordinateOrderCreatorState
         ),
         title: Text(coord['name']),
         subtitle: Text(
-            '(${coord['x'].toStringAsFixed(2)}, ${coord['y'].toStringAsFixed(2)})'),
+            '(${coord['x'].toStringAsFixed(2)}, ${coord['y'].toStringAsFixed(2)}) meters'),
         trailing: _isExecutingOrder
             ? null
             : PopupMenuButton<String>(
@@ -1100,7 +1239,7 @@ class _SimpleCoordinateOrderCreatorState
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-                'Position: (${coordinates['x']!.toStringAsFixed(2)}, ${coordinates['y']!.toStringAsFixed(2)})'),
+                'Position: (${coordinates['x']!.toStringAsFixed(2)}, ${coordinates['y']!.toStringAsFixed(2)}) meters'),
             SizedBox(height: 16),
             TextField(
               controller: _coordinateNameController,
@@ -1254,12 +1393,8 @@ class _SimpleCoordinateOrderCreatorState
       if (response['success'] == true) {
         widget.onOrderCreated(orderData);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('✅ Order saved!'), backgroundColor: Colors.green),
-        );
-
-        Navigator.of(context).pop();
+        // ✅ NEW: Show success dialog with order details instead of just closing
+        await _showOrderSavedDialog(orderData);
       } else {
         throw Exception(response['error'] ?? 'Failed to save order');
       }
@@ -1393,32 +1528,271 @@ class _SimpleCoordinateOrderCreatorState
     );
   }
 
+  // ✅ NEW: Show order saved dialog with order details
+  Future<void> _showOrderSavedDialog(Map<String, dynamic> orderData) async {
+    // ✅ Store the saved order for preview
+    setState(() {
+      _lastSavedOrder = orderData;
+      _showSavedOrderPreview = true;
+    });
+
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 28),
+            SizedBox(width: 8),
+            Text('✅ Order Saved!'),
+          ],
+        ),
+        content: Container(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your coordinate order has been saved successfully!',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              SizedBox(height: 16),
+
+              // Order details card
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.label,
+                            color: Colors.blue.shade700, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Order Name:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      orderData['name'] as String,
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    SizedBox(height: 12),
+
+                    Row(
+                      children: [
+                        Icon(Icons.place,
+                            color: Colors.blue.shade700, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Coordinates:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '${(orderData['coordinates'] as List).length} waypoints',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                    SizedBox(height: 8),
+
+                    // Show first few coordinates
+                    if ((orderData['coordinates'] as List).isNotEmpty) ...[
+                      Text(
+                        'Waypoints:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: Colors.blue.shade600,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Container(
+                        height: 100,
+                        child: ListView.builder(
+                          itemCount: (orderData['coordinates'] as List).length,
+                          itemBuilder: (context, index) {
+                            final coord =
+                                (orderData['coordinates'] as List)[index];
+                            return Padding(
+                              padding: EdgeInsets.symmetric(vertical: 2),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 20,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${index + 1}',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '${coord['name']} (${coord['x'].toStringAsFixed(2)}, ${coord['y'].toStringAsFixed(2)}) m',
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              SizedBox(height: 12),
+              Text(
+                'The order is now available on the dashboard and ready for execution.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              _resetOrderForm(); // Clear current order to start fresh
+            },
+            child: Text('Create Another Order'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Go back to dashboard
+
+              // ✅ NEW: Small delay to let dashboard load, then show where to find the order
+              Future.delayed(Duration(milliseconds: 500), () {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                          '💡 Your order "${orderData['name']}" is now visible in the Orders section below!'),
+                      backgroundColor: Colors.blue,
+                      duration: Duration(seconds: 4),
+                      action: SnackBarAction(
+                        label: 'Got it',
+                        textColor: Colors.white,
+                        onPressed: () {},
+                      ),
+                    ),
+                  );
+                }
+              });
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Go to Dashboard'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Reset form for creating another order
+  void _resetOrderForm() {
+    setState(() {
+      _coordinates.clear();
+      _isCreatingOrder = false;
+      _isExecutingOrder = false;
+      _currentCoordinateIndex = 0;
+      _showSavedOrderPreview = false; // ✅ Hide saved order preview
+      _lastSavedOrder = null; // ✅ Clear saved order
+
+      // Generate new order name with timestamp
+      _orderNameController.text =
+          'Order ${DateTime.now().millisecondsSinceEpoch}';
+      _coordinateNameController.clear();
+    });
+
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('✨ Ready to create a new order!'),
+        backgroundColor: Colors.blue,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+// ✅ REAL MAP COORDINATE SYSTEM - Using actual origin from YAML
   Map<String, double> _screenToMapCoordinates(Offset screenPosition) {
-    // ✅ IMPROVED: Use selected map data for accurate coordinate conversion
+    // ✅ Use actual map metadata from YAML/map info
     final mapData = _selectedMapData ?? widget.mapData;
 
     // Apply map transformations (scale and offset)
     final adjustedX = (screenPosition.dx - _mapOffset.dx) / _mapScale;
     final adjustedY = (screenPosition.dy - _mapOffset.dy) / _mapScale;
 
-    // Convert screen coordinates to map coordinates using the map's resolution and origin
-    final resolution = mapData.info.resolution;
-    final originX = mapData.info.origin.x;
-    final originY = mapData.info.origin.y;
+    // ✅ Get REAL map parameters from YAML
+    final resolution = mapData.info.resolution; // meters per cell from YAML
+    final originX = mapData.info.origin.x; // origin X from YAML
+    final originY = mapData.info.origin.y; // origin Y from YAML
+    final mapWidth = mapData.info.width; // map width in cells
+    final mapHeight = mapData.info.height; // map height in cells
 
-    // Convert pixel coordinates to world coordinates (meters)
-    // Note: We're using a 20:1 pixel to meter ratio in the painter
-    final worldX = originX + (adjustedX / 20.0) * resolution;
-    final worldY = originY + (adjustedY / 20.0) * resolution;
+    // ✅ Calculate REAL world bounds based on map metadata
+    final mapPhysicalWidth = mapWidth * resolution; // actual width in meters
+    final mapPhysicalHeight = mapHeight * resolution; // actual height in meters
 
-    print('🎯 Screen to world conversion:');
+    // World coordinate bounds (what the coordinate system should show)
+    final minX = originX;
+    final maxX = originX + mapPhysicalWidth;
+    final minY = originY;
+    final maxY = originY + mapPhysicalHeight;
+
+    // ✅ Convert screen coordinates to REAL world coordinates
+    final canvasWidth = _canvasSize.width / _mapScale;
+    final canvasHeight = _canvasSize.height / _mapScale;
+
+    // Map screen position to world coordinates
+    final worldX = minX + (adjustedX / canvasWidth) * mapPhysicalWidth;
+    final worldY = minY + (adjustedY / canvasHeight) * mapPhysicalHeight;
+
+    print('🎯 Real world coordinate conversion:');
     print(
         '   Screen: (${screenPosition.dx.toStringAsFixed(1)}, ${screenPosition.dy.toStringAsFixed(1)})');
     print(
-        '   Adjusted: (${adjustedX.toStringAsFixed(1)}, ${adjustedY.toStringAsFixed(1)})');
+        '   Map origin: (${originX.toStringAsFixed(2)}, ${originY.toStringAsFixed(2)})');
+    print('   Map size: ${mapWidth}x${mapHeight} cells, ${resolution}m/cell');
     print(
-        '   World: (${worldX.toStringAsFixed(3)}, ${worldY.toStringAsFixed(3)})');
-    print('   Resolution: ${resolution}, Origin: (${originX}, ${originY})');
+        '   World bounds: X(${minX.toStringAsFixed(2)} to ${maxX.toStringAsFixed(2)}), Y(${minY.toStringAsFixed(2)} to ${maxY.toStringAsFixed(2)})');
+    print(
+        '   Final world coords: (${worldX.toStringAsFixed(3)}, ${worldY.toStringAsFixed(3)})');
 
     return {'x': worldX, 'y': worldY};
   }
@@ -1439,6 +1813,8 @@ class SimpleMapPainter extends CustomPainter {
   final Offset mapOffset;
   final int currentExecutingIndex;
   final Size canvasSize;
+  final Map<String, dynamic>? savedOrder; // ✅ NEW: Show saved order preview
+  final bool showSavedOrderPreview; // ✅ NEW: Control saved order visibility
 
   SimpleMapPainter({
     required this.mapData,
@@ -1447,6 +1823,8 @@ class SimpleMapPainter extends CustomPainter {
     required this.mapOffset,
     required this.currentExecutingIndex,
     required this.canvasSize,
+    this.savedOrder, // ✅ NEW: Optional saved order
+    this.showSavedOrderPreview = false, // ✅ NEW: Default to hidden
   });
 
   @override
@@ -1455,8 +1833,16 @@ class SimpleMapPainter extends CustomPainter {
     canvas.translate(mapOffset.dx, mapOffset.dy);
     canvas.scale(mapScale);
 
-    // ✅ ENHANCED: Draw actual map instead of just background
-    _drawMap(canvas, size);
+    // Draw coordinate system using real map bounds
+    _drawRealCoordinateGrid(canvas, size);
+
+    // Draw the mirrored and fitted map
+    _drawFittedMap(canvas, size);
+
+    // ✅ Draw saved order preview first (as background layer)
+    if (showSavedOrderPreview && savedOrder != null) {
+      _drawSavedOrderPreview(canvas, size);
+    }
 
     // Draw coordinates
     _drawCoordinates(canvas, size);
@@ -1464,46 +1850,338 @@ class SimpleMapPainter extends CustomPainter {
     canvas.restore();
   }
 
-  // ✅ NEW: Draw the actual map data
-  void _drawMap(Canvas canvas, Size size) {
+  // ✅ NEW: Draw coordinate grid using REAL map bounds from YAML
+  void _drawRealCoordinateGrid(Canvas canvas, Size size) {
+    final adjustedWidth = size.width / mapScale;
+    final adjustedHeight = size.height / mapScale;
+
+    // ✅ Get REAL map parameters from YAML
+    final resolution = mapData.info.resolution;
+    final originX = mapData.info.origin.x;
+    final originY = mapData.info.origin.y;
+    final mapWidth = mapData.info.width;
+    final mapHeight = mapData.info.height;
+
+    // Calculate REAL world bounds
+    final mapPhysicalWidth = mapWidth * resolution;
+    final mapPhysicalHeight = mapHeight * resolution;
+    final minX = originX;
+    final maxX = originX + mapPhysicalWidth;
+    final minY = originY;
+    final maxY = originY + mapPhysicalHeight;
+
+    // Grid spacing (adjust based on map size)
+    double gridSpacing = 1.0; // Default 1 meter
+    if (mapPhysicalWidth < 5.0) {
+      gridSpacing = 0.5; // 0.5m for small maps
+    } else if (mapPhysicalWidth > 20.0) {
+      gridSpacing = 2.0; // 2m for large maps
+    }
+
+    print('🗺️ Drawing coordinate grid:');
+    print(
+        '   World bounds: X(${minX.toStringAsFixed(2)} to ${maxX.toStringAsFixed(2)}), Y(${minY.toStringAsFixed(2)} to ${maxY.toStringAsFixed(2)})');
+    print('   Grid spacing: ${gridSpacing}m');
+
+    // ✅ Draw background
+    final bgPaint = Paint()..color = Colors.grey.shade50;
+    canvas.drawRect(
+        Rect.fromLTWH(0, 0, adjustedWidth, adjustedHeight), bgPaint);
+
+    // ✅ Draw minor grid lines
+    final minorGridPaint = Paint()
+      ..color = Colors.blue.withOpacity(0.15)
+      ..strokeWidth = 0.5;
+
+    final minorSpacing = gridSpacing / 4; // 4 divisions per major grid
+
+    // Calculate pixel spacing
+    final pixelsPerMeterX = adjustedWidth / mapPhysicalWidth;
+    final pixelsPerMeterY = adjustedHeight / mapPhysicalHeight;
+
+    // Minor grid lines
+    for (double worldX = minX; worldX <= maxX; worldX += minorSpacing) {
+      final pixelX = (worldX - minX) * pixelsPerMeterX;
+      canvas.drawLine(
+          Offset(pixelX, 0), Offset(pixelX, adjustedHeight), minorGridPaint);
+    }
+
+    for (double worldY = minY; worldY <= maxY; worldY += minorSpacing) {
+      final pixelY = (worldY - minY) * pixelsPerMeterY;
+      canvas.drawLine(
+          Offset(0, pixelY), Offset(adjustedWidth, pixelY), minorGridPaint);
+    }
+
+    // ✅ Draw major grid lines with REAL coordinates
+    final majorGridPaint = Paint()
+      ..color = Colors.blue.withOpacity(0.4)
+      ..strokeWidth = 1.0;
+
+    // Major vertical lines
+    for (double worldX = _roundToGrid(minX, gridSpacing);
+        worldX <= maxX;
+        worldX += gridSpacing) {
+      final pixelX = (worldX - minX) * pixelsPerMeterX;
+      canvas.drawLine(
+          Offset(pixelX, 0), Offset(pixelX, adjustedHeight), majorGridPaint);
+    }
+
+    // Major horizontal lines
+    for (double worldY = _roundToGrid(minY, gridSpacing);
+        worldY <= maxY;
+        worldY += gridSpacing) {
+      final pixelY = (worldY - minY) * pixelsPerMeterY;
+      canvas.drawLine(
+          Offset(0, pixelY), Offset(adjustedWidth, pixelY), majorGridPaint);
+    }
+
+    // ✅ Draw axes highlighting origin and bounds
+    final axisPaint = Paint()
+      ..color = Colors.red.withOpacity(0.8)
+      ..strokeWidth = 2.0;
+
+    // Highlight origin lines if they're within bounds
+    if (minX <= 0 && maxX >= 0) {
+      final originPixelX = (0 - minX) * pixelsPerMeterX;
+      canvas.drawLine(Offset(originPixelX, 0),
+          Offset(originPixelX, adjustedHeight), axisPaint);
+    }
+
+    if (minY <= 0 && maxY >= 0) {
+      final originPixelY = (0 - minY) * pixelsPerMeterY;
+      canvas.drawLine(Offset(0, originPixelY),
+          Offset(adjustedWidth, originPixelY), axisPaint);
+    }
+
+    // ✅ Draw coordinate labels
+    _drawRealAxisLabels(canvas, size, pixelsPerMeterX, pixelsPerMeterY, minX,
+        maxX, minY, maxY, gridSpacing);
+  }
+
+  // ✅ Helper: Round to nearest grid value
+  double _roundToGrid(double value, double gridSpacing) {
+    return (value / gridSpacing).ceil() * gridSpacing;
+  }
+
+  // ✅ NEW: Draw axis labels with REAL coordinates
+  void _drawRealAxisLabels(
+      Canvas canvas,
+      Size size,
+      double pixelsPerMeterX,
+      double pixelsPerMeterY,
+      double minX,
+      double maxX,
+      double minY,
+      double maxY,
+      double gridSpacing) {
+    final textStyle = TextStyle(
+      color: Colors.blue.shade700,
+      fontSize: 10,
+      fontWeight: FontWeight.bold,
+    );
+
+    // X-axis labels (showing real world X coordinates)
+    for (double worldX = _roundToGrid(minX, gridSpacing);
+        worldX <= maxX;
+        worldX += gridSpacing) {
+      final pixelX = (worldX - minX) * pixelsPerMeterX;
+
+      final textPainter = TextPainter(
+        text: TextSpan(text: worldX.toStringAsFixed(1), style: textStyle),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+
+      // Position label above the grid
+      textPainter.paint(canvas, Offset(pixelX - textPainter.width / 2, -18));
+    }
+
+    // Y-axis labels (showing real world Y coordinates)
+    for (double worldY = _roundToGrid(minY, gridSpacing);
+        worldY <= maxY;
+        worldY += gridSpacing) {
+      final pixelY = (worldY - minY) * pixelsPerMeterY;
+
+      final textPainter = TextPainter(
+        text: TextSpan(text: worldY.toStringAsFixed(1), style: textStyle),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+
+      // Position label to the left of the grid
+      textPainter.paint(canvas,
+          Offset(-textPainter.width - 5, pixelY - textPainter.height / 2));
+    }
+
+    // ✅ Draw coordinate system info
+    final infoStyle =
+        textStyle.copyWith(fontSize: 12, color: Colors.blue.shade800);
+
+    // Title showing coordinate range
+    final title = TextPainter(
+      text: TextSpan(
+        text:
+            'World Coordinates: X(${minX.toStringAsFixed(1)} to ${maxX.toStringAsFixed(1)}) Y(${minY.toStringAsFixed(1)} to ${maxY.toStringAsFixed(1)}) [meters]',
+        style: infoStyle,
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    title.layout();
+    title.paint(canvas, Offset(10, -40));
+
+    // Origin info
+    final originInfo = TextPainter(
+      text: TextSpan(
+        text:
+            'Map Origin: (${mapData.info.origin.x.toStringAsFixed(2)}, ${mapData.info.origin.y.toStringAsFixed(2)}) | Resolution: ${mapData.info.resolution}m/cell',
+        style: textStyle.copyWith(fontSize: 9, color: Colors.grey.shade600),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    originInfo.layout();
+    originInfo.paint(canvas, Offset(10, -25));
+    ;
+  }
+
+  // ✅ NEW: Draw axis labels with numbers
+  void _drawAxisLabels(Canvas canvas, Size size, double pixelsPerMeterX,
+      double pixelsPerMeterY, double maxX, double maxY) {
+    final textStyle = TextStyle(
+      color: Colors.blue.shade700,
+      fontSize: 10,
+      fontWeight: FontWeight.bold,
+    );
+
+    // X-axis labels
+    for (double x = 0; x <= maxX; x += 1.0) {
+      final pixelX = x * pixelsPerMeterX;
+
+      final textPainter = TextPainter(
+        text: TextSpan(text: x.toStringAsFixed(0), style: textStyle),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+
+      // Position label below the axis
+      textPainter.paint(canvas, Offset(pixelX - textPainter.width / 2, -20));
+    }
+
+    // Y-axis labels
+    for (double y = 0; y <= maxY; y += 1.0) {
+      final pixelY = y * pixelsPerMeterY;
+
+      final textPainter = TextPainter(
+        text: TextSpan(text: y.toStringAsFixed(0), style: textStyle),
+        textDirection: TextDirection.ltr,
+      );
+      textPainter.layout();
+
+      // Position label to the left of the axis
+      textPainter.paint(canvas, Offset(-25, pixelY - textPainter.height / 2));
+    }
+
+    // ✅ Draw axis titles
+    // X-axis title
+    final xAxisTitle = TextPainter(
+      text: TextSpan(
+          text: 'X (meters) →', style: textStyle.copyWith(fontSize: 12)),
+      textDirection: TextDirection.ltr,
+    );
+    xAxisTitle.layout();
+    xAxisTitle.paint(
+        canvas, Offset(size.width / mapScale / 2 - xAxisTitle.width / 2, -35));
+
+    // Y-axis title (rotated)
+    canvas.save();
+    canvas.translate(-40, size.height / mapScale / 2);
+    canvas.rotate(-1.5708); // Rotate 90 degrees counterclockwise
+    final yAxisTitle = TextPainter(
+      text: TextSpan(
+          text: '↓ Y (meters)', style: textStyle.copyWith(fontSize: 12)),
+      textDirection: TextDirection.ltr,
+    );
+    yAxisTitle.layout();
+    yAxisTitle.paint(canvas, Offset(-yAxisTitle.width / 2, 0));
+    canvas.restore();
+  }
+
+  // ✅ Draw the map fitted within the coordinate system
+  void _drawFittedMap(Canvas canvas, Size size) {
     try {
-      // Draw map background
-      final bgPaint = Paint()..color = Colors.white;
-      canvas.drawRect(
-          Rect.fromLTWH(0, 0, size.width / mapScale, size.height / mapScale),
-          bgPaint);
-
-      print(
-          '🗺️ Drawing map: ${mapData.info.width}x${mapData.info.height}, occupancy: ${mapData.occupancyData.length} cells');
-
-      // ✅ ENHANCED: Always try to draw occupancy grid first
-      if (mapData.occupancyData.isNotEmpty &&
-          mapData.info.width > 0 &&
-          mapData.info.height > 0) {
-        print('✅ Drawing occupancy grid data...');
-        _drawOccupancyGrid(canvas, size);
-      } else {
-        print('⚠️ No occupancy data available, drawing grid fallback');
-        print('   - Occupancy data length: ${mapData.occupancyData.length}');
-        print(
-            '   - Map dimensions: ${mapData.info.width}x${mapData.info.height}');
-        // Fallback to grid when no occupancy data
-        _drawGrid(canvas, size);
+      if (mapData.occupancyData.isEmpty) {
+        print('⚠️ No occupancy data to draw');
+        return;
       }
 
-      // ✅ NEW: Draw background grid overlay for coordinate placement
-      _drawBackgroundGrid(canvas, size);
+      final adjustedWidth = size.width / mapScale;
+      final adjustedHeight = size.height / mapScale;
 
-      // ✅ NEW: Draw map shapes (stations, obstacles, etc.)
-      _drawMapShapes(canvas, size);
+      // Map parameters
+      final mapWidth = mapData.info.width;
+      final mapHeight = mapData.info.height;
+      final resolution = mapData.info.resolution;
+
+      // Calculate cell size to fit the map in the canvas
+      final mapPhysicalWidth = mapWidth * resolution;
+      final mapPhysicalHeight = mapHeight * resolution;
+
+      final scaleX = adjustedWidth / mapPhysicalWidth;
+      final scaleY = adjustedHeight / mapPhysicalHeight;
+      final cellSize = (scaleX < scaleY ? scaleX : scaleY).clamp(0.5, 10.0);
+
+      print('🗺️ Drawing fitted map:');
+      print(
+          '   Physical size: ${mapPhysicalWidth.toStringAsFixed(2)}m x ${mapPhysicalHeight.toStringAsFixed(2)}m');
+      print('   Cell size: ${cellSize.toStringAsFixed(2)}px');
+
+      // ✅ Draw occupancy cells (properly oriented)
+      for (int y = 0; y < mapHeight; y++) {
+        for (int x = 0; x < mapWidth; x++) {
+          final index = y * mapWidth + x;
+
+          if (index < mapData.occupancyData.length) {
+            final occupancyValue = mapData.occupancyData[index];
+            Color cellColor = _getOccupancyColor(occupancyValue);
+
+            // Position cell in the coordinate system
+            final screenX = x * cellSize;
+            final screenY = y * cellSize;
+
+            final cellPaint = Paint()..color = cellColor;
+            final cellRect =
+                Rect.fromLTWH(screenX, screenY, cellSize, cellSize);
+
+            // Only draw non-white cells for performance
+            if (cellColor != Colors.white) {
+              canvas.drawRect(cellRect, cellPaint);
+            }
+          }
+        }
+      }
+
+      print('✅ Map fitted to coordinate system');
     } catch (e) {
-      print('❌ Error drawing map: $e');
-      print('📍 Stack trace: ${StackTrace.current}');
-      // Fallback to simple grid
-      _drawGrid(canvas, size);
+      print('❌ Error drawing fitted map: $e');
     }
   }
 
+  // ✅ Get color for occupancy value
+  Color _getOccupancyColor(int occupancyValue) {
+    if (occupancyValue == -1) {
+      return Colors.grey.shade300; // Unknown
+    } else if (occupancyValue <= 10) {
+      return Colors.white; // Free space
+    } else if (occupancyValue >= 90) {
+      return Colors.black; // Occupied
+    } else {
+      // Probability value
+      final probability = occupancyValue / 100.0;
+      final greyValue = (255 * (1.0 - probability)).round().clamp(0, 255);
+      return Color.fromARGB(255, greyValue, greyValue, greyValue);
+    }
+  }
+
+  // ✅ NEW: Draw the actual map data
   // ✅ NEW: Draw occupancy grid data
   void _drawOccupancyGrid(Canvas canvas, Size size) {
     final mapInfo = mapData.info;
@@ -1587,7 +2265,7 @@ class SimpleMapPainter extends CustomPainter {
   // ✅ NEW: Draw map shapes (stations, obstacles, boundaries)
   void _drawMapShapes(Canvas canvas, Size size) {
     for (final shape in mapData.shapes) {
-      _drawMapShape(canvas, shape);
+      _drawMapShape(canvas, shape, size);
     }
   }
 
@@ -1637,7 +2315,7 @@ class SimpleMapPainter extends CustomPainter {
   }
 
   // ✅ NEW: Draw individual map shape
-  void _drawMapShape(Canvas canvas, MapShape shape) {
+  void _drawMapShape(Canvas canvas, MapShape shape, Size size) {
     if (shape.points.isEmpty) return;
 
     final paint = Paint()
@@ -1649,9 +2327,34 @@ class SimpleMapPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
-    // Convert all points to screen coordinates
+    // ✅ FIXED: Convert all points to screen coordinates using proper conversion
     final screenPoints = shape.points.map((point) {
-      return Offset(point.x * 20, point.y * 20); // Convert meters to pixels
+      // Use the same coordinate conversion as _worldToScreen
+      final mapInfo = mapData.info;
+      final resolution = mapInfo.resolution;
+      final originX = mapInfo.origin.x;
+      final originY = mapInfo.origin.y;
+      final mapWidth = mapInfo.width;
+      final mapHeight = mapInfo.height;
+
+      // Use the same coordinate conversion as _worldToScreen for consistency
+      final mapPhysicalWidth = mapWidth * resolution;
+      final mapPhysicalHeight = mapHeight * resolution;
+
+      // Use the canvas size passed to the method
+      final canvasWidth = size.width / mapScale; // Account for scaling
+      final canvasHeight = size.height / mapScale;
+
+      final metersPerPixelX = mapPhysicalWidth / canvasWidth;
+      final metersPerPixelY = mapPhysicalHeight / canvasHeight;
+
+      // Convert world coordinates to screen coordinates
+      final relativeX = (point.x - originX) / metersPerPixelX;
+      final relativeY = (point.y - originY) / metersPerPixelY;
+      final screenX = relativeX;
+      final screenY = canvasHeight - relativeY; // Flip Y axis
+
+      return Offset(screenX, screenY);
     }).toList();
 
     if (screenPoints.isEmpty) return;
@@ -1762,6 +2465,8 @@ class SimpleMapPainter extends CustomPainter {
     }
   }
 
+  // ✅ NEW: Convert Cartesian coordinates to screen position
+  // ✅ Draw coordinates using real world coordinates
   void _drawCoordinates(Canvas canvas, Size size) {
     for (int i = 0; i < coordinates.length; i++) {
       final coord = coordinates[i];
@@ -1784,19 +2489,43 @@ class SimpleMapPainter extends CustomPainter {
     }
   }
 
+  // ✅ Convert world coordinates to screen position
+  Offset? _worldToScreen(double worldX, double worldY, Size size) {
+    final adjustedWidth = size.width / mapScale;
+    final adjustedHeight = size.height / mapScale;
+
+    // Map bounds
+    final resolution = mapData.info.resolution;
+    final originX = mapData.info.origin.x;
+    final originY = mapData.info.origin.y;
+    final mapWidth = mapData.info.width;
+    final mapHeight = mapData.info.height;
+
+    final mapPhysicalWidth = mapWidth * resolution;
+    final mapPhysicalHeight = mapHeight * resolution;
+    final minX = originX;
+    final minY = originY;
+
+    // Convert world coordinates to screen coordinates
+    final screenX = ((worldX - minX) / mapPhysicalWidth) * adjustedWidth;
+    final screenY = ((worldY - minY) / mapPhysicalHeight) * adjustedHeight;
+
+    return Offset(screenX, screenY);
+  }
+
   void _drawCoordinate(Canvas canvas, Offset position, int number,
       bool isExecuting, bool isCompleted) {
-    final radius = 20.0;
-    Color color = Colors.blue;
+    final radius = 16.0;
+    Color color = Colors.red;
 
     if (isExecuting) color = Colors.orange;
     if (isCompleted) color = Colors.green;
 
-    // Draw circle with shadow for better visibility on map
+    // Draw circle with shadow
     final shadowPaint = Paint()
       ..color = Colors.black54
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4);
-    canvas.drawCircle(position + Offset(2, 2), radius, shadowPaint);
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3);
+    canvas.drawCircle(position + Offset(1, 1), radius, shadowPaint);
 
     // Draw circle
     final circlePaint = Paint()..color = color;
@@ -1805,7 +2534,7 @@ class SimpleMapPainter extends CustomPainter {
     // Draw border
     final borderPaint = Paint()
       ..color = Colors.white
-      ..strokeWidth = 3
+      ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
     canvas.drawCircle(position, radius, borderPaint);
 
@@ -1816,11 +2545,11 @@ class SimpleMapPainter extends CustomPainter {
         style: TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.bold,
-          fontSize: 16,
+          fontSize: 12,
           shadows: [
             Shadow(
-              offset: Offset(1, 1),
-              blurRadius: 2,
+              offset: Offset(0.5, 0.5),
+              blurRadius: 1,
               color: Colors.black54,
             ),
           ],
@@ -1839,33 +2568,147 @@ class SimpleMapPainter extends CustomPainter {
   }
 
   void _drawConnectionLine(Canvas canvas, Offset from, Offset to) {
-    // Draw shadow line
-    final shadowPaint = Paint()
-      ..color = Colors.black26
-      ..strokeWidth = 5
-      ..style = PaintingStyle.stroke;
-    canvas.drawLine(from + Offset(1, 1), to + Offset(1, 1), shadowPaint);
-
-    // Draw main line
     final linePaint = Paint()
-      ..color = Colors.blue.withOpacity(0.8)
-      ..strokeWidth = 3
+      ..color = Colors.red.withOpacity(0.7)
+      ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
     canvas.drawLine(from, to, linePaint);
-
-    // Draw arrow at the end
     _drawArrow(canvas, from, to);
   }
 
-  // ✅ NEW: Draw arrow to show direction
   void _drawArrow(Canvas canvas, Offset from, Offset to) {
     final direction = to - from;
     final distance = direction.distance;
     if (distance == 0) return;
 
     final normalizedDirection = direction / distance;
-    final arrowLength = 10.0;
+    final arrowLength = 8.0;
+
+    final arrowPoint1 = to -
+        normalizedDirection * arrowLength +
+        Offset(-normalizedDirection.dy * arrowLength * 0.4,
+            normalizedDirection.dx * arrowLength * 0.4);
+    final arrowPoint2 = to -
+        normalizedDirection * arrowLength +
+        Offset(normalizedDirection.dy * arrowLength * 0.4,
+            -normalizedDirection.dx * arrowLength * 0.4);
+
+    final arrowPaint = Paint()
+      ..color = Colors.red.withOpacity(0.7)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawLine(to, arrowPoint1, arrowPaint);
+    canvas.drawLine(to, arrowPoint2, arrowPaint);
+  }
+
+  // ✅ NEW: Draw saved order preview with different styling (Cartesian coordinates)
+  void _drawSavedOrderPreview(Canvas canvas, Size size) {
+    if (savedOrder == null) return;
+
+    final savedCoordinates = savedOrder!['coordinates'] as List<dynamic>;
+    if (savedCoordinates.isEmpty) return;
+
+    print(
+        '🎨 Drawing saved order preview: ${savedOrder!['name']} with ${savedCoordinates.length} coordinates');
+
+    // Draw saved coordinates with different styling (more transparent, different color)
+    for (int i = 0; i < savedCoordinates.length; i++) {
+      final coord = savedCoordinates[i] as Map<String, dynamic>;
+      final screenPos = _worldToScreen(coord['x'], coord['y'], size);
+
+      if (screenPos != null) {
+        _drawSavedCoordinate(canvas, screenPos, i + 1);
+
+        // Draw line to next coordinate
+        if (i < savedCoordinates.length - 1) {
+          final nextCoord = savedCoordinates[i + 1] as Map<String, dynamic>;
+          final nextScreenPos =
+              _worldToScreen(nextCoord['x'], nextCoord['y'], size);
+          if (nextScreenPos != null) {
+            _drawSavedConnectionLine(canvas, screenPos, nextScreenPos);
+          }
+        }
+      }
+    }
+
+    // ✅ Draw order label
+    _drawSavedOrderLabel(canvas, size, savedOrder!['name'] as String);
+  }
+
+  // ✅ NEW: Draw saved coordinate with different styling
+  void _drawSavedCoordinate(Canvas canvas, Offset position, int number) {
+    final radius = 18.0;
+
+    // Draw circle with shadow (more transparent)
+    final shadowPaint = Paint()
+      ..color = Colors.black26
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3);
+    canvas.drawCircle(position + Offset(1, 1), radius, shadowPaint);
+
+    // Draw circle (green for saved order)
+    final circlePaint = Paint()..color = Colors.green.withOpacity(0.7);
+    canvas.drawCircle(position, radius, circlePaint);
+
+    // Draw border (lighter)
+    final borderPaint = Paint()
+      ..color = Colors.white.withOpacity(0.8)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+    canvas.drawCircle(position, radius, borderPaint);
+
+    // Draw number (smaller text)
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: number.toString(),
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+          shadows: [
+            Shadow(
+              offset: Offset(1, 1),
+              blurRadius: 2,
+              color: Colors.black45,
+            ),
+          ],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        position.dx - textPainter.width / 2,
+        position.dy - textPainter.height / 2,
+      ),
+    );
+  }
+
+  // ✅ NEW: Draw saved connection line
+  void _drawSavedConnectionLine(Canvas canvas, Offset from, Offset to) {
+    // Draw main line (green, more transparent)
+    final linePaint = Paint()
+      ..color = Colors.green.withOpacity(0.5)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawLine(from, to, linePaint);
+
+    // Draw arrow at the end (smaller)
+    _drawSavedArrow(canvas, from, to);
+  }
+
+  // ✅ NEW: Draw arrow for saved order
+  void _drawSavedArrow(Canvas canvas, Offset from, Offset to) {
+    final direction = to - from;
+    final distance = direction.distance;
+    if (distance == 0) return;
+
+    final normalizedDirection = direction / distance;
+    final arrowLength = 8.0;
 
     final arrowPoint1 = to -
         normalizedDirection * arrowLength +
@@ -1877,27 +2720,61 @@ class SimpleMapPainter extends CustomPainter {
             -normalizedDirection.dx * arrowLength * 0.5);
 
     final arrowPaint = Paint()
-      ..color = Colors.blue.withOpacity(0.8)
-      ..strokeWidth = 2
+      ..color = Colors.green.withOpacity(0.5)
+      ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
     canvas.drawLine(to, arrowPoint1, arrowPaint);
     canvas.drawLine(to, arrowPoint2, arrowPaint);
   }
 
-  Offset? _worldToScreen(double worldX, double worldY, Size size) {
-    // ✅ IMPROVED: Use actual map coordinate conversion
-    final mapInfo = mapData.info;
+  // ✅ NEW: Draw order label
+  void _drawSavedOrderLabel(Canvas canvas, Size size, String orderName) {
+    final labelText = '✅ Saved: $orderName';
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: labelText,
+        style: TextStyle(
+          color: Colors.green.shade700,
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
+          backgroundColor: Colors.white.withOpacity(0.9),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
 
-    // Convert world coordinates to map pixel coordinates
-    final mapPixelX = (worldX - mapInfo.origin.x) / mapInfo.resolution;
-    final mapPixelY = (worldY - mapInfo.origin.y) / mapInfo.resolution;
+    // Position at top-right of canvas
+    final labelPosition = Offset(
+      (size.width / mapScale) - textPainter.width - 16,
+      16,
+    );
 
-    // Scale to screen coordinates (using 20:1 pixel to meter ratio)
-    final screenX = mapPixelX * 20;
-    final screenY = mapPixelY * 20;
+    // Draw background
+    final bgPaint = Paint()..color = Colors.white.withOpacity(0.9);
+    final bgRect = Rect.fromLTWH(
+      labelPosition.dx - 8,
+      labelPosition.dy - 4,
+      textPainter.width + 16,
+      textPainter.height + 8,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bgRect, Radius.circular(8)),
+      bgPaint,
+    );
 
-    return Offset(screenX, screenY);
+    // Draw border
+    final borderPaint = Paint()
+      ..color = Colors.green.shade300
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(bgRect, Radius.circular(8)),
+      borderPaint,
+    );
+
+    textPainter.paint(canvas, labelPosition);
   }
 
   @override
