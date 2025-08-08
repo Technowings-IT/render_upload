@@ -213,8 +213,8 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   void _loadSavedConnections() {
     setState(() {
-      _manualBackendIpController.text = '192.168.0.75';
-      _manualDeviceIpController.text = '192.168.0.69';
+      _manualBackendIpController.text = '192.168.208.79';
+      _manualDeviceIpController.text = '192.168.208.29';
     });
   }
 
@@ -294,6 +294,28 @@ class _ConnectScreenState extends State<ConnectScreen>
           ),
         ),
       ),
+      // ✅ NEW: Floating Dashboard button for quick access
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          gradient: theme.primaryGradient,
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: theme.elevationMedium,
+        ),
+        child: FloatingActionButton.extended(
+          onPressed: () => _goToDashboard(),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          icon: Icon(Icons.dashboard, color: Colors.white),
+          label: Text(
+            'Dashboard',
+            style: theme.bodyMedium.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -385,6 +407,12 @@ class _ConnectScreenState extends State<ConnectScreen>
           onPressed: () => _startAutoDiscovery(),
           icon: Icon(Icons.search, color: theme.accentColor),
           tooltip: 'Discover Devices',
+        ),
+        // ✅ NEW: Go to Dashboard button
+        IconButton(
+          onPressed: () => _goToDashboard(),
+          icon: Icon(Icons.dashboard, color: theme.accentColor),
+          tooltip: 'Go to Dashboard',
         ),
         const SizedBox(width: 8),
       ],
@@ -542,10 +570,22 @@ class _ConnectScreenState extends State<ConnectScreen>
                   ],
                 ),
               ),
-              RoboticStatusIndicator(
-                status: _isWebSocketConnected ? 'online' : 'offline',
-                label: _isWebSocketConnected ? 'ONLINE' : 'OFFLINE',
-                animated: _isWebSocketConnected,
+              // ✅ NEW: Dashboard quick access button
+              Column(
+                children: [
+                  RoboticStatusIndicator(
+                    status: _isWebSocketConnected ? 'online' : 'offline',
+                    label: _isWebSocketConnected ? 'ONLINE' : 'OFFLINE',
+                    animated: _isWebSocketConnected,
+                  ),
+                  const SizedBox(height: 12),
+                  ModernActionButton(
+                    label: 'Dashboard',
+                    icon: Icons.dashboard,
+                    onPressed: () => _goToDashboard(),
+                    isSecondary: true,
+                  ),
+                ],
               ),
             ],
           ),
@@ -836,7 +876,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 child: _buildModernTextField(
                   controller: _manualBackendIpController,
                   label: 'Backend IP Address',
-                  hint: '192.168.0.75',
+                  hint: '192.168.208.79',
                   icon: Icons.computer,
                   theme: theme,
                 ),
@@ -929,7 +969,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 child: _buildModernTextField(
                   controller: _manualDeviceIpController,
                   label: 'AMR IP Address',
-                  hint: '192.168.0.69',
+                  hint: '192.168.208.29',
                   icon: Icons.smart_toy,
                   theme: theme,
                   keyboardType: TextInputType.numberWithOptions(decimal: true),
@@ -1780,6 +1820,11 @@ class _ConnectScreenState extends State<ConnectScreen>
         'deviceName': device['name'],
       },
     );
+    Navigator.pushReplacementNamed(context, '/dashboard');
+  }
+
+  // ✅ NEW: Navigate to dashboard directly
+  void _goToDashboard() {
     Navigator.pushReplacementNamed(context, '/dashboard');
   }
 

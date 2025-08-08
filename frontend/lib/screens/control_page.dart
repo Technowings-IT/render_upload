@@ -220,7 +220,7 @@ class _ControlPageState extends State<ControlPage>
 
     if (!_webSocketService.isConnected) {
       _webSocketService.connect(
-        'ws://192.168.0.75:3000',
+        'ws://192.168.208.79:3000',
         deviceId: widget.deviceId,
         deviceInfo: {
           'type': 'mobile_controller',
@@ -866,7 +866,8 @@ class _ControlPageState extends State<ControlPage>
         setState(() {
           _scriptStatus['navigation'] = 'running';
         });
-        _showSnackBar('✅ Navigation script started successfully on Pi!', Colors.green);
+        _showSnackBar(
+            '✅ Navigation script started successfully on Pi!', Colors.green);
       } else {
         _showSnackBar('❌ Failed to start Navigation script', Colors.red);
       }
@@ -905,7 +906,8 @@ class _ControlPageState extends State<ControlPage>
           _mappingActive = true;
           _robotTrail.clear(); // Clear trail for new mapping session
         });
-        _showSnackBar('✅ Slam script started successfully on Pi!', Colors.green);
+        _showSnackBar(
+            '✅ Slam script started successfully on Pi!', Colors.green);
       } else {
         _showSnackBar('❌ Failed to start Slam script', Colors.red);
       }

@@ -136,8 +136,8 @@ class NetworkDiscoveryService {
 
     // Add your known AMR IPs here
     final knownIPs = [
-      '192.168.0.75', // Current backend IP (confirmed working)
-      '192.168.0.69', // Your current AMR
+      '192.168.208.79', // Current backend IP (confirmed working)
+      '192.168.208.29', // Your current AMR
       '192.168.0.100', // Common AMR IP
       '10.0.0.100', // Common AMR IP
     ];
