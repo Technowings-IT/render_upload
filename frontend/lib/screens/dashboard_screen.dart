@@ -398,6 +398,39 @@ class _DashboardScreenState extends State<DashboardScreen>
         print('✅ Total orders loaded for ${device['id']}: ${allOrders.length}');
       } catch (e) {
         print('❌ Error loading orders for ${device['id']}: $e');
+
+        // Enhanced error handling - check if it's a network issue
+        if (e.toString().contains('Network error') ||
+            e.toString().contains('Connection failed')) {
+          print(
+              '🔄 Network error detected, attempting backend connection test...');
+
+          // Test backend connectivity
+          try {
+            final isHealthy =
+                await _apiService.testConnectionWithRetry(maxRetries: 2);
+            if (!isHealthy) {
+              // Show user-friendly error message
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                        '⚠️ Backend connection lost. Orders may not be up to date.'),
+                    backgroundColor: Colors.orange,
+                    duration: Duration(seconds: 5),
+                  ),
+                );
+              }
+            }
+          } catch (connectivityError) {
+            print('❌ Backend connectivity test failed: $connectivityError');
+          }
+        }
+
+        // Set empty orders for this device to prevent UI errors
+        setState(() {
+          _deviceOrders[device['id']] = [];
+        });
       }
     }
   }
@@ -1391,7 +1424,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         onPressed:
                             _showSimpleCoordinateOrderCreator, // ✅ SIMPLIFIED
                         icon: Icon(Icons.touch_app, size: 18),
-                        label: Text('Create Coordinate Order'),
+                        label: Text('Create Order'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
@@ -1716,7 +1749,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               runSpacing: 8,
               children: [
                 _buildQuickActionButton(
-                  'Create Coordinate Order',
+                  'Create Order',
                   Icons.touch_app,
                   Colors.green,
                   _showSimpleCoordinateOrderCreator, // ✅ SIMPLIFIED
@@ -2060,7 +2093,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     child: ElevatedButton.icon(
                       onPressed: () => _showCreateOrderForDevice(deviceId),
                       icon: Icon(Icons.touch_app, size: 16), // ✅ UPDATED icon
-                      label: Text('Create Coordinate Order'), // ✅ UPDATED label
+                      label: Text('Create Order'), // ✅ UPDATED label
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
@@ -2164,7 +2197,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ElevatedButton.icon(
               onPressed: _showSimpleCoordinateOrderCreator, // ✅ SIMPLIFIED
               icon: Icon(Icons.touch_app),
-              label: Text('Create Coordinate Order'),
+              label: Text('Create Order'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
@@ -2741,7 +2774,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             IconButton(
               onPressed: () => _showCreateOrderForDevice(deviceId),
               icon: Icon(Icons.touch_app), // ✅ UPDATED icon
-              tooltip: 'Create Coordinate Order', // ✅ UPDATED tooltip
+              tooltip: 'Create Order', // ✅ UPDATED tooltip
             ),
           ],
         ),

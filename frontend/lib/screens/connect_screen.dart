@@ -1785,8 +1785,47 @@ class _ConnectScreenState extends State<ConnectScreen>
       setState(() {
         _connectedDevices = devices;
       });
+
+      print('✅ Loaded ${devices.length} connected devices');
     } catch (e) {
       print('❌ Error loading devices: $e');
+
+      // Enhanced error handling for device loading
+      if (e.toString().contains('Network error') ||
+          e.toString().contains('Connection failed')) {
+        print('🔄 Network error detected, testing backend connectivity...');
+
+        // Test backend connectivity with retry
+        try {
+          final isHealthy =
+              await _apiService.testConnectionWithRetry(maxRetries: 3);
+          if (!isHealthy) {
+            if (mounted) {
+              _showErrorSnackBar(
+                  '❌ Cannot connect to backend server. Please check if the server is running.');
+            }
+          } else {
+            if (mounted) {
+              _showWarningSnackBar(
+                  '⚠️ Temporary connection issue. Retrying device loading...');
+              // Retry loading devices after successful connection test
+              Future.delayed(Duration(seconds: 2), () {
+                if (mounted) _loadConnectedDevices();
+              });
+            }
+          }
+        } catch (connectivityError) {
+          if (mounted) {
+            _showErrorSnackBar(
+                '❌ Backend server is unreachable. Please verify server status.');
+          }
+        }
+      } else {
+        if (mounted) {
+          _showErrorSnackBar('❌ Failed to load devices: ${e.toString()}');
+        }
+      }
+
       if (mounted) {
         setState(() {
           _connectedDevices = [];
@@ -2228,13 +2267,25 @@ class _ConnectScreenState extends State<ConnectScreen>
       // Try to reconnect using the device's stored IP address
       final deviceIp = device['ipAddress']?.toString() ?? '';
       if (deviceIp.isNotEmpty) {
+        // ✅ FIXED: Properly cast capabilities to List<String>
+        List<String> capabilities;
+        try {
+          final rawCapabilities = device['capabilities'];
+          if (rawCapabilities is List) {
+            capabilities = rawCapabilities.map((e) => e.toString()).toList();
+          } else {
+            capabilities = ['mapping', 'navigation', 'remote_control'];
+          }
+        } catch (e) {
+          capabilities = ['mapping', 'navigation', 'remote_control'];
+        }
+
         final result = await _apiService.connectDevice(
           deviceId: deviceId,
           name: device['name']?.toString() ?? 'AMR $deviceId',
           ipAddress: deviceIp,
           type: device['type']?.toString() ?? 'differential_drive',
-          capabilities: device['capabilities'] ??
-              ['mapping', 'navigation', 'remote_control'],
+          capabilities: capabilities,
         );
 
         if (!mounted) return;
@@ -2251,7 +2302,22 @@ class _ConnectScreenState extends State<ConnectScreen>
       }
     } catch (e) {
       if (mounted) {
-        _showErrorSnackBar('❌ Connection retry failed: $e');
+        // ✅ IMPROVED: Better error handling with more specific messages
+        String errorMessage = 'Connection retry failed';
+        if (e.toString().contains('List<dynamic>')) {
+          errorMessage =
+              'Device configuration error - please remove and re-add device';
+        } else if (e.toString().contains('IP address')) {
+          errorMessage = 'Device IP address not available';
+        } else if (e.toString().contains('Backend not connected')) {
+          errorMessage = 'Backend connection lost - please reconnect first';
+        } else if (e.toString().contains('timeout')) {
+          errorMessage = 'Connection timeout - check device network';
+        } else {
+          errorMessage =
+              'Connection retry failed: ${e.toString().replaceAll('Exception: ', '')}';
+        }
+        _showErrorSnackBar('❌ $errorMessage');
       }
     } finally {
       // ✅ Remove from retry tracking

@@ -571,38 +571,6 @@ class _ControlPageState extends State<ControlPage>
           ),
         ),
 
-        // Zoom level indicator - positioned relative to container
-        Positioned(
-          top: 8,
-          left: 8,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.9),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.zoom_in,
-                  size: 14,
-                  color: Colors.white,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'Zoom: ${(_mapZoomLevel * 100).toInt()}%',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-
         // 🔧 NEW: Map size indicator
         Positioned(
           bottom: 8,
@@ -799,11 +767,11 @@ class _ControlPageState extends State<ControlPage>
   }
 
   // ==========================================
-  // SIMPLIFIED SCRIPT CONTROL METHODS
+  // SIMPLIFIED SCRIPT CONTROL METHODS - 5 BUTTONS
   // ==========================================
 
-  // Execute kill.sh script - Emergency stop all processes
-  Future<void> _executeKillScript() async {
+  // 1) Start Robot - Execute robot_launch.sh script
+  Future<void> _executeStartRobotScript() async {
     if (_scriptExecutionInProgress) return;
 
     setState(() {
@@ -811,31 +779,26 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
-      _showSnackBar('🔴 Executing kill', Colors.orange);
+      _showSnackBar('🤖 Starting Robot Launch script on Pi...', Colors.green);
 
-      // ✅ FIXED: Send specific kill.sh script command to backend
       final success = _webSocketService
           .sendScriptCommand(widget.deviceId, 'execute_script', options: {
-        'script_name': 'kill.sh',
-        'script_path': './scripts/kill.sh',
+        'script_name': 'robot_launch.sh',
+        'script_path': '/home/piros/scripts/robot_launch.sh',
         'action': 'run_only_this_script'
       });
 
       if (success) {
-        // Reset all statuses since kill.sh stops everything
         setState(() {
-          _scriptStatus['robot_control'] = 'stopped';
-          _scriptStatus['slam'] = 'stopped';
-          _scriptStatus['navigation'] = 'stopped';
-          _mappingActive = false;
+          _scriptStatus['robot_control'] = 'running';
         });
-
-        _showSnackBar('✅ kill executed successfully on Pi!', Colors.green);
+        _showSnackBar(
+            '✅ Robot Launch started successfully on Pi!', Colors.green);
       } else {
-        _showSnackBar('❌ Failed to execute kill script', Colors.red);
+        _showSnackBar('❌ Failed to start Robot Launch script', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('❌ Error executing kill script: $e', Colors.red);
+      _showSnackBar('❌ Error starting Robot Launch script: $e', Colors.red);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -843,7 +806,46 @@ class _ControlPageState extends State<ControlPage>
     }
   }
 
-  // Execute nav2.sh script - Start robot navigation
+  // 2) Start SLAM - Execute slam.sh script
+  Future<void> _executeSlamScript() async {
+    if (_scriptExecutionInProgress) return;
+
+    setState(() {
+      _scriptExecutionInProgress = true;
+    });
+
+    try {
+      _showSnackBar('🗺️ Starting SLAM script on Pi...', Colors.purple);
+
+      final success = _webSocketService
+          .sendScriptCommand(widget.deviceId, 'execute_script', options: {
+        'script_name': 'slam.sh',
+        'script_path': '/home/piros/scripts/slam.sh',
+        'action': 'run_only_this_script',
+        'map_name': 'slam_map_${DateTime.now().millisecondsSinceEpoch}'
+      });
+
+      if (success) {
+        setState(() {
+          _scriptStatus['slam'] = 'running';
+          _mappingActive = true;
+          _robotTrail.clear(); // Clear trail for new mapping session
+        });
+        _showSnackBar(
+            '✅ SLAM script started successfully on Pi!', Colors.green);
+      } else {
+        _showSnackBar('❌ Failed to start SLAM script', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('❌ Error starting SLAM script: $e', Colors.red);
+    } finally {
+      setState(() {
+        _scriptExecutionInProgress = false;
+      });
+    }
+  }
+
+  // 3) Start Navigation - Execute nav2.sh script
   Future<void> _executeNav2Script() async {
     if (_scriptExecutionInProgress) return;
 
@@ -852,13 +854,12 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
-      _showSnackBar('🤖 Starting Navigation script on Pi...', Colors.blue);
+      _showSnackBar('� Starting Navigation script on Pi...', Colors.blue);
 
-      // ✅ FIXED: Send specific nav2.sh script command to backend
       final success = _webSocketService
           .sendScriptCommand(widget.deviceId, 'execute_script', options: {
         'script_name': 'nav2.sh',
-        'script_path': './scripts/nav2.sh',
+        'script_path': '/home/piros/scripts/nav2.sh',
         'action': 'run_only_this_script'
       });
 
@@ -880,8 +881,8 @@ class _ControlPageState extends State<ControlPage>
     }
   }
 
-  // Execute slam.sh script - Start SLAM mapping
-  Future<void> _executeSlamScript() async {
+  // 4) Stop Robot - Execute kill_robot.sh script
+  Future<void> _executeStopRobotScript() async {
     if (_scriptExecutionInProgress) return;
 
     setState(() {
@@ -889,30 +890,64 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
-      _showSnackBar('🗺️ Starting Slam script on Pi...', Colors.purple);
+      _showSnackBar('� Stopping Robot on Pi...', Colors.orange);
 
-      // ✅ FIXED: Send specific slam.sh script command to backend
       final success = _webSocketService
           .sendScriptCommand(widget.deviceId, 'execute_script', options: {
-        'script_name': 'slam.sh',
-        'script_path': './scripts/slam.sh',
-        'action': 'run_only_this_script',
-        'map_name': 'slam_map_${DateTime.now().millisecondsSinceEpoch}'
+        'script_name': 'kill_robot.sh',
+        'script_path': '/home/piros/scripts/kill_robot.sh',
+        'action': 'run_only_this_script'
       });
 
       if (success) {
         setState(() {
-          _scriptStatus['slam'] = 'running';
-          _mappingActive = true;
-          _robotTrail.clear(); // Clear trail for new mapping session
+          _scriptStatus['robot_control'] = 'stopped';
         });
-        _showSnackBar(
-            '✅ Slam script started successfully on Pi!', Colors.green);
+        _showSnackBar('✅ Robot stopped successfully on Pi!', Colors.green);
       } else {
-        _showSnackBar('❌ Failed to start Slam script', Colors.red);
+        _showSnackBar('❌ Failed to stop Robot', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('❌ Error starting Slam script: $e', Colors.red);
+      _showSnackBar('❌ Error stopping Robot: $e', Colors.red);
+    } finally {
+      setState(() {
+        _scriptExecutionInProgress = false;
+      });
+    }
+  }
+
+  // 5) Stop PID - Execute kill_all.sh script (Emergency stop all processes)
+  Future<void> _executeStopPIDScript() async {
+    if (_scriptExecutionInProgress) return;
+
+    setState(() {
+      _scriptExecutionInProgress = true;
+    });
+
+    try {
+      _showSnackBar('🔴 Stopping All PIDs on Pi...', Colors.red);
+
+      final success = _webSocketService
+          .sendScriptCommand(widget.deviceId, 'execute_script', options: {
+        'script_name': 'kill_all.sh',
+        'script_path': '/home/piros/scripts/kill_all.sh',
+        'action': 'run_only_this_script'
+      });
+
+      if (success) {
+        // Reset all statuses since kill_all.sh stops everything
+        setState(() {
+          _scriptStatus['robot_control'] = 'stopped';
+          _scriptStatus['slam'] = 'stopped';
+          _scriptStatus['navigation'] = 'stopped';
+          _mappingActive = false;
+        });
+        _showSnackBar('✅ All PIDs stopped successfully on Pi!', Colors.green);
+      } else {
+        _showSnackBar('❌ Failed to stop all PIDs', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar('❌ Error stopping all PIDs: $e', Colors.red);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -3480,20 +3515,21 @@ class _ControlPageState extends State<ControlPage>
   Widget _buildMappingControlButtons() {
     return Column(
       children: [
-        // Emergency Kill Button - Always Available
+        // 1. Start Robot Button (robot_launch.sh)
         Container(
           width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 16),
+          margin: const EdgeInsets.only(bottom: 12),
           child: ElevatedButton.icon(
-            onPressed: !_scriptExecutionInProgress ? _executeKillScript : null,
+            onPressed:
+                !_scriptExecutionInProgress ? _executeStartRobotScript : null,
             icon: const Icon(Icons.power_settings_new, size: 24),
             label: const Text(
-              'EMERGENCY KILL',
+              'START ROBOT',
               textAlign: TextAlign.center,
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: Colors.green,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.all(18),
               shape: RoundedRectangleBorder(
@@ -3503,15 +3539,15 @@ class _ControlPageState extends State<ControlPage>
           ),
         ),
 
-        // Robot Navigation Button (nav2.sh)
+        // 2. Start Slam Button (slam.sh)
         Container(
           width: double.infinity,
           margin: const EdgeInsets.only(bottom: 12),
           child: ElevatedButton.icon(
-            onPressed: !_scriptExecutionInProgress ? _executeNav2Script : null,
-            icon: const Icon(Icons.navigation, size: 24),
+            onPressed: !_scriptExecutionInProgress ? _executeSlamScript : null,
+            icon: const Icon(Icons.map, size: 24),
             label: const Text(
-              'START ROBOT NAVIGATION',
+              'START SLAM',
               textAlign: TextAlign.center,
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
@@ -3526,20 +3562,68 @@ class _ControlPageState extends State<ControlPage>
           ),
         ),
 
-        // SLAM Mapping Button (slam.sh)
+        // 3. Start Nav Button (nav2.sh)
         Container(
           width: double.infinity,
           margin: const EdgeInsets.only(bottom: 12),
           child: ElevatedButton.icon(
-            onPressed: !_scriptExecutionInProgress ? _executeSlamScript : null,
-            icon: const Icon(Icons.map, size: 24),
+            onPressed: !_scriptExecutionInProgress ? _executeNav2Script : null,
+            icon: const Icon(Icons.navigation, size: 24),
             label: const Text(
-              'START SLAM MAPPING',
+              'START NAV',
               textAlign: TextAlign.center,
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
+              backgroundColor: Colors.purple,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.all(18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+
+        // 4. Stop Robot Button (kill_robot.sh)
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 12),
+          child: ElevatedButton.icon(
+            onPressed:
+                !_scriptExecutionInProgress ? _executeStopRobotScript : null,
+            icon: const Icon(Icons.stop, size: 24),
+            label: const Text(
+              'STOP ROBOT',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.all(18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+
+        // 5. Stop PID Button (kill_all.sh)
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 16),
+          child: ElevatedButton.icon(
+            onPressed:
+                !_scriptExecutionInProgress ? _executeStopPIDScript : null,
+            icon: const Icon(Icons.power_off, size: 24),
+            label: const Text(
+              'STOP PID',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.all(18),
               shape: RoundedRectangleBorder(
@@ -3560,7 +3644,7 @@ class _ControlPageState extends State<ControlPage>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildSimpleStatusChip('Kill', 'ready'),
+              _buildSimpleStatusChip('Robot', 'ready'),
               _buildSimpleStatusChip(
                   'Nav2', _scriptStatus['navigation'] ?? 'stopped'),
               _buildSimpleStatusChip(

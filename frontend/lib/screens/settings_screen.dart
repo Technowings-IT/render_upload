@@ -677,7 +677,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         _buildInfoRow('App Version', '2.1.0', Icons.tag, theme),
         _buildInfoRow('Build Number', '240805.1', Icons.build, theme),
         _buildInfoRow('Platform', 'Flutter 3.24', Icons.flutter_dash, theme),
-        _buildInfoRow('Backend', 'ROS2 Humble', Icons.storage, theme),
+        _buildInfoRow('Backend', 'ROS2 Jazzy', Icons.storage, theme),
         _buildInfoRow(
           'Connection Status',
           _webSocketService.isConnected ? 'Connected' : 'Disconnected',
@@ -939,7 +939,8 @@ class _SettingsScreenState extends State<SettingsScreen>
   Widget _buildSaveFAB(ThemeService theme) {
     return Container(
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
+        borderRadius: BorderRadius.circular(
+            28), // ✅ Fixed: Use rounded rectangle instead of circle
         gradient: theme.primaryGradient,
         boxShadow: theme.neonGlow,
       ),

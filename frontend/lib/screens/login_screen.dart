@@ -31,12 +31,33 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
 
   bool _isLoading = false;
   bool _rememberMe = false;
+  bool _isDarkMode = false; // ✅ Follows system theme only
 
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
     _loadSavedCredentials();
+    _detectSystemTheme();
+  }
+
+  void _detectSystemTheme() {
+    // ✅ Automatically follow system theme preference only
+    final brightness =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    setState(() {
+      _isDarkMode = brightness == Brightness.dark;
+    });
+
+    // ✅ Listen for system theme changes
+    WidgetsBinding.instance.platformDispatcher.onPlatformBrightnessChanged =
+        () {
+      final newBrightness =
+          WidgetsBinding.instance.platformDispatcher.platformBrightness;
+      setState(() {
+        _isDarkMode = newBrightness == Brightness.dark;
+      });
+    };
   }
 
   void _initializeAnimations() {
@@ -125,22 +146,23 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
   }
 
   ThemeColors _getThemeColors() {
-    return ThemeColors.light();
+    return _isDarkMode ? ThemeColors.dark() : ThemeColors.light();
   }
 
   DeviceType _getDeviceType(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
+    final shortestSide = MediaQuery.of(context).size.shortestSide;
     final aspectRatio = screenWidth / screenHeight;
 
-    // More sophisticated device detection
-    if (screenWidth > 1400 || (screenWidth > 1200 && aspectRatio > 1.6)) {
+    // Enhanced device detection with better breakpoints
+    if (screenWidth >= 1200 && shortestSide >= 800) {
       return DeviceType.desktop;
     }
-    if (screenWidth > 900 || (screenWidth > 768 && aspectRatio > 1.3)) {
+    if (screenWidth >= 768 && shortestSide >= 600) {
       return DeviceType.laptop;
     }
-    if (screenWidth > 600 || (screenWidth > 500 && aspectRatio > 0.7)) {
+    if (shortestSide >= 600 || (screenWidth >= 768 && aspectRatio > 1.2)) {
       return DeviceType.tablet;
     }
     return DeviceType.mobile;
@@ -149,78 +171,130 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
   ResponsiveDimensions _getResponsiveDimensions(BuildContext context) {
     final deviceType = _getDeviceType(context);
     final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final shortestSide = MediaQuery.of(context).size.shortestSide;
     final isCompact = screenHeight < 700;
+    final isExtraCompact = screenHeight < 600;
+    final isUltraCompact = screenHeight < 500;
+    final isLandscape = screenWidth > screenHeight;
+
+    // Calculate responsive scale factor
+    final baseWidth = 375.0; // iPhone 11 Pro width as base
+    final scaleFactor = (screenWidth / baseWidth).clamp(0.8, 2.0);
 
     switch (deviceType) {
       case DeviceType.desktop:
+        final isLargeDesktop = screenWidth >= 1600;
         return ResponsiveDimensions(
-          horizontalPadding: 80.0,
-          verticalPadding: isCompact ? 30.0 : 50.0,
-          logoSize: isCompact ? 320.0 : 380.0,
-          logoHeight: isCompact ? 140.0 : 160.0,
-          titleSize: 44.0,
-          subtitleSize: 20.0,
-          cardPadding: 52.0,
-          textFieldHeight: 76.0,
-          buttonHeight: 80.0,
-          buttonTextSize: 20.0,
-          spacing: isCompact ? 50.0 : 65.0,
-          maxWidth: 650.0,
-          borderRadius: 24.0,
-          iconSize: 28.0,
+          horizontalPadding: isLargeDesktop ? 120.0 : 80.0,
+          verticalPadding: isCompact ? 30.0 : 60.0,
+          logoSize: (isCompact ? 260.0 : 300.0) * scaleFactor.clamp(0.9, 1.3),
+          logoHeight: (isCompact ? 110.0 : 130.0) * scaleFactor.clamp(0.9, 1.3),
+          titleSize: (isCompact ? 36.0 : 42.0) * scaleFactor.clamp(0.9, 1.2),
+          subtitleSize: (isCompact ? 17.0 : 19.0) * scaleFactor.clamp(0.9, 1.1),
+          cardPadding: 48.0,
+          textFieldHeight: isCompact ? 68.0 : 74.0,
+          buttonHeight: isCompact ? 72.0 : 78.0,
+          buttonTextSize:
+              (isCompact ? 17.0 : 19.0) * scaleFactor.clamp(0.9, 1.1),
+          spacing: isCompact ? 40.0 : 55.0,
+          maxWidth: isLargeDesktop ? 700.0 : 600.0,
+          borderRadius: 22.0,
+          iconSize: (isCompact ? 25.0 : 27.0) * scaleFactor.clamp(0.9, 1.1),
         );
+
       case DeviceType.laptop:
         return ResponsiveDimensions(
-          horizontalPadding: 72.0,
-          verticalPadding: isCompact ? 30.0 : 45.0,
-          logoSize: isCompact ? 300.0 : 350.0,
-          logoHeight: isCompact ? 130.0 : 150.0,
-          titleSize: 40.0,
-          subtitleSize: 19.0,
-          cardPadding: 46.0,
-          textFieldHeight: 70.0,
-          buttonHeight: 74.0,
-          buttonTextSize: 19.0,
-          spacing: isCompact ? 45.0 : 58.0,
-          maxWidth: 580.0,
-          borderRadius: 22.0,
-          iconSize: 26.0,
-        );
-      case DeviceType.tablet:
-        final isLandscape =
-            MediaQuery.of(context).orientation == Orientation.landscape;
-        return ResponsiveDimensions(
-          horizontalPadding: isLandscape ? 80.0 : 50.0,
-          verticalPadding: isCompact ? 24.0 : 36.0,
-          logoSize: isLandscape ? 280.0 : 320.0,
-          logoHeight: isLandscape ? 120.0 : 140.0,
-          titleSize: 36.0,
-          subtitleSize: 18.0,
-          cardPadding: 38.0,
-          textFieldHeight: 64.0,
-          buttonHeight: 68.0,
-          buttonTextSize: 18.0,
-          spacing: isCompact ? 35.0 : 48.0,
-          maxWidth: isLandscape ? 550.0 : 520.0,
-          borderRadius: 20.0,
-          iconSize: 24.0,
-        );
-      case DeviceType.mobile:
-        return ResponsiveDimensions(
-          horizontalPadding: 24.0,
-          verticalPadding: isCompact ? 16.0 : 24.0,
-          logoSize: isCompact ? 240.0 : 280.0,
-          logoHeight: isCompact ? 100.0 : 120.0,
-          titleSize: 30.0,
-          subtitleSize: 16.0,
-          cardPadding: 24.0,
-          textFieldHeight: 56.0,
-          buttonHeight: 56.0,
-          buttonTextSize: 16.0,
-          spacing: isCompact ? 24.0 : 36.0,
-          maxWidth: double.infinity,
+          horizontalPadding: 50.0,
+          verticalPadding: isCompact ? 25.0 : 40.0,
+          logoSize: (isCompact ? 240.0 : 280.0) * scaleFactor.clamp(0.9, 1.2),
+          logoHeight: (isCompact ? 100.0 : 120.0) * scaleFactor.clamp(0.9, 1.2),
+          titleSize: (isCompact ? 32.0 : 36.0) * scaleFactor.clamp(0.9, 1.1),
+          subtitleSize: (isCompact ? 15.0 : 17.0) * scaleFactor.clamp(0.9, 1.1),
+          cardPadding: 36.0,
+          textFieldHeight: isCompact ? 62.0 : 68.0,
+          buttonHeight: isCompact ? 64.0 : 70.0,
+          buttonTextSize:
+              (isCompact ? 16.0 : 18.0) * scaleFactor.clamp(0.9, 1.1),
+          spacing: isCompact ? 35.0 : 45.0,
+          maxWidth: 520.0,
           borderRadius: 18.0,
-          iconSize: 22.0,
+          iconSize: (isCompact ? 23.0 : 25.0) * scaleFactor.clamp(0.9, 1.1),
+        );
+
+      case DeviceType.tablet:
+        final tabletScaleFactor = (shortestSide / 600.0).clamp(0.8, 1.2);
+        return ResponsiveDimensions(
+          horizontalPadding: isLandscape
+              ? (screenWidth * 0.08).clamp(40.0, 80.0)
+              : (screenWidth * 0.06).clamp(24.0, 40.0),
+          verticalPadding: (screenHeight * 0.03).clamp(16.0, 32.0),
+          logoSize: (isCompact ? 220.0 : 260.0) * tabletScaleFactor,
+          logoHeight: (isCompact ? 90.0 : 110.0) * tabletScaleFactor,
+          titleSize: (isCompact ? 28.0 : 32.0) * tabletScaleFactor,
+          subtitleSize: (isCompact ? 14.0 : 16.0) * tabletScaleFactor,
+          cardPadding: 28.0 * tabletScaleFactor,
+          textFieldHeight: (isCompact ? 56.0 : 62.0) * tabletScaleFactor,
+          buttonHeight: (isCompact ? 58.0 : 64.0) * tabletScaleFactor,
+          buttonTextSize: (isCompact ? 15.0 : 17.0) * tabletScaleFactor,
+          spacing: (isCompact ? 28.0 : 35.0) * tabletScaleFactor,
+          maxWidth: isLandscape
+              ? (screenWidth * 0.6).clamp(400.0, 600.0)
+              : (screenWidth * 0.9).clamp(300.0, 500.0),
+          borderRadius: 16.0,
+          iconSize: (isCompact ? 21.0 : 23.0) * tabletScaleFactor,
+        );
+
+      case DeviceType.mobile:
+        final mobileScaleFactor = (screenWidth / 375.0).clamp(0.75, 1.25);
+        final isVerySmall = screenWidth < 340;
+        final isTinyScreen = screenWidth < 320;
+
+        return ResponsiveDimensions(
+          horizontalPadding: isTinyScreen ? 12.0 : (isVerySmall ? 16.0 : 20.0),
+          verticalPadding: isUltraCompact
+              ? 8.0
+              : (isExtraCompact ? 12.0 : (isCompact ? 16.0 : 20.0)),
+          logoSize: (isUltraCompact
+                  ? 160.0
+                  : (isExtraCompact ? 180.0 : (isCompact ? 200.0 : 240.0))) *
+              mobileScaleFactor,
+          logoHeight: (isUltraCompact
+                  ? 65.0
+                  : (isExtraCompact ? 75.0 : (isCompact ? 85.0 : 100.0))) *
+              mobileScaleFactor,
+          titleSize: (isUltraCompact
+                  ? 20.0
+                  : (isExtraCompact ? 22.0 : (isCompact ? 24.0 : 28.0))) *
+              mobileScaleFactor,
+          subtitleSize: (isUltraCompact
+                  ? 11.0
+                  : (isExtraCompact ? 12.0 : (isCompact ? 13.0 : 15.0))) *
+              mobileScaleFactor,
+          cardPadding: (isTinyScreen ? 16.0 : (isVerySmall ? 18.0 : 22.0)) *
+              mobileScaleFactor,
+          textFieldHeight: (isUltraCompact
+                  ? 44.0
+                  : (isExtraCompact ? 48.0 : (isCompact ? 50.0 : 54.0))) *
+              mobileScaleFactor,
+          buttonHeight: (isUltraCompact
+                  ? 44.0
+                  : (isExtraCompact ? 48.0 : (isCompact ? 50.0 : 54.0))) *
+              mobileScaleFactor,
+          buttonTextSize: (isUltraCompact
+                  ? 12.0
+                  : (isExtraCompact ? 13.0 : (isCompact ? 14.0 : 15.0))) *
+              mobileScaleFactor,
+          spacing: (isUltraCompact
+                  ? 16.0
+                  : (isExtraCompact ? 18.0 : (isCompact ? 22.0 : 26.0))) *
+              mobileScaleFactor,
+          maxWidth: double.infinity,
+          borderRadius: 12.0,
+          iconSize: (isUltraCompact
+                  ? 16.0
+                  : (isExtraCompact ? 18.0 : (isCompact ? 19.0 : 21.0))) *
+              mobileScaleFactor,
         );
     }
   }
@@ -341,6 +415,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
     final colors = _getThemeColors();
 
     return Scaffold(
+      backgroundColor: colors.background,
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -357,7 +432,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
             // Animated background pattern
             if (deviceType != DeviceType.mobile)
               ...List.generate(
-                deviceType == DeviceType.desktop ? 15 : 10,
+                deviceType == DeviceType.desktop ? 10 : 6,
                 (index) => _buildAnimatedBackground(index, dimensions, colors),
               ),
 
@@ -379,50 +454,118 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
                 ),
               ),
 
-            // Main content
+            // Main content - NO THEME TOGGLE BUTTON
             SafeArea(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: dimensions.maxWidth,
-                  ),
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: dimensions.horizontalPadding,
-                      vertical: dimensions.verticalPadding,
-                    ),
-                    child: AnimatedBuilder(
-                      animation: _fadeAnimation,
-                      builder: (context, child) {
-                        return FadeTransition(
-                          opacity: _fadeAnimation,
-                          child: SlideTransition(
-                            position: _slideAnimation,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _buildLogoSection(dimensions, colors),
-                                SizedBox(height: dimensions.spacing * 1.5),
-                                _buildLoginForm(dimensions, colors),
-                                SizedBox(height: dimensions.spacing * 0.75),
-                                _buildRememberForgot(dimensions, colors),
-                                SizedBox(height: dimensions.spacing),
-                                _buildLoginButton(dimensions, colors),
-                                SizedBox(height: dimensions.spacing),
-                                _buildDivider(dimensions, colors),
-                                SizedBox(height: dimensions.spacing),
-                                _buildSocialLogin(
-                                    dimensions, colors, deviceType),
-                                SizedBox(height: dimensions.spacing * 1.2),
-                                _buildSignUpSection(dimensions, colors),
-                              ],
-                            ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final availableHeight = constraints.maxHeight;
+                  final availableWidth = constraints.maxWidth;
+
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: dimensions.maxWidth.clamp(
+                          availableWidth * 0.9,
+                          double.infinity,
+                        ),
+                        maxHeight: availableHeight,
+                      ),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: dimensions.horizontalPadding.clamp(
+                            8.0,
+                            availableWidth * 0.1,
                           ),
-                        );
-                      },
+                          vertical: dimensions.verticalPadding.clamp(
+                            8.0,
+                            availableHeight * 0.05,
+                          ),
+                        ),
+                        child: AnimatedBuilder(
+                          animation: _fadeAnimation,
+                          builder: (context, child) {
+                            return FadeTransition(
+                              opacity: _fadeAnimation,
+                              child: SlideTransition(
+                                position: _slideAnimation,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight: availableHeight -
+                                        (dimensions.verticalPadding * 2)
+                                            .clamp(16.0, availableHeight * 0.1),
+                                  ),
+                                  child: IntrinsicHeight(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        // Flexible spacer for top
+                                        if (availableHeight > 600)
+                                          const Spacer(flex: 1),
+
+                                        _buildLogoSection(dimensions, colors),
+
+                                        SizedBox(
+                                            height: (dimensions.spacing * 1.2)
+                                                .clamp(16.0, 40.0)),
+
+                                        _buildLoginForm(dimensions, colors),
+
+                                        SizedBox(
+                                            height: (dimensions.spacing * 0.6)
+                                                .clamp(8.0, 20.0)),
+
+                                        _buildRememberForgot(
+                                            dimensions, colors),
+
+                                        SizedBox(
+                                            height: (dimensions.spacing * 0.8)
+                                                .clamp(12.0, 24.0)),
+
+                                        _buildLoginButton(dimensions, colors),
+
+                                        SizedBox(
+                                            height: (dimensions.spacing * 0.8)
+                                                .clamp(12.0, 24.0)),
+
+                                        _buildDivider(dimensions, colors),
+
+                                        SizedBox(
+                                            height: (dimensions.spacing * 0.8)
+                                                .clamp(12.0, 24.0)),
+
+                                        _buildSocialLogin(
+                                            dimensions, colors, deviceType),
+
+                                        SizedBox(
+                                            height: (dimensions.spacing)
+                                                .clamp(16.0, 32.0)),
+
+                                        _buildSignUpSection(dimensions, colors),
+
+                                        // Flexible spacer for bottom
+                                        if (availableHeight > 600)
+                                          const Spacer(flex: 1),
+
+                                        // Bottom padding for very small screens
+                                        if (availableHeight <= 600)
+                                          SizedBox(
+                                              height: dimensions.spacing / 2),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ],
@@ -437,8 +580,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
     final screenSize = MediaQuery.of(context).size;
     final left = (random % 100) / 100 * screenSize.width;
     final top = ((random ~/ 100) % 100) / 100 * screenSize.height;
-    final baseSize = dimensions.spacing * 2;
-    final size = baseSize + (random % 60);
+    final baseSize = dimensions.spacing * 1.5;
+    final size = baseSize + (random % 40);
 
     return Positioned(
       left: left,
@@ -458,8 +601,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    colors.primary.withOpacity(0.1),
-                    colors.primary.withOpacity(0.05),
+                    colors.primary.withOpacity(0.08),
+                    colors.primary.withOpacity(0.04),
                     Colors.transparent,
                   ],
                 ),
@@ -473,6 +616,16 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
 
   Widget _buildLogoSection(
       ResponsiveDimensions dimensions, ThemeColors colors) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isVerySmallScreen = screenWidth < 340 || screenHeight < 500;
+
+    // ✅ Select logo based on theme
+    // Dark mode: uses 'assets/TW_WHITE.png' (white TW logo)
+    // Light mode: uses 'assets/login_logo.png' (standard logo)
+    final logoAsset =
+        _isDarkMode ? 'assets/TW_WHITE.png' : 'assets/login_logo.png';
+
     return Column(
       children: [
         AnimatedBuilder(
@@ -481,60 +634,106 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
             return Transform.scale(
               scale: _pulseAnimation.value,
               child: Container(
-                padding: EdgeInsets.all(dimensions.cardPadding / 2),
+                padding: EdgeInsets.all(
+                    (dimensions.cardPadding / 2).clamp(12.0, 24.0)),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(
+                      20.0), // ✅ Use rounded rectangle instead of circle
                   gradient: RadialGradient(
                     colors: [
-                      colors.primary.withOpacity(0.15),
-                      colors.primary.withOpacity(0.05),
+                      colors.primary.withOpacity(0.12),
+                      colors.primary.withOpacity(0.06),
                       Colors.transparent,
                     ],
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: colors.primary.withOpacity(0.3),
-                      blurRadius: dimensions.spacing,
-                      spreadRadius: dimensions.spacing / 8,
+                      color: colors.primary.withOpacity(0.2),
+                      blurRadius: dimensions.spacing.clamp(8.0, 32.0),
+                      spreadRadius: (dimensions.spacing / 8).clamp(1.0, 4.0),
                     ),
                   ],
                 ),
-                child: Image.asset(
-                  'assets/login_logo.png',
-                  width: dimensions.logoSize,
-                  height: dimensions.logoHeight,
-                  fit: BoxFit.contain,
+                child: Container(
+                  padding: EdgeInsets.all(8.0), // Add some internal padding
+                  child: Image.asset(
+                    logoAsset, // ✅ Use theme-appropriate logo
+                    width: dimensions.logoSize.clamp(120.0, 400.0),
+                    height: dimensions.logoHeight.clamp(50.0, 180.0),
+                    fit: BoxFit
+                        .contain, // This ensures the logo scales properly without cutting
+                    errorBuilder: (context, error, stackTrace) {
+                      // ✅ Fallback logo with theme-appropriate styling
+                      return Container(
+                        width: dimensions.logoSize.clamp(120.0, 400.0),
+                        height: dimensions.logoHeight.clamp(50.0, 180.0),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12.0),
+                          gradient: LinearGradient(
+                            colors: [colors.primary, colors.secondary],
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.android_rounded,
+                          size: (dimensions.logoSize * 0.5).clamp(30.0, 120.0),
+                          color: Colors.white,
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
             );
           },
         ),
-        SizedBox(height: dimensions.spacing * 0.75),
-        ShaderMask(
-          shaderCallback: (bounds) => LinearGradient(
-            colors: [
-              colors.textPrimary,
-              colors.primary,
-              colors.textPrimary,
-            ],
-          ).createShader(bounds),
-          child: Text(
-            'Welcome Back',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: dimensions.titleSize,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.5,
+
+        SizedBox(height: (dimensions.spacing * 0.6).clamp(8.0, 24.0)),
+
+        // Title with responsive line height
+        Padding(
+          padding:
+              EdgeInsets.symmetric(horizontal: isVerySmallScreen ? 16.0 : 8.0),
+          child: ShaderMask(
+            shaderCallback: (bounds) => LinearGradient(
+              colors: [
+                colors.textPrimary,
+                colors.primary,
+                colors.textPrimary,
+              ],
+            ).createShader(bounds),
+            child: Text(
+              'Welcome Back',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: dimensions.titleSize.clamp(18.0, 50.0),
+                fontWeight: FontWeight.bold,
+                letterSpacing: isVerySmallScreen ? 0.8 : 1.2,
+                height: 1.1,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: isVerySmallScreen ? 2 : 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),
-        SizedBox(height: dimensions.spacing / 4),
-        Text(
-          'Access your AMR control panel',
-          style: TextStyle(
-            color: colors.textSecondary,
-            fontSize: dimensions.subtitleSize,
-            letterSpacing: 0.5,
+
+        SizedBox(height: (dimensions.spacing / 4).clamp(4.0, 12.0)),
+
+        // Subtitle with responsive sizing
+        Padding(
+          padding:
+              EdgeInsets.symmetric(horizontal: isVerySmallScreen ? 20.0 : 12.0),
+          child: Text(
+            'Access your AMR control panel',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: dimensions.subtitleSize.clamp(11.0, 22.0),
+              letterSpacing: 0.3,
+              height: 1.2,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: isVerySmallScreen ? 2 : 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -549,13 +748,14 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
         color: colors.cardBackground,
         border: Border.all(
           color: colors.border,
-          width: 1,
+          width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
             color: colors.shadow,
             blurRadius: dimensions.spacing,
             offset: Offset(0, dimensions.spacing / 4),
+            spreadRadius: 2,
           ),
         ],
       ),
@@ -607,48 +807,68 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
     required ThemeColors colors,
     Widget? suffixIcon,
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isVerySmallScreen = screenWidth < 340;
+
     return Container(
-      height: dimensions.textFieldHeight,
+      height: dimensions.textFieldHeight.clamp(44.0, 80.0),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(dimensions.borderRadius / 1.5),
         color: colors.inputBackground,
         border: Border.all(
           color: colors.inputBorder,
-          width: 1,
+          width: 2.0, // ✅ Enhanced border width for better visibility
         ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.shadow.withOpacity(0.5),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: TextField(
         controller: controller,
         obscureText: obscureText,
         style: TextStyle(
-          color: colors.textPrimary,
-          fontSize: dimensions.subtitleSize,
-          fontWeight: FontWeight.w500,
+          color: Colors.black87, // ✅ Force dark black text for better readability
+          fontSize: dimensions.subtitleSize.clamp(12.0, 20.0),
+          fontWeight:
+              FontWeight.w600, // ✅ Enhanced font weight for better readability
         ),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: TextStyle(
-            color: colors.textSecondary.withOpacity(0.8),
-            fontSize: dimensions.subtitleSize,
+            color: Colors.black54, // ✅ Dark grey for hint text - visible but distinguishable
+            fontSize: dimensions.subtitleSize.clamp(12.0, 20.0),
+            fontWeight: FontWeight.w500, // ✅ Enhanced hint font weight
           ),
           prefixIcon: Container(
-            margin: EdgeInsets.all(dimensions.spacing / 4),
+            margin: EdgeInsets.all((dimensions.spacing / 4).clamp(4.0, 12.0)),
             decoration: BoxDecoration(
-              color: colors.primary.withOpacity(0.1),
+              color: colors.primary
+                  .withOpacity(0.15), // ✅ Enhanced icon background opacity
               borderRadius: BorderRadius.circular(dimensions.borderRadius / 2),
             ),
             child: Icon(
               icon,
               color: colors.primary,
-              size: dimensions.iconSize,
+              size: dimensions.iconSize.clamp(16.0, 28.0),
             ),
           ),
-          suffixIcon: suffixIcon,
+          suffixIcon: suffixIcon != null
+              ? Padding(
+                  padding:
+                      EdgeInsets.only(right: isVerySmallScreen ? 8.0 : 12.0),
+                  child: suffixIcon,
+                )
+              : null,
           border: InputBorder.none,
           contentPadding: EdgeInsets.symmetric(
-            horizontal: dimensions.cardPadding / 2,
-            vertical: dimensions.spacing / 2,
+            horizontal: (dimensions.cardPadding / 2).clamp(8.0, 24.0),
+            vertical: (dimensions.spacing / 2).clamp(8.0, 16.0),
           ),
+          isDense: isVerySmallScreen,
         ),
       ),
     );
@@ -657,8 +877,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
   Widget _buildRememberForgot(
       ResponsiveDimensions dimensions, ThemeColors colors) {
     final deviceType = _getDeviceType(context);
-    final useColumn = deviceType == DeviceType.mobile &&
-        MediaQuery.of(context).size.width < 400;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final useColumn = deviceType == DeviceType.mobile && screenWidth < 380;
 
     if (useColumn) {
       return Column(
@@ -667,7 +887,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
           Row(
             children: [
               Transform.scale(
-                scale: 1.2,
+                scale: 1.1,
                 child: Checkbox(
                   value: _rememberMe,
                   onChanged: (value) {
@@ -677,9 +897,13 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
                     HapticFeedback.lightImpact();
                   },
                   activeColor: colors.primary,
+                  checkColor: Colors.white,
                   side: BorderSide(
                     color: colors.border,
                     width: 2,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
               ),
@@ -689,16 +913,24 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: dimensions.subtitleSize - 2,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
             ],
           ),
+          SizedBox(height: dimensions.spacing / 4),
           Center(
             child: TextButton(
               onPressed: () {
                 HapticFeedback.lightImpact();
               },
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.symmetric(
+                  horizontal: dimensions.spacing / 2,
+                  vertical: dimensions.spacing / 4,
+                ),
+              ),
               child: Text(
                 'Forgot password?',
                 style: TextStyle(
@@ -717,11 +949,12 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Flexible(
+          flex: 3,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Transform.scale(
-                scale: 1.2,
+                scale: 1.1,
                 child: Checkbox(
                   value: _rememberMe,
                   onChanged: (value) {
@@ -731,9 +964,13 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
                     HapticFeedback.lightImpact();
                   },
                   activeColor: colors.primary,
+                  checkColor: Colors.white,
                   side: BorderSide(
                     color: colors.border,
                     width: 2,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
               ),
@@ -743,6 +980,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
                   style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: dimensions.subtitleSize - 2,
+                    fontWeight: FontWeight.w500,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -750,16 +988,26 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
             ],
           ),
         ),
-        TextButton(
-          onPressed: () {
-            HapticFeedback.lightImpact();
-          },
-          child: Text(
-            'Forgot password?',
-            style: TextStyle(
-              color: colors.primary,
-              fontSize: dimensions.subtitleSize - 2,
-              fontWeight: FontWeight.w600,
+        Flexible(
+          flex: 2,
+          child: TextButton(
+            onPressed: () {
+              HapticFeedback.lightImpact();
+            },
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.symmetric(
+                horizontal: dimensions.spacing / 3,
+                vertical: dimensions.spacing / 4,
+              ),
+            ),
+            child: Text(
+              'Forgot password?',
+              style: TextStyle(
+                color: colors.primary,
+                fontSize: dimensions.subtitleSize - 2,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),
@@ -769,19 +1017,25 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
 
   Widget _buildLoginButton(
       ResponsiveDimensions dimensions, ThemeColors colors) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isVerySmallScreen = screenWidth < 340;
+
     return Container(
       width: double.infinity,
-      height: dimensions.buttonHeight,
+      height: dimensions.buttonHeight.clamp(44.0, 84.0),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(dimensions.borderRadius / 1.5),
         gradient: LinearGradient(
           colors: colors.buttonGradient,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: colors.primary.withOpacity(0.3),
-            blurRadius: dimensions.spacing / 2,
-            offset: Offset(0, dimensions.spacing / 4),
+            color: colors.primary.withOpacity(0.4),
+            blurRadius: (dimensions.spacing / 2).clamp(4.0, 16.0),
+            offset: Offset(0, (dimensions.spacing / 4).clamp(2.0, 8.0)),
+            spreadRadius: 1,
           ),
         ],
       ),
@@ -793,32 +1047,41 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(dimensions.borderRadius / 1.5),
           ),
+          elevation: 0,
+          padding: EdgeInsets.symmetric(
+            horizontal: isVerySmallScreen ? 16.0 : 24.0,
+            vertical: isVerySmallScreen ? 8.0 : 12.0,
+          ),
         ),
         child: _isLoading
             ? SizedBox(
-                width: dimensions.iconSize,
-                height: dimensions.iconSize,
+                width: dimensions.iconSize.clamp(16.0, 28.0),
+                height: dimensions.iconSize.clamp(16.0, 28.0),
                 child: CircularProgressIndicator(
-                  strokeWidth: 2,
+                  strokeWidth: 2.5,
                   valueColor: AlwaysStoppedAnimation<Color>(colors.buttonText),
                 ),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.login_rounded,
                     color: colors.buttonText,
-                    size: dimensions.iconSize,
+                    size: dimensions.iconSize.clamp(16.0, 28.0),
                   ),
-                  SizedBox(width: dimensions.spacing / 4),
-                  Text(
-                    'SIGN IN',
-                    style: TextStyle(
-                      color: colors.buttonText,
-                      fontSize: dimensions.buttonTextSize,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.5,
+                  SizedBox(width: (dimensions.spacing / 4).clamp(4.0, 8.0)),
+                  Flexible(
+                    child: Text(
+                      'SIGN IN',
+                      style: TextStyle(
+                        color: colors.buttonText,
+                        fontSize: dimensions.buttonTextSize.clamp(12.0, 22.0),
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: isVerySmallScreen ? 1.0 : 1.2,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -832,25 +1095,53 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
       children: [
         Expanded(
           child: Container(
-            height: 1,
-            color: colors.border,
+            height: 1.5,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  colors.border,
+                  colors.border,
+                ],
+              ),
+            ),
           ),
         ),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: dimensions.spacing / 2),
-          child: Text(
-            'OR',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: dimensions.subtitleSize - 2,
-              fontWeight: FontWeight.w500,
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: dimensions.spacing / 2,
+              vertical: dimensions.spacing / 4,
+            ),
+            decoration: BoxDecoration(
+              color: colors.cardBackground,
+              borderRadius: BorderRadius.circular(dimensions.borderRadius / 2),
+              border: Border.all(color: colors.border, width: 1),
+            ),
+            child: Text(
+              'OR',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: dimensions.subtitleSize - 3,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1,
+              ),
             ),
           ),
         ),
         Expanded(
           child: Container(
-            height: 1,
-            color: colors.border,
+            height: 1.5,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  colors.border,
+                  colors.border,
+                  Colors.transparent,
+                ],
+              ),
+            ),
           ),
         ),
       ],
@@ -859,71 +1150,76 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
 
   Widget _buildSocialLogin(ResponsiveDimensions dimensions, ThemeColors colors,
       DeviceType deviceType) {
-    final isCompact = deviceType == DeviceType.mobile;
     final screenWidth = MediaQuery.of(context).size.width;
-    final useWrap =
-        screenWidth < 600; // Increased threshold to handle overflow better
+    final isVerySmallScreen = screenWidth < 340;
+    final isSmallScreen = screenWidth < 400;
+    final availableWidth = screenWidth - (dimensions.horizontalPadding * 2);
+
+    // Calculate button width for small screens
+    final buttonWidth = isVerySmallScreen
+        ? (availableWidth / 3) - 8
+        : isSmallScreen
+            ? (availableWidth / 3) - 6
+            : null;
 
     final buttons = [
       _buildSocialButton(
         icon: Icons.g_mobiledata_rounded,
-        label: isCompact ? '' : 'Google',
+        label: isVerySmallScreen ? '' : (isSmallScreen ? 'Google' : 'Google'),
         dimensions: dimensions,
         colors: colors,
         onTap: () {},
+        fixedWidth: buttonWidth,
       ),
       _buildSocialButton(
         icon: Icons.apple_rounded,
-        label: isCompact ? '' : 'Apple',
+        label: isVerySmallScreen ? '' : (isSmallScreen ? 'Apple' : 'Apple'),
         dimensions: dimensions,
         colors: colors,
         onTap: () {},
+        fixedWidth: buttonWidth,
       ),
       _buildSocialButton(
         icon: Icons.fingerprint_rounded,
-        label: isCompact ? '' : 'Bio',
+        label: isVerySmallScreen ? '' : (isSmallScreen ? 'Bio' : 'Biometric'),
         dimensions: dimensions,
         colors: colors,
         onTap: () {},
+        fixedWidth: buttonWidth,
       ),
     ];
 
-    if (useWrap) {
-      return Wrap(
-        alignment: WrapAlignment.center,
-        spacing: dimensions.spacing / 3,
-        runSpacing: dimensions.spacing / 3,
+    if (isSmallScreen) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: buttons
-            .map(
-              (button) => ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth:
-                      (screenWidth - dimensions.horizontalPadding * 2) / 3 -
-                          dimensions.spacing / 2,
-                  minWidth: 80,
-                ),
-                child: button,
-              ),
-            )
+            .map((button) => isVerySmallScreen
+                ? Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: button,
+                    ),
+                  )
+                : Flexible(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: button,
+                    ),
+                  ))
             .toList(),
       );
     }
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        for (int i = 0; i < buttons.length; i++) ...[
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: dimensions.spacing / 6),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 120, minWidth: 80),
-                child: buttons[i],
-              ),
-            ),
-          ),
-        ],
-      ],
+      children: buttons
+          .map((button) => Expanded(
+                child: Padding(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: dimensions.spacing / 6),
+                  child: button,
+                ),
+              ))
+          .toList(),
     );
   }
 
@@ -933,10 +1229,11 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
     required ResponsiveDimensions dimensions,
     required ThemeColors colors,
     required VoidCallback onTap,
+    double? fixedWidth,
   }) {
     final isIconOnly = label.isEmpty;
     final screenWidth = MediaQuery.of(context).size.width;
-    final isSmallScreen = screenWidth < 400;
+    final isVerySmallScreen = screenWidth < 340;
 
     return Material(
       color: Colors.transparent,
@@ -947,42 +1244,55 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
         },
         borderRadius: BorderRadius.circular(dimensions.borderRadius / 1.5),
         child: Container(
-          width: double.infinity,
+          width: fixedWidth ?? double.infinity,
+          height: isVerySmallScreen ? dimensions.buttonHeight * 0.8 : null,
           padding: EdgeInsets.symmetric(
-            horizontal: isIconOnly || isSmallScreen
+            horizontal: isIconOnly || isVerySmallScreen
+                ? dimensions.spacing / 4
+                : dimensions.spacing / 3,
+            vertical: isVerySmallScreen
                 ? dimensions.spacing / 3
-                : dimensions.spacing / 2,
-            vertical: dimensions.spacing / 2,
+                : dimensions.spacing / 2.5,
           ),
           decoration: BoxDecoration(
             color: colors.cardBackground,
             borderRadius: BorderRadius.circular(dimensions.borderRadius / 1.5),
             border: Border.all(
               color: colors.border,
-              width: 1,
+              width: 1.5,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: colors.shadow.withOpacity(0.3),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          child: Row(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
                 color: colors.textPrimary,
-                size: dimensions.iconSize,
+                size: isVerySmallScreen
+                    ? dimensions.iconSize * 0.9
+                    : dimensions.iconSize,
               ),
-              if (!isIconOnly && !isSmallScreen) ...[
-                SizedBox(width: dimensions.spacing / 4),
+              if (!isIconOnly && !isVerySmallScreen) ...[
+                SizedBox(height: dimensions.spacing / 8),
                 Flexible(
                   child: Text(
                     label,
                     style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: dimensions.subtitleSize - 3,
+                      color: colors.textSecondary,
+                      fontSize: (dimensions.subtitleSize - 4).clamp(8.0, 12.0),
                       fontWeight: FontWeight.w500,
                     ),
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
+                    maxLines: 1,
                   ),
                 ),
               ],
@@ -996,19 +1306,27 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
   Widget _buildSignUpSection(
       ResponsiveDimensions dimensions, ThemeColors colors) {
     return Container(
-      padding: EdgeInsets.all(dimensions.cardPadding / 1.5),
+      width: double.infinity,
+      padding: EdgeInsets.all(dimensions.cardPadding * 0.8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(dimensions.borderRadius / 1.5),
-        color: colors.cardBackground.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(dimensions.borderRadius),
+        color: colors.cardBackground.withOpacity(0.8),
         border: Border.all(
           color: colors.border,
-          width: 1,
+          width: 1.5,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.shadow.withOpacity(0.5),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Wrap(
         alignment: WrapAlignment.center,
         crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: dimensions.spacing / 6,
+        spacing: dimensions.spacing / 4,
         runSpacing: dimensions.spacing / 4,
         children: [
           Text(
@@ -1016,51 +1334,67 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
             style: TextStyle(
               color: colors.textSecondary,
               fontSize: dimensions.subtitleSize - 1,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          TextButton(
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              Navigator.push(
-                context,
-                PageRouteBuilder(
-                  pageBuilder: (context, animation, secondaryAnimation) =>
-                      EnhancedSignupScreen(),
-                  transitionsBuilder:
-                      (context, animation, secondaryAnimation, child) {
-                    return SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(1.0, 0.0),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeInOut,
-                      )),
-                      child: child,
-                    );
-                  },
-                  transitionDuration: const Duration(milliseconds: 500),
-                ),
-              );
-            },
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.symmetric(
-                horizontal: dimensions.spacing / 2,
-                vertical: dimensions.spacing / 4,
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  colors.primary.withOpacity(0.1),
+                  colors.secondary.withOpacity(0.1),
+                ],
               ),
-              backgroundColor: colors.primary.withOpacity(0.1),
-              shape: RoundedRectangleBorder(
-                borderRadius:
-                    BorderRadius.circular(dimensions.borderRadius / 2),
+              borderRadius: BorderRadius.circular(dimensions.borderRadius / 2),
+              border: Border.all(
+                color: colors.primary.withOpacity(0.3),
+                width: 1,
               ),
             ),
-            child: Text(
-              'CREATE ACCOUNT',
-              style: TextStyle(
-                color: colors.primary,
-                fontWeight: FontWeight.bold,
-                fontSize: dimensions.subtitleSize - 4,
-                letterSpacing: 1.2,
+            child: TextButton(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (context, animation, secondaryAnimation) =>
+                        EnhancedSignupScreen(),
+                    transitionsBuilder:
+                        (context, animation, secondaryAnimation, child) {
+                      return SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(1.0, 0.0),
+                          end: Offset.zero,
+                        ).animate(CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeInOut,
+                        )),
+                        child: child,
+                      );
+                    },
+                    transitionDuration: const Duration(milliseconds: 500),
+                  ),
+                );
+              },
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.symmetric(
+                  horizontal: dimensions.spacing / 2,
+                  vertical: dimensions.spacing / 3,
+                ),
+                backgroundColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(dimensions.borderRadius / 2),
+                ),
+              ),
+              child: Text(
+                'CREATE ACCOUNT',
+                style: TextStyle(
+                  color: colors.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: dimensions.subtitleSize - 3,
+                  letterSpacing: 1,
+                ),
               ),
             ),
           ),
@@ -1148,25 +1482,27 @@ class ThemeColors {
     return ThemeColors(
       primary: const Color(0xFFFF4757),
       secondary: const Color(0xFF5F27CD),
-      background: Colors.white,
+      background: const Color(0xFFFAFAFA),
       backgroundGradient: const [
-        Colors.white,
+        Color(0xFFFFFFFF),
         Color(0xFFFAFAFA),
         Color(0xFFF5F5F5),
       ],
-      cardBackground: Colors.white,
-      textPrimary: Colors.black,
-      textSecondary: const Color(0xFF666666),
-      border: const Color(0xFFE0E0E0),
-      inputBackground: Colors.white,
-      inputBorder: const Color(0xFFCCCCCC),
+      cardBackground: const Color(0xFFFFFFFF),
+      textPrimary: const Color(0xFF2C3E50),
+      textSecondary: const Color(0xFF7F8C8D),
+      border: const Color(0xFFE1E8ED),
+      inputBackground: Colors
+          .transparent, // ✅ FIXED: Transparent background for better text visibility
+      inputBorder: const Color(
+          0xFFBDC3C7), // ✅ Enhanced border color for better definition
       buttonGradient: const [
         Color(0xFFFF4757),
         Color(0xFFFF6B7A),
       ],
-      buttonText: Colors.white,
-      shadow: Colors.black.withOpacity(0.08),
-      overlay: Colors.white,
+      buttonText: const Color(0xFFFFFFFF),
+      shadow: const Color(0xFF2C3E50).withOpacity(0.08),
+      overlay: const Color(0xFFFFFFFF),
       success: const Color(0xFF00D68F),
       error: const Color(0xFFFF3D71),
     );
@@ -1176,25 +1512,25 @@ class ThemeColors {
     return ThemeColors(
       primary: const Color(0xFFFF4757),
       secondary: const Color(0xFF667EEA),
-      background: const Color(0xFF0A0A0A),
+      background: const Color(0xFF1A1A1A),
       backgroundGradient: const [
-        Color(0xFF0A0A0A),
+        Color(0xFF2C2C2C),
         Color(0xFF1A1A1A),
         Color(0xFF0F0F0F),
       ],
-      cardBackground: const Color(0xFF1A1A1A),
-      textPrimary: Colors.black,
-      textSecondary: const Color(0xFF333333),
-      border: Colors.white.withOpacity(0.1),
-      inputBackground: const Color(0xFFF8F9FA),
-      inputBorder: const Color(0xFFD1D5DB),
+      cardBackground: const Color(0xFF2C2C2C),
+      textPrimary: const Color(0xFFE8E6E3),
+      textSecondary: const Color(0xFFBBB8B5),
+      border: const Color(0xFF444444),
+      inputBackground: const Color(0xFF333333),
+      inputBorder: const Color(0xFF555555),
       buttonGradient: const [
         Color(0xFFFF4757),
         Color(0xFFFF3742),
       ],
-      buttonText: Colors.white,
-      shadow: Colors.black.withOpacity(0.4),
-      overlay: Colors.black,
+      buttonText: const Color(0xFFFFFFFF),
+      shadow: const Color(0xFF000000).withOpacity(0.3),
+      overlay: const Color(0xFF000000),
       success: const Color(0xFF00D68F),
       error: const Color(0xFFFF3D71),
     );

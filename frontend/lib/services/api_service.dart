@@ -1583,6 +1583,56 @@ class ApiService {
     }
   }
 
+  /// Enhanced connection test with retry logic
+  Future<bool> testConnectionWithRetry({int maxRetries = 3}) async {
+    if (!isInitialized) {
+      print('❌ API service not initialized');
+      return false;
+    }
+
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        print(
+            '🔧 Testing API connection (attempt $attempt/$maxRetries) to: $baseUrl');
+
+        // Try multiple endpoints to check backend health
+        final endpoints = ['/health', '/api/health', '/api/status'];
+
+        for (final endpoint in endpoints) {
+          try {
+            final response = await http
+                .get(
+                  Uri.parse('$baseUrl$endpoint'),
+                  headers: _headers,
+                )
+                .timeout(Duration(seconds: 5));
+
+            if (response.statusCode >= 200 && response.statusCode < 300) {
+              print('✅ Backend responding on $endpoint');
+              return true;
+            }
+          } catch (endpointError) {
+            print('⚠️ Endpoint $endpoint failed: $endpointError');
+            continue;
+          }
+        }
+
+        // If all endpoints failed, wait before retry
+        if (attempt < maxRetries) {
+          print('⏳ Waiting 2 seconds before retry...');
+          await Future.delayed(Duration(seconds: 2));
+        }
+      } catch (e) {
+        print('❌ Connection test attempt $attempt failed: $e');
+        if (attempt == maxRetries) {
+          return false;
+        }
+      }
+    }
+
+    return false;
+  }
+
   Future<bool> isServerReachable() async {
     try {
       await testConnection();
@@ -1756,7 +1806,48 @@ class ApiService {
       return [];
     } catch (e) {
       print('❌ Error getting orders for $deviceId: $e');
-      throw ApiException('Failed to get orders: $e');
+
+      // Enhanced error handling for orders
+      if (e is ApiException) {
+        if (e.message.contains('Network error') ||
+            e.message.contains('Connection failed')) {
+          print('🔄 Network connectivity issue detected for orders');
+          // Try to recover by testing connection
+          try {
+            final isHealthy = await testConnectionWithRetry(maxRetries: 2);
+            if (isHealthy) {
+              print('🔄 Backend is healthy, retrying order fetch...');
+              // Rebuild query parameters for retry
+              final retryParams = <String, String>{
+                'limit': limit.toString(),
+                'offset': offset.toString(),
+              };
+              if (status != null) {
+                retryParams['status'] = status;
+              }
+
+              final retryQueryString = retryParams.entries
+                  .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+                  .join('&');
+              // Retry once after successful connection test
+              final retryResponse =
+                  await _get('/api/orders/$deviceId?$retryQueryString');
+              if (retryResponse['success'] == true) {
+                final orders = retryResponse['orders'] as List?;
+                if (orders != null) {
+                  print('✅ Retry successful, got ${orders.length} orders');
+                  return orders.cast<Map<String, dynamic>>();
+                }
+              }
+            }
+          } catch (retryError) {
+            print('❌ Retry failed: $retryError');
+          }
+        }
+      }
+
+      // Return empty list for graceful degradation
+      return [];
     }
   }
 
@@ -2800,7 +2891,28 @@ class ApiService {
       return [];
     } catch (e) {
       print('❌ Error getting orders for $deviceId: $e');
-      throw ApiException('Failed to get orders: $e');
+
+      // Enhanced error handling for better user experience
+      if (e is ApiException && e.message.contains('Network error')) {
+        print(
+            '🔄 Network error detected, attempting backend connection recovery...');
+
+        // Try to reconnect to backend
+        try {
+          final isHealthy = await testConnection();
+          if (!isHealthy) {
+            throw ApiException(
+                'Backend server is not responding. Please check your connection and ensure the backend is running.');
+          }
+        } catch (healthError) {
+          throw ApiException(
+              'Cannot connect to backend server. Please verify the server is running and accessible.');
+        }
+      }
+
+      // Return empty list for graceful degradation instead of throwing
+      print('⚠️ Returning empty orders list for graceful degradation');
+      return [];
     }
   }
 
@@ -3335,6 +3447,34 @@ class ApiService {
       }
     } catch (e) {
       print('❌ Error loading simple orders: $e');
+
+      // Enhanced error handling for better user experience
+      if (e is ApiException && e.message.contains('Network error')) {
+        print(
+            '🔄 Network error detected for simple orders, checking backend connection...');
+
+        // Try to test backend connectivity
+        try {
+          final isHealthy = await testConnection();
+          if (!isHealthy) {
+            print(
+                '⚠️ Backend not responding, returning empty orders for graceful handling');
+            return {
+              'success': false,
+              'error': 'Backend server is not responding',
+              'orders': [],
+            };
+          }
+        } catch (healthError) {
+          print('⚠️ Backend connectivity failed, returning empty orders');
+          return {
+            'success': false,
+            'error': 'Cannot connect to backend server',
+            'orders': [],
+          };
+        }
+      }
+
       // Return partial success with empty orders list for graceful handling
       return {
         'success': false,
@@ -3500,10 +3640,22 @@ class ApiService {
     } catch (e) {
       _trackRequest(endpoint, false, null);
       if (e is TimeoutException) {
-        throw ApiException('Request timeout');
+        throw ApiException(
+            'Request timeout - backend server may be slow or unavailable');
       } else if (e is SocketException) {
-        throw ApiException('Network error: Connection failed',
+        // Enhanced error message for better debugging
+        String errorDetail = '';
+        if (e.osError != null) {
+          errorDetail = ' (${e.osError!.message})';
+        }
+        throw ApiException(
+            'Network error: Cannot connect to backend server$errorDetail',
             originalError: e);
+      } else if (e.toString().contains('Connection refused')) {
+        throw ApiException('Backend server is not running or unreachable');
+      } else if (e.toString().contains('No route to host')) {
+        throw ApiException(
+            'Network routing error - check backend server IP address');
       }
       rethrow;
     }

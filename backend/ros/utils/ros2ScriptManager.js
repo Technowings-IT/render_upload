@@ -10,9 +10,12 @@ class ROS2ScriptManager extends EventEmitter {
         super();
         this.activeProcesses = new Map();
         this.processStatus = {
+            robot_launch: 'stopped',
             slam: 'stopped',
             navigation: 'stopped',
-            robot_control: 'stopped'
+            kill_robot: 'stopped',
+            kill_all: 'stopped',
+            robot_control: 'stopped' // Keep for backward compatibility
         };
         this.processPIDs = {}; // Add this to store PIDs
         this.logFile = path.join(__dirname, '../../storage/logs/ros_script_manager.log');
@@ -27,11 +30,13 @@ class ROS2ScriptManager extends EventEmitter {
             port: 22
         };
         
-        // Pi script file paths
+        // Pi script file paths - Updated for 5 robot control buttons
         this.piScriptPaths = {
+            robot_launch: '/home/piros/scripts/robot_launch.sh',
             slam: '/home/piros/scripts/slam.sh',
             navigation: '/home/piros/scripts/nav2.sh',
-            kill: '/home/piros/scripts/kill_all.sh'
+            kill_robot: '/home/piros/scripts/kill_robot.sh',
+            kill_all: '/home/piros/scripts/kill_all.sh'
         };
         
         // Track SSH connections
@@ -225,7 +230,12 @@ class ROS2ScriptManager extends EventEmitter {
                 // Prepare script arguments based on type
                 let scriptName, args = '';
                 
-                switch (scriptType) {                        
+                switch (scriptType) {
+                    case 'robot_launch':
+                        scriptName = 'robot_launch.sh';
+                        args = ''; // Robot launch typically doesn't need arguments
+                        break;
+                        
                     case 'slam':
                         scriptName = 'slam.sh';
                         args = options.mapName || ('new_slam_map_' + Date.now());
@@ -236,8 +246,15 @@ class ROS2ScriptManager extends EventEmitter {
                         args = options.mapPath || '/home/piros/fleet-management-system/ros_ws/src/AMR/maps/map_1750065869.yaml params_file:=/home/piros/fleet-management-system/ros_ws/src/AMR/config/nav2_params1.yaml use_sim_time:=False';
                         break;
                         
-                    case 'kill':
-                        scriptName = 'kill.sh';
+                    case 'kill_robot':
+                        scriptName = 'kill_robot.sh';
+                        args = ''; // Kill robot script doesn't need arguments
+                        break;
+                        
+                    case 'kill_all':
+                    case 'kill': // Keep backward compatibility
+                        scriptName = 'kill_all.sh';
+                        args = ''; // Kill all script doesn't need arguments
                         break;
                         
                     default:
@@ -435,6 +452,54 @@ class ROS2ScriptManager extends EventEmitter {
         try {
             let result;
             switch (command) {
+                // ✅ NEW: 5 Specific Robot Control Commands
+                case 'start_robot':
+                case 'execute_robot_launch':
+                    result = await this.executeSpecificScript({
+                        script_name: 'robot_launch.sh',
+                        script_path: '/home/piros/scripts/robot_launch.sh',
+                        action: 'start_robot'
+                    });
+                    break;
+                    
+                case 'start_slam_button':
+                case 'execute_slam':
+                    result = await this.executeSpecificScript({
+                        script_name: 'slam.sh',
+                        script_path: '/home/piros/scripts/slam.sh',
+                        action: 'start_slam',
+                        map_name: options.map_name || `slam_map_${Date.now()}`
+                    });
+                    break;
+                    
+                case 'start_nav_button':
+                case 'execute_nav2':
+                    result = await this.executeSpecificScript({
+                        script_name: 'nav2.sh',
+                        script_path: '/home/piros/scripts/nav2.sh',
+                        action: 'start_navigation'
+                    });
+                    break;
+                    
+                case 'stop_robot_button':
+                case 'execute_kill_robot':
+                    result = await this.executeSpecificScript({
+                        script_name: 'kill_robot.sh',
+                        script_path: '/home/piros/scripts/kill_robot.sh',
+                        action: 'stop_robot'
+                    });
+                    break;
+                    
+                case 'stop_pid_button':
+                case 'execute_kill_all':
+                    result = await this.executeSpecificScript({
+                        script_name: 'kill_all.sh',
+                        script_path: '/home/piros/scripts/kill_all.sh',
+                        action: 'stop_all_processes'
+                    });
+                    break;
+                
+                // ✅ EXISTING: Backward compatibility commands
                 case 'start_robot_control':
                     result = await this.startRobotControl();
                     break;
@@ -537,18 +602,30 @@ class ROS2ScriptManager extends EventEmitter {
             
             // Update process status based on script
             switch (script_name) {
-                case 'nav2.sh':
-                    this.processStatus.navigation = 'running';
+                case 'robot_launch.sh':
+                    this.processStatus.robot_launch = 'running';
+                    this.processStatus.robot_control = 'running'; // For compatibility
                     break;
                 case 'slam.sh':
                     this.processStatus.slam = 'running';
                     break;
-                case 'kill.sh':
+                case 'nav2.sh':
+                    this.processStatus.navigation = 'running';
+                    break;
+                case 'kill_robot.sh':
+                    this.processStatus.kill_robot = 'stopped';
+                    this.processStatus.robot_launch = 'stopped';
+                    this.processStatus.robot_control = 'stopped'; // For compatibility
+                    break;
                 case 'kill_all.sh':
-                    // Kill script stops everything
-                    this.processStatus.navigation = 'stopped';
+                case 'kill.sh': // Backward compatibility
+                    // Kill all script stops everything
+                    this.processStatus.robot_launch = 'stopped';
                     this.processStatus.slam = 'stopped';
-                    this.processStatus.robot_control = 'stopped';
+                    this.processStatus.navigation = 'stopped';
+                    this.processStatus.kill_robot = 'stopped';
+                    this.processStatus.kill_all = 'stopped';
+                    this.processStatus.robot_control = 'stopped'; // For compatibility
                     break;
             }
             
@@ -596,21 +673,29 @@ class ROS2ScriptManager extends EventEmitter {
                     this.log(`🎯 Using default absolute path: ${actualPath}`);
                 }
                 
-                // ✅ FIXED: Build command for background execution with nohup
+                // ✅ UPDATED: Build command for all 5 script types
                 let command;
                 switch (scriptName) {
-                    case 'nav2.sh':
-                        // Run nav2 in background with nohup to prevent it from stopping when SSH closes
-                        command = `cd /home/piros/scripts && nohup bash ${actualPath} > /tmp/nav2_output.log 2>&1 & echo $!`;
+                    case 'robot_launch.sh':
+                        // Run robot launch in background with nohup
+                        command = `cd /home/piros/scripts && nohup bash ${actualPath} > /tmp/robot_launch_output.log 2>&1 & echo $!`;
                         break;
                     case 'slam.sh':
                         const mapName = options.map_name || `slam_map_${Date.now()}`;
                         // Run SLAM in background with nohup
                         command = `cd /home/piros/scripts && nohup bash ${actualPath} "${mapName}" > /tmp/slam_output.log 2>&1 & echo $!`;
                         break;
-                    case 'kill.sh':
+                    case 'nav2.sh':
+                        // Run nav2 in background with nohup to prevent it from stopping when SSH closes
+                        command = `cd /home/piros/scripts && nohup bash ${actualPath} > /tmp/nav2_output.log 2>&1 & echo $!`;
+                        break;
+                    case 'kill_robot.sh':
+                        // Kill robot script should run immediately, not in background
+                        command = `chmod +x ${actualPath} && ${actualPath}`;
+                        break;
                     case 'kill_all.sh':
-                        // Kill script should run immediately, not in background
+                    case 'kill.sh': // Backward compatibility
+                        // Kill all script should run immediately, not in background
                         command = `chmod +x ${actualPath} && ${actualPath}`;
                         break;
                     default:
@@ -647,7 +732,7 @@ class ROS2ScriptManager extends EventEmitter {
                         this.log(`✅ ${scriptName} execution completed with code: ${code}`);
                         
                         // For background processes, store PID if available
-                        if (scriptName !== 'kill.sh' && scriptName !== 'kill_all.sh') {
+                        if (scriptName !== 'kill.sh' && scriptName !== 'kill_all.sh' && scriptName !== 'kill_robot.sh') {
                             const pid = stdout.trim();
                             if (pid && !isNaN(pid)) {
                                 this.processPIDs[scriptKey] = pid;

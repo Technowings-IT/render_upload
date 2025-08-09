@@ -604,496 +604,272 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    return Column(
       children: [
-        // ✅ Dark background like ROS
+        // ✅ Controls bar outside the mapping area
         Container(
+          height: 50, // ✅ Reduced height for smaller screens
+          padding: const EdgeInsets.symmetric(
+              horizontal: 8, vertical: 4), // ✅ Reduced padding
           decoration: BoxDecoration(
-            color: Color(0xFF2B2B2B), // Dark grey background like ROS
-          ),
-          child: InteractiveViewer(
-            transformationController: _transformationController,
-            boundaryMargin: const EdgeInsets.all(100),
-            minScale: 0.2,
-            maxScale: 10.0,
-            onInteractionStart: _onInteractionStart,
-            onInteractionUpdate: _onInteractionUpdate,
-            onInteractionEnd: _onInteractionEnd,
-            child: Container(
-              width: 4000,
-              height: 4000,
-              child: CustomPaint(
-                painter: ROSStyleLiveMapPainter(
-                  mapData: widget.mapData,
-                  currentOdometry: widget.currentOdometry,
-                  robotTrail: widget.robotTrail,
-                  globalCostmap: widget.globalCostmap,
-                  localCostmap: widget.localCostmap,
-                  showOccupancyGrid: widget.showOccupancyGrid,
-                  costmapOpacity: widget.costmapOpacity,
-                  robotScale: _robotAnimationController.value,
-                  mappingActive: widget.mappingActive,
-                  theme: Theme.of(context),
-                  scale: _scale,
-                  movementThreshold: _movementThreshold,
-                ),
-                size: const Size(4000, 4000),
-              ),
+            color: Colors.black.withOpacity(0.8),
+            border: Border(
+              bottom: BorderSide(color: Colors.grey.withOpacity(0.3)),
             ),
+          ),
+          child: Row(
+            children: [
+              // ✅ MOVED: All controls to the left side
+              // Auto-center controls - more compact
+              _buildCompactControlButton(
+                icon: _autoCenterPaused ? Icons.pause : Icons.my_location,
+                color: _autoCenter && !_autoCenterPaused
+                    ? Colors.blue
+                    : _autoCenterPaused
+                        ? Colors.orange
+                        : Colors.grey,
+                onPressed: () {
+                  setState(() {
+                    if (_autoCenterPaused) {
+                      _autoCenterPaused = false;
+                    } else {
+                      _autoCenter = !_autoCenter;
+                    }
+                  });
+                  if (_autoCenter &&
+                      !_autoCenterPaused &&
+                      widget.currentOdometry?.position != null) {
+                    _centerOnRobotSmooth();
+                  }
+                },
+                tooltip: _autoCenterPaused
+                    ? 'Auto Center: PAUSED'
+                    : _autoCenter
+                        ? 'Auto Center: ON'
+                        : 'Auto Center: OFF',
+                isSmall: true, // ✅ Make smaller
+              ),
+
+              const SizedBox(width: 4), // ✅ Reduced spacing
+
+              // Manual center button
+              _buildCompactControlButton(
+                icon: Icons.center_focus_strong,
+                color: Colors.green,
+                onPressed: () {
+                  if (widget.currentOdometry?.position != null) {
+                    _forceCenterOnRobot();
+                  }
+                },
+                tooltip: 'Center Now',
+                isSmall: true, // ✅ Make smaller
+              ),
+
+              const SizedBox(width: 4), // ✅ Reduced spacing
+
+              // Pause/Resume auto-center button
+              _buildCompactControlButton(
+                icon: _autoCenterPaused ? Icons.play_arrow : Icons.pause,
+                color: _autoCenterPaused ? Colors.orange : Colors.blue,
+                onPressed: () {
+                  setState(() {
+                    _autoCenterPaused = !_autoCenterPaused;
+                  });
+                },
+                tooltip: _autoCenterPaused
+                    ? 'Resume Auto-Center'
+                    : 'Pause Auto-Center',
+                isSmall: true, // ✅ Make smaller
+              ),
+
+              const SizedBox(width: 8), // ✅ Slightly more spacing before zoom
+
+              // Zoom controls - more compact
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(15), // ✅ Smaller radius
+                ),
+                child: Row(
+                  children: [
+                    _buildCompactControlButton(
+                      icon: Icons.zoom_out,
+                      color: Colors.white,
+                      onPressed: () => _zoomOut(),
+                      tooltip: 'Zoom Out',
+                      isSmall: true, // ✅ Already small, keep consistent
+                    ),
+                    Container(
+                      width: 1,
+                      height: 16, // ✅ Reduced height
+                      color: Colors.white.withOpacity(0.3),
+                    ),
+                    _buildCompactControlButton(
+                      icon: Icons.zoom_in,
+                      color: Colors.white,
+                      onPressed: () => _zoomIn(),
+                      tooltip: 'Zoom In',
+                      isSmall: true, // ✅ Already small, keep consistent
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 4), // ✅ Reduced spacing
+
+              // Movement status indicator
+              _buildCompactControlButton(
+                icon: _scale > _movementThreshold ? Icons.pan_tool : Icons.lock,
+                color: _scale > _movementThreshold ? Colors.green : Colors.red,
+                onPressed: null,
+                tooltip: _scale > _movementThreshold
+                    ? 'Movement: Enabled'
+                    : 'Movement: Locked',
+                isSmall: true, // ✅ Make smaller
+              ),
+
+              const SizedBox(width: 4), // ✅ Reduced spacing
+
+              // Reset view button
+              _buildCompactControlButton(
+                icon: Icons.refresh,
+                color: Colors.purple,
+                onPressed: _resetView,
+                tooltip: 'Reset View',
+                isSmall: true, // ✅ Make smaller
+              ),
+
+              const SizedBox(width: 8), // ✅ Add some spacing
+
+              // Mapping status indicator - moved to right side of controls
+              if (widget.mappingActive) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4), // ✅ Reduced padding
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Colors.green, Colors.lightGreen],
+                    ),
+                    borderRadius: BorderRadius.circular(12), // ✅ Smaller radius
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 10, // ✅ Smaller spinner
+                        height: 10,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Text(
+                        'MAPPING',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 9, // ✅ Smaller font
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              // ✅ REMOVED: Spacer() - no longer needed since everything is left-aligned
+            ],
           ),
         ),
 
-        // Enhanced controls overlay
-        Positioned(
-          top: 16,
-          right: 16,
-          child: Column(
+        // ✅ Mapping area without overlapping controls
+        Expanded(
+          child: Stack(
             children: [
-              // Auto-center toggle
+              // Dark background like ROS
               Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: _autoCenter && !_autoCenterPaused
-                        ? [Colors.blue.shade400, Colors.blue.shade600]
-                        : _autoCenterPaused
-                            ? [Colors.orange.shade400, Colors.orange.shade600]
-                            : [Colors.grey.shade400, Colors.grey.shade600],
-                  ),
-                  borderRadius: BorderRadius.circular(25),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (_autoCenter && !_autoCenterPaused
-                              ? Colors.blue
-                              : _autoCenterPaused
-                                  ? Colors.orange
-                                  : Colors.grey)
-                          .withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
+                  color: Color(0xFF2B2B2B), // Dark grey background like ROS
+                ),
+                child: InteractiveViewer(
+                  transformationController: _transformationController,
+                  boundaryMargin: const EdgeInsets.all(100),
+                  minScale: 0.2,
+                  maxScale: 10.0,
+                  onInteractionStart: _onInteractionStart,
+                  onInteractionUpdate: _onInteractionUpdate,
+                  onInteractionEnd: _onInteractionEnd,
+                  child: Container(
+                    width: 4000,
+                    height: 4000,
+                    child: CustomPaint(
+                      painter: ROSStyleLiveMapPainter(
+                        mapData: widget.mapData,
+                        currentOdometry: widget.currentOdometry,
+                        robotTrail: widget.robotTrail,
+                        globalCostmap: widget.globalCostmap,
+                        localCostmap: widget.localCostmap,
+                        showOccupancyGrid: widget.showOccupancyGrid,
+                        costmapOpacity: widget.costmapOpacity,
+                        robotScale: _robotAnimationController.value,
+                        mappingActive: widget.mappingActive,
+                        theme: Theme.of(context),
+                        scale: _scale,
+                        movementThreshold: _movementThreshold,
+                      ),
+                      size: const Size(4000, 4000),
                     ),
-                  ],
-                ),
-                child: FloatingActionButton(
-                  mini: true,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  heroTag: "auto_center",
-                  onPressed: () {
-                    setState(() {
-                      if (_autoCenterPaused) {
-                        _autoCenterPaused = false;
-                      } else {
-                        _autoCenter = !_autoCenter;
-                      }
-                    });
-                    if (_autoCenter &&
-                        !_autoCenterPaused &&
-                        widget.currentOdometry?.position != null) {
-                      _centerOnRobotSmooth();
-                    }
-                  },
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Icon(_autoCenterPaused ? Icons.pause : Icons.my_location,
-                          color: Colors.white),
-                      if (_autoCenter && _isUserPanning)
-                        Positioned(
-                          top: 2,
-                          right: 2,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: Colors.orange,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                    ],
                   ),
-                  tooltip: _autoCenterPaused
-                      ? 'Auto Center: PAUSED'
-                      : _autoCenter
-                          ? 'Auto Center: ON'
-                          : 'Auto Center: OFF',
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Manual center button
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.green.shade400, Colors.green.shade600],
-                  ),
-                  borderRadius: BorderRadius.circular(25),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.green.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: FloatingActionButton(
-                  mini: true,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  heroTag: "center_now",
-                  onPressed: () {
-                    if (widget.currentOdometry?.position != null) {
-                      _forceCenterOnRobot();
-                    }
-                  },
-                  child: const Icon(Icons.center_focus_strong,
-                      color: Colors.white),
-                  tooltip: 'Center Now',
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Pause/Resume auto-center button
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: _autoCenterPaused
-                        ? [Colors.orange.shade400, Colors.orange.shade600]
-                        : [Colors.blue.shade400, Colors.blue.shade600],
-                  ),
-                  borderRadius: BorderRadius.circular(25),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (_autoCenterPaused ? Colors.orange : Colors.blue)
-                          .withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: FloatingActionButton(
-                  mini: true,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  heroTag: "pause_auto_center",
-                  onPressed: () {
-                    setState(() {
-                      _autoCenterPaused = !_autoCenterPaused;
-                    });
-                  },
-                  child: Icon(
-                    _autoCenterPaused ? Icons.play_arrow : Icons.pause,
-                    color: Colors.white,
-                  ),
-                  tooltip: _autoCenterPaused
-                      ? 'Resume Auto-Center'
-                      : 'Pause Auto-Center',
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Enhanced zoom controls
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.black.withOpacity(0.7),
-                      Colors.black.withOpacity(0.5),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(25),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    IconButton(
-                      onPressed: () => _zoomIn(),
-                      icon: const Icon(Icons.zoom_in, color: Colors.white),
-                      tooltip: 'Zoom In',
-                    ),
-                    Container(
-                      width: 30,
-                      height: 1,
-                      color: Colors.white.withOpacity(0.3),
-                    ),
-                    IconButton(
-                      onPressed: () => _zoomOut(),
-                      icon: const Icon(Icons.zoom_out, color: Colors.white),
-                      tooltip: 'Zoom Out',
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Movement status indicator
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: _scale > _movementThreshold
-                        ? [Colors.green.shade400, Colors.green.shade600]
-                        : [Colors.red.shade400, Colors.red.shade600],
-                  ),
-                  borderRadius: BorderRadius.circular(25),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (_scale > _movementThreshold
-                              ? Colors.green
-                              : Colors.red)
-                          .withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: FloatingActionButton(
-                  mini: true,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  heroTag: "movement_status",
-                  onPressed: null,
-                  child: Icon(
-                    _scale > _movementThreshold ? Icons.pan_tool : Icons.lock,
-                    color: Colors.white,
-                  ),
-                  tooltip: _scale > _movementThreshold
-                      ? 'Movement: Enabled'
-                      : 'Movement: Locked',
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Reset view button
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.purple.shade400, Colors.purple.shade600],
-                  ),
-                  borderRadius: BorderRadius.circular(25),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.purple.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: FloatingActionButton(
-                  mini: true,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  heroTag: "reset_view",
-                  onPressed: _resetView,
-                  child: const Icon(Icons.refresh, color: Colors.white),
-                  tooltip: 'Reset View',
                 ),
               ),
             ],
           ),
         ),
-
-        // Enhanced status overlay
-        Positioned(
-          bottom: 16,
-          left: 16,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.black.withOpacity(0.8),
-                  Colors.black.withOpacity(0.6),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border:
-                  Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 15,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color:
-                            widget.mappingActive ? Colors.green : Colors.blue,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: (widget.mappingActive
-                                    ? Colors.green
-                                    : Colors.blue)
-                                .withOpacity(0.5),
-                            blurRadius: 4,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Live Map Status',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _buildStatusRow('Auto Center', _autoCenter ? 'ON' : 'OFF',
-                    _autoCenter ? Colors.green : Colors.grey),
-                if (_autoCenter)
-                  _buildStatusRow('AC Status', _getAutoCenterStatus(),
-                      _getAutoCenterStatusColor()),
-                if (_autoCenterPaused)
-                  _buildStatusRow('AC Paused', 'YES', Colors.orange),
-                if (_autoCenter && _aggressiveAutoCenter)
-                  _buildStatusRow('Aggressive', 'ON', Colors.purple),
-                _buildStatusRow(
-                    'Movement',
-                    _scale > _movementThreshold ? 'ENABLED' : 'LOCKED',
-                    _scale > _movementThreshold ? Colors.green : Colors.red),
-                _buildStatusRow('Threshold',
-                    '${_autoCenterThreshold.toStringAsFixed(2)}m', Colors.cyan),
-                _buildStatusRow('Cooldown',
-                    '${_userInteractionCooldown.inSeconds}s', Colors.cyan),
-                if (_isUserPanning)
-                  _buildStatusRow('User Input', 'ACTIVE', Colors.orange),
-                _buildStatusRow('Trail', '${widget.robotTrail.length} points',
-                    Colors.orange),
-                if (widget.mapData != null)
-                  _buildStatusRow(
-                      'Map',
-                      '${widget.mapData!.info.width}×${widget.mapData!.info.height}',
-                      Colors.cyan),
-                if (widget.globalCostmap != null)
-                  _buildStatusRow(
-                    'Global',
-                    '${widget.globalCostmap!['info']?['width'] ?? 'N/A'}×${widget.globalCostmap!['info']?['height'] ?? 'N/A'}',
-                    Colors.blue,
-                  ),
-                if (widget.localCostmap != null)
-                  _buildStatusRow(
-                    'Local',
-                    '${widget.localCostmap!['info']?['width'] ?? 'N/A'}×${widget.localCostmap!['info']?['height'] ?? 'N/A'}',
-                    Colors.red,
-                  ),
-                _buildStatusRow(
-                    'Scale', '${_scale.toStringAsFixed(1)}×', Colors.grey),
-                if (widget.currentOdometry?.position != null)
-                  _buildStatusRow(
-                    'Position',
-                    '(${widget.currentOdometry!.position.x.toStringAsFixed(1)}, ${widget.currentOdometry!.position.y.toStringAsFixed(1)})',
-                    Colors.cyan,
-                  ),
-              ],
-            ),
-          ),
-        ),
-
-        // Mapping status indicator
-        if (widget.mappingActive)
-          Positioned(
-            top: 16,
-            left: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Colors.green, Colors.lightGreen],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.green.withOpacity(0.4),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'MAPPING ACTIVE',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
       ],
     );
   }
 
-  Widget _buildStatusRow(String label, String value, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 4,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
-            ),
+  // ✅ Helper method for compact control buttons
+  Widget _buildCompactControlButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onPressed,
+    required String tooltip,
+    bool isSmall = false,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        width: isSmall ? 28 : 32, // ✅ Made even smaller for mobile
+        height: isSmall ? 28 : 32,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: onPressed != null
+                ? [color.withOpacity(0.8), color]
+                : [Colors.grey.withOpacity(0.8), Colors.grey],
           ),
-          const SizedBox(width: 6),
-          Text(
-            '$label: ',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 11,
-            ),
+          borderRadius:
+              BorderRadius.circular(isSmall ? 14 : 16), // ✅ Adjusted radius
+          boxShadow: onPressed != null
+              ? [
+                  BoxShadow(
+                    color: color.withOpacity(0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: IconButton(
+          onPressed: onPressed,
+          icon: Icon(
+            icon,
+            color: Colors.white,
+            size: isSmall ? 14 : 16, // ✅ Smaller icons for mobile
           ),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+          padding: EdgeInsets.zero,
+        ),
       ),
     );
   }
