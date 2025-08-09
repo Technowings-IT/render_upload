@@ -159,3 +159,7 @@
 [2025-08-09T08:33:30.871Z] 🎯 Executing specific script: robot_launch.sh on Pi
 [2025-08-09T08:33:30.872Z] 📂 Script path: default
 [2025-08-09T08:33:30.872Z] 🎬 Action: button1_robot_launch
+[2025-08-09T08:34:48.497Z] Cleaning up ROS2 Script Manager...
+[2025-08-09T08:34:48.497Z] Cleaned up 0 temporary files
+[2025-08-09T08:40:47.231Z] Cleaning up ROS2 Script Manager...
+[2025-08-09T08:40:47.233Z] Cleaned up 0 temporary files

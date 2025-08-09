@@ -1461,9 +1461,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildMapsTab() {
     return Column(
       children: [
-        // Enhanced maps header
+        // 📱 Mobile-optimized maps header
         Container(
-          padding: EdgeInsets.all(16),
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [Colors.purple.shade50, Colors.purple.shade100],
@@ -1472,60 +1472,146 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           child: Column(
             children: [
-              Row(
-                children: [
-                  Icon(Icons.map, color: Colors.purple.shade700, size: 28),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
+              // 📱 Mobile-friendly header layout
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrowScreen = constraints.maxWidth < 400;
+
+                  if (isNarrowScreen) {
+                    // Stack layout for very narrow screens
+                    return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Map Management Hub',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.purple.shade700,
-                          ),
+                        Row(
+                          children: [
+                            Icon(Icons.map,
+                                color: Colors.purple.shade700, size: 24),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Maps',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.purple.shade700,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Coordinate-based orders',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.purple.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          'Manage maps for coordinate-based order creation',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.purple.shade600,
-                          ),
+                        SizedBox(height: 12),
+                        // Mobile button row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _refreshDashboard,
+                                icon: Icon(Icons.refresh, size: 16),
+                                label: Text('Refresh',
+                                    style: TextStyle(fontSize: 12)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 8),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => EnhancedMapPage()),
+                                ),
+                                icon: Icon(Icons.edit, size: 16),
+                                label: Text('Edit',
+                                    style: TextStyle(fontSize: 12)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.purple,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 8),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: _refreshDashboard,
-                        icon: Icon(Icons.refresh, size: 18),
-                        label: Text('Refresh'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
+                    );
+                  } else {
+                    // Standard layout for wider screens
+                    return Row(
+                      children: [
+                        Icon(Icons.map,
+                            color: Colors.purple.shade700, size: 28),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Map Management Hub',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.purple.shade700,
+                                ),
+                              ),
+                              Text(
+                                'Manage maps for coordinate-based order creation',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.purple.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => EnhancedMapPage()),
+                        Row(
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: _refreshDashboard,
+                              icon: Icon(Icons.refresh, size: 18),
+                              label: Text('Refresh'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => EnhancedMapPage()),
+                              ),
+                              icon: Icon(Icons.edit, size: 18),
+                              label: Text('Edit Maps'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.purple,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
                         ),
-                        icon: Icon(Icons.edit, size: 18),
-                        label: Text('Edit Maps'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purple,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    );
+                  }
+                },
               ),
               SizedBox(height: 12),
               _buildMapStatsRow(),
@@ -1877,23 +1963,62 @@ class _DashboardScreenState extends State<DashboardScreen>
         color: Colors.white.withOpacity(0.8),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
-        children: [
-          Expanded(
-              child: _buildOrderStatItem('Maps', totalMaps, Colors.purple)),
-          _buildStatDivider(),
-          Expanded(
-              child: _buildOrderStatItem(
-                  'With Shapes', mapsWithShapes, Colors.blue)),
-          _buildStatDivider(),
-          Expanded(
-              child: _buildOrderStatItem(
-                  'Total Shapes', totalShapes, Colors.green)),
-          _buildStatDivider(),
-          Expanded(
-              child: _buildOrderStatItem(
-                  'Devices', _connectedDevices.length, Colors.orange)),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrowScreen = constraints.maxWidth < 350;
+
+          if (isNarrowScreen) {
+            // 📱 Mobile: 2x2 grid layout for stats
+            return Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                        child: _buildOrderStatItem(
+                            'Maps', totalMaps, Colors.purple)),
+                    _buildStatDivider(),
+                    Expanded(
+                        child: _buildOrderStatItem(
+                            'With Shapes', mapsWithShapes, Colors.blue)),
+                  ],
+                ),
+                SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _buildOrderStatItem(
+                            'Total Shapes', totalShapes, Colors.green)),
+                    _buildStatDivider(),
+                    Expanded(
+                        child: _buildOrderStatItem('Devices',
+                            _connectedDevices.length, Colors.orange)),
+                  ],
+                ),
+              ],
+            );
+          } else {
+            // Standard: Single row layout
+            return Row(
+              children: [
+                Expanded(
+                    child:
+                        _buildOrderStatItem('Maps', totalMaps, Colors.purple)),
+                _buildStatDivider(),
+                Expanded(
+                    child: _buildOrderStatItem(
+                        'With Shapes', mapsWithShapes, Colors.blue)),
+                _buildStatDivider(),
+                Expanded(
+                    child: _buildOrderStatItem(
+                        'Total Shapes', totalShapes, Colors.green)),
+                _buildStatDivider(),
+                Expanded(
+                    child: _buildOrderStatItem(
+                        'Devices', _connectedDevices.length, Colors.orange)),
+              ],
+            );
+          }
+        },
       ),
     );
   }
@@ -2671,43 +2796,81 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildMapsList() {
     if (_availableMaps.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.map, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'No Maps Available',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            Text(
-                'Create maps for coordinate-based order creation'), // ✅ UPDATED text
-            SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => EnhancedMapPage()),
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(40),
+                ),
+                child: Icon(Icons.map, size: 40, color: Colors.grey),
               ),
-              icon: Icon(Icons.edit),
-              label: Text('Create Map'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
+              SizedBox(height: 16),
+              Text(
+                'No Maps Available',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[700],
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
-          ],
+              SizedBox(height: 8),
+              Text(
+                'Create maps for coordinate-based order creation',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => EnhancedMapPage()),
+                  ),
+                  icon: Icon(Icons.edit, size: 20),
+                  label: Text('Create Map', style: TextStyle(fontSize: 16)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return ListView.builder(
-      padding: EdgeInsets.all(16),
-      itemCount: _availableMaps.length,
-      itemBuilder: (context, index) {
-        final deviceId = _availableMaps.keys.elementAt(index);
-        final mapData = _availableMaps[deviceId]!;
-        return _buildMapCard(deviceId, mapData);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 📱 Mobile-optimized padding and spacing
+        final padding = constraints.maxWidth < 350
+            ? EdgeInsets.symmetric(horizontal: 8, vertical: 12)
+            : EdgeInsets.all(16);
+
+        return ListView.builder(
+          padding: padding,
+          itemCount: _availableMaps.length,
+          itemBuilder: (context, index) {
+            final deviceId = _availableMaps.keys.elementAt(index);
+            final mapData = _availableMaps[deviceId]!;
+            return _buildMapCard(deviceId, mapData);
+          },
+        );
       },
     );
   }
@@ -2724,60 +2887,202 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
 
     return Card(
-      margin: EdgeInsets.symmetric(vertical: 4),
-      child: ListTile(
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.purple.shade400, Colors.purple.shade600],
-            ),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(Icons.map, color: Colors.white),
-        ),
-        title: Text(
-          'Map for ${device['name']}',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Size: ${mapData.info.width}×${mapData.info.height}'),
-            Text('Available for coordinate order creation'), // ✅ UPDATED text
-            if (shapeCounts.isNotEmpty)
-              Wrap(
-                spacing: 4,
-                children: shapeCounts.entries.map((entry) {
-                  final color = _getStationTypeColor(entry.key);
-                  return Chip(
-                    label: Text(
-                      '${entry.key}: ${entry.value}',
-                      style: TextStyle(fontSize: 10),
+      margin: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      elevation: 2,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrowScreen = constraints.maxWidth < 350;
+
+          if (isNarrowScreen) {
+            // 📱 Mobile-optimized vertical layout
+            return Padding(
+              padding: EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header row with device info and map icon
+                  Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.purple.shade400,
+                              Colors.purple.shade600
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(Icons.map, color: Colors.white, size: 20),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              device['name'],
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Map ${mapData.info.width}×${mapData.info.height}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 12),
+
+                  // Description text
+                  Text(
+                    'Ready for coordinate orders',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.purple.shade600,
+                      fontStyle: FontStyle.italic,
                     ),
-                    backgroundColor: color.withOpacity(0.2),
-                    side: BorderSide(color: color),
-                  );
-                }).toList(),
+                  ),
+
+                  // Shape counts (if any)
+                  if (shapeCounts.isNotEmpty) ...[
+                    SizedBox(height: 8),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: shapeCounts.entries.map((entry) {
+                        final color = _getStationTypeColor(entry.key);
+                        return Container(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: color.withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            '${entry.key}: ${entry.value}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: color,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+
+                  SizedBox(height: 12),
+
+                  // Action buttons row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _navigateToMap({'id': deviceId}),
+                          icon: Icon(Icons.edit, size: 16),
+                          label: Text('Edit', style: TextStyle(fontSize: 12)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.purple,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 8),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _showCreateOrderForDevice(deviceId),
+                          icon: Icon(Icons.touch_app, size: 16),
+                          label: Text('Order', style: TextStyle(fontSize: 12)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-          ],
-        ),
-        trailing: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              onPressed: () => _navigateToMap({'id': deviceId}),
-              icon: Icon(Icons.edit),
-              tooltip: 'Edit Map',
-            ),
-            IconButton(
-              onPressed: () => _showCreateOrderForDevice(deviceId),
-              icon: Icon(Icons.touch_app), // ✅ UPDATED icon
-              tooltip: 'Create Order', // ✅ UPDATED tooltip
-            ),
-          ],
-        ),
+            );
+          } else {
+            // Standard layout for wider screens
+            return ListTile(
+              contentPadding: EdgeInsets.all(12),
+              leading: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.purple.shade400, Colors.purple.shade600],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.map, color: Colors.white),
+              ),
+              title: Text(
+                'Map for ${device['name']}',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Size: ${mapData.info.width}×${mapData.info.height}'),
+                  Text('Available for coordinate order creation'),
+                  if (shapeCounts.isNotEmpty) ...[
+                    SizedBox(height: 4),
+                    Wrap(
+                      spacing: 4,
+                      children: shapeCounts.entries.map((entry) {
+                        final color = _getStationTypeColor(entry.key);
+                        return Chip(
+                          label: Text(
+                            '${entry.key}: ${entry.value}',
+                            style: TextStyle(fontSize: 10),
+                          ),
+                          backgroundColor: color.withOpacity(0.2),
+                          side: BorderSide(color: color),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
+              ),
+              trailing: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    onPressed: () => _navigateToMap({'id': deviceId}),
+                    icon: Icon(Icons.edit),
+                    tooltip: 'Edit Map',
+                  ),
+                  IconButton(
+                    onPressed: () => _showCreateOrderForDevice(deviceId),
+                    icon: Icon(Icons.touch_app),
+                    tooltip: 'Create Order',
+                  ),
+                ],
+              ),
+            );
+          }
+        },
       ),
     );
   }
