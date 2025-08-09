@@ -831,7 +831,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
         controller: controller,
         obscureText: obscureText,
         style: TextStyle(
-          color: Colors.black87, // ✅ Force dark black text for better readability
+          color:
+              Colors.black87, // ✅ Force dark black text for better readability
           fontSize: dimensions.subtitleSize.clamp(12.0, 20.0),
           fontWeight:
               FontWeight.w600, // ✅ Enhanced font weight for better readability
@@ -839,7 +840,8 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: TextStyle(
-            color: Colors.black54, // ✅ Dark grey for hint text - visible but distinguishable
+            color: Colors
+                .black54, // ✅ Dark grey for hint text - visible but distinguishable
             fontSize: dimensions.subtitleSize.clamp(12.0, 20.0),
             fontWeight: FontWeight.w500, // ✅ Enhanced hint font weight
           ),
