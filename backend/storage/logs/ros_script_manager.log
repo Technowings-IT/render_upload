@@ -85,3 +85,77 @@
 [2025-08-09T07:06:57.263Z] ✅ Script command 'execute_script' executed successfully
 [2025-08-09T07:22:08.003Z] Cleaning up ROS2 Script Manager...
 [2025-08-09T07:22:08.004Z] Cleaned up 0 temporary files
+[2025-08-09T07:26:45.418Z] Handling script command: execute_script with options: {"script_name":"robot_launch.sh","script_path":"/home/piros/scripts/robot_launch.sh","action":"run_only_this_script"}
+[2025-08-09T07:26:45.418Z] 📂 Script path: /home/piros/scripts/robot_launch.sh
+[2025-08-09T07:26:45.418Z] 🎯 Executing specific script: robot_launch.sh on Pi
+[2025-08-09T07:26:45.418Z] 🎬 Action: run_only_this_script
+[2025-08-09T07:26:46.176Z] 📡 SSH connected for robot_launch.sh execution
+[2025-08-09T07:26:46.176Z] 🎯 Using predefined path: /home/piros/scripts/robot_launch.sh
+[2025-08-09T07:26:46.176Z] 🚀 Executing command: cd /home/piros/scripts && nohup bash /home/piros/scripts/robot_launch.sh > /tmp/robot_launch_output.log 2>&1 & echo $!
+[2025-08-09T07:26:46.371Z] 📄 robot_launch.sh stdout: 3621
+[2025-08-09T07:26:46.739Z] ✅ robot_launch.sh execution completed with code: 0
+[2025-08-09T07:26:46.740Z] ✅ Script command 'execute_script' executed successfully
+[2025-08-09T07:26:46.740Z] 🆔 Stored PID 3621 for robot_launch.sh
+[2025-08-09T07:27:22.428Z] Handling script command: execute_script with options: {"script_name":"kill_robot.sh","script_path":"/home/piros/scripts/kill_robot.sh","action":"run_only_this_script"}
+[2025-08-09T07:27:22.428Z] 📂 Script path: /home/piros/scripts/kill_robot.sh
+[2025-08-09T07:27:22.428Z] 🎯 Executing specific script: kill_robot.sh on Pi
+[2025-08-09T07:27:22.428Z] 🎬 Action: run_only_this_script
+[2025-08-09T07:27:23.082Z] 📡 SSH connected for kill_robot.sh execution
+[2025-08-09T07:27:23.082Z] 🚀 Executing command: chmod +x /home/piros/scripts/kill_robot.sh && /home/piros/scripts/kill_robot.sh
+[2025-08-09T07:27:23.082Z] 🎯 Using predefined path: /home/piros/scripts/kill_robot.sh
+[2025-08-09T07:27:23.186Z] ⚠️ kill_robot.sh stderr: cat: robot_pid.txt
+[2025-08-09T07:27:23.186Z] ⚠️ kill_robot.sh stderr: : No such file or directory
+[2025-08-09T07:27:23.186Z] ⚠️ kill_robot.sh stderr: /home/piros/scripts/kill_robot.sh: line 11: kill: -: arguments must be process or job IDs
+[2025-08-09T07:27:23.186Z] 📄 kill_robot.sh stdout: Sent SIGINT to launch process group (PID )
+[2025-08-09T07:27:23.186Z] ✅ kill_robot.sh execution completed with code: 0
+[2025-08-09T07:27:23.187Z] ✅ Script command 'execute_script' executed successfully
+[2025-08-09T07:36:11.682Z] 🎯 Executing specific script: robot_launch.sh on Pi
+[2025-08-09T07:36:11.682Z] 📂 Script path: /home/piros/scripts/robot_launch.sh
+[2025-08-09T07:36:11.682Z] 🎬 Action: test_pid_creation
+[2025-08-09T07:36:12.318Z] 📡 SSH connected for robot_launch.sh execution
+[2025-08-09T07:36:12.318Z] 🎯 Using predefined path: /home/piros/scripts/robot_launch.sh
+[2025-08-09T07:36:12.318Z] 🚀 Executing command: cd /home/piros/scripts && nohup bash /home/piros/scripts/robot_launch.sh > /tmp/robot_launch_output.log 2>&1 & echo $! | tee /home/piros/scripts/robot_pid.txt
+[2025-08-09T07:36:12.362Z] 📄 robot_launch.sh stdout: 4404
+[2025-08-09T07:36:12.840Z] ✅ robot_launch.sh execution completed with code: 0
+[2025-08-09T07:36:12.840Z] 🆔 Stored PID 4404 for robot_launch.sh
+[2025-08-09T07:36:12.841Z] 🎯 Executing specific script: slam.sh on Pi
+[2025-08-09T07:36:12.841Z] 📂 Script path: /home/piros/scripts/slam.sh
+[2025-08-09T07:36:12.841Z] 🎬 Action: test_pid_creation
+[2025-08-09T07:36:13.241Z] 📡 SSH connected for slam.sh execution
+[2025-08-09T07:36:13.241Z] 🎯 Using predefined path: /home/piros/scripts/slam.sh
+[2025-08-09T07:36:13.241Z] 🚀 Executing command: cd /home/piros/scripts && nohup bash /home/piros/scripts/slam.sh "test_map_pid" > /tmp/slam_output.log 2>&1 & echo $! | tee /home/piros/ros2_pid.txt
+[2025-08-09T07:36:13.289Z] 📄 slam.sh stdout: 4477
+[2025-08-09T07:36:13.660Z] ✅ slam.sh execution completed with code: 0
+[2025-08-09T07:36:13.660Z] 🎯 Executing specific script: kill_robot.sh on Pi
+[2025-08-09T07:36:13.660Z] 🆔 Stored PID 4477 for slam.sh
+[2025-08-09T07:36:13.660Z] 📂 Script path: /home/piros/scripts/kill_robot.sh
+[2025-08-09T07:36:13.660Z] 🎬 Action: test_kill_with_pid
+[2025-08-09T07:36:14.010Z] 📡 SSH connected for kill_robot.sh execution
+[2025-08-09T07:36:14.011Z] 🎯 Using predefined path: /home/piros/scripts/kill_robot.sh
+[2025-08-09T07:36:14.011Z] 🚀 Executing command: ls -la /home/piros/scripts/robot_pid.txt 2>/dev/null && chmod +x /home/piros/scripts/kill_robot.sh && /home/piros/scripts/kill_robot.sh || (echo "PID file not found, executing script anyway" && chmod +x /home/piros/scripts/kill_robot.sh && /home/piros/scripts/kill_robot.sh)
+[2025-08-09T07:36:14.574Z] 📄 kill_robot.sh stdout: -rw-rw-r-- 1 piros piros 5 Aug  9 13:06 /home/piros/scripts/robot_pid.txt
+[2025-08-09T07:36:14.574Z] 📄 kill_robot.sh stdout: Sent SIGINT to launch process group (PID )
+[2025-08-09T07:36:14.574Z] ⚠️ kill_robot.sh stderr: cat: robot_pid.txt: No such file or directory
+/home/piros/scripts/kill_robot.sh: line 11: kill: -: arguments must be process or job IDs
+[2025-08-09T07:36:14.574Z] ✅ kill_robot.sh execution completed with code: 0
+[2025-08-09T07:36:14.575Z] 🎯 Executing specific script: kill_all.sh on Pi
+[2025-08-09T07:36:14.575Z] 📂 Script path: /home/piros/scripts/kill_all.sh
+[2025-08-09T07:36:14.575Z] 🎬 Action: test_kill_all
+[2025-08-09T07:36:16.669Z] 🎯 Using predefined path: /home/piros/scripts/kill_all.sh
+[2025-08-09T07:36:16.669Z] 🚀 Executing command: ls -la /home/piros/scripts/robot_pid.txt /home/piros/ros2_pid.txt 2>/dev/null && chmod +x /home/piros/scripts/kill_all.sh && /home/piros/scripts/kill_all.sh || (echo "Some PID files not found, executing script anyway" && chmod +x /home/piros/scripts/kill_all.sh && /home/piros/scripts/kill_all.sh)
+[2025-08-09T07:36:16.670Z] 🧹 Cleaning up PID files: rm -f /home/piros/scripts/robot_pid.txt
+[2025-08-09T07:36:16.669Z] 📡 SSH connected for kill_all.sh execution
+[2025-08-09T07:36:17.353Z] 📄 kill_all.sh stdout: -rw-r--r-- 1 piros piros 5 Aug  9 13:06 /home/piros/ros2_pid.txt
+[2025-08-09T07:36:17.353Z] 📄 kill_all.sh stdout: Some PID files not found, executing script anyway
+[2025-08-09T07:36:17.353Z] 📄 kill_all.sh stdout: Sent SIGINT to launch process group (PID 4477)
+[2025-08-09T07:36:17.353Z] ⚠️ kill_all.sh stderr: /home/piros/scripts/kill_all.sh: line 11: kill: (-4477) - No such process
+[2025-08-09T07:36:17.354Z] ✅ kill_all.sh execution completed with code: 0
+[2025-08-09T07:36:19.734Z] 🧹 Cleaning up PID files: rm -f /home/piros/scripts/robot_pid.txt /home/piros/ros2_pid.txt
+[2025-08-09T07:36:24.579Z] ⚠️ PID cleanup failed: PID cleanup timeout
+[2025-08-09T07:36:27.357Z] ⚠️ PID cleanup failed: PID cleanup timeout
+[2025-08-09T08:32:04.442Z] 🎯 Executing specific script: robot_launch.sh on Pi
+[2025-08-09T08:32:04.442Z] 📂 Script path: default
+[2025-08-09T08:32:04.442Z] 🎬 Action: button1_robot_launch
+[2025-08-09T08:33:30.871Z] 🎯 Executing specific script: robot_launch.sh on Pi
+[2025-08-09T08:33:30.872Z] 📂 Script path: default
+[2025-08-09T08:33:30.872Z] 🎬 Action: button1_robot_launch

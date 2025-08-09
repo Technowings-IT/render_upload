@@ -616,6 +616,10 @@ class ROS2ScriptManager extends EventEmitter {
                     this.processStatus.kill_robot = 'stopped';
                     this.processStatus.robot_launch = 'stopped';
                     this.processStatus.robot_control = 'stopped'; // For compatibility
+                    // Clean up robot PID file
+                    this.cleanupPidFiles('kill_robot').catch(err => 
+                        this.log(`⚠️ PID cleanup failed: ${err.message}`)
+                    );
                     break;
                 case 'kill_all.sh':
                 case 'kill.sh': // Backward compatibility
@@ -626,6 +630,10 @@ class ROS2ScriptManager extends EventEmitter {
                     this.processStatus.kill_robot = 'stopped';
                     this.processStatus.kill_all = 'stopped';
                     this.processStatus.robot_control = 'stopped'; // For compatibility
+                    // Clean up all PID files
+                    this.cleanupPidFiles('kill_all').catch(err => 
+                        this.log(`⚠️ PID cleanup failed: ${err.message}`)
+                    );
                     break;
             }
             
@@ -643,6 +651,59 @@ class ROS2ScriptManager extends EventEmitter {
             this.log(`❌ Failed to execute ${script_name}: ${error.message}`);
             throw new Error(`Failed to execute ${script_name}: ${error.message}`);
         }
+    }
+
+    // ✅ NEW: Clean up PID files on Pi after process termination
+    async cleanupPidFiles(scriptType) {
+        return new Promise((resolve, reject) => {
+            const conn = new Client();
+            const timeout = setTimeout(() => {
+                conn.end();
+                reject(new Error('PID cleanup timeout'));
+            }, 10000);
+
+            conn.on('ready', () => {
+                let cleanupCommand;
+                
+                switch (scriptType) {
+                    case 'kill_robot':
+                        cleanupCommand = 'rm -f /home/piros/scripts/robot_pid.txt';
+                        break;
+                    case 'kill_all':
+                        cleanupCommand = 'rm -f /home/piros/scripts/robot_pid.txt /home/piros/ros2_pid.txt';
+                        break;
+                    default:
+                        // No cleanup needed for start scripts
+                        clearTimeout(timeout);
+                        conn.end();
+                        return resolve({ success: true, message: 'No cleanup needed' });
+                }
+
+                this.log(`🧹 Cleaning up PID files: ${cleanupCommand}`);
+                
+                conn.exec(cleanupCommand, (err, stream) => {
+                    if (err) {
+                        clearTimeout(timeout);
+                        conn.end();
+                        return reject(err);
+                    }
+                    
+                    stream.on('close', (code) => {
+                        clearTimeout(timeout);
+                        conn.end();
+                        this.log(`✅ PID files cleaned up successfully`);
+                        resolve({ success: true, code });
+                    });
+                });
+            });
+
+            conn.on('error', (err) => {
+                clearTimeout(timeout);
+                reject(err);
+            });
+
+            conn.connect(this.piConfig);
+        });
     }
 
         // ✅ NEW: Execute script directly on Pi via SSH
@@ -677,26 +738,26 @@ class ROS2ScriptManager extends EventEmitter {
                 let command;
                 switch (scriptName) {
                     case 'robot_launch.sh':
-                        // Run robot launch in background with nohup
-                        command = `cd /home/piros/scripts && nohup bash ${actualPath} > /tmp/robot_launch_output.log 2>&1 & echo $!`;
+                        // Run robot launch in background with nohup and save PID to correct file
+                        command = `cd /home/piros/scripts && nohup bash ${actualPath} > /tmp/robot_launch_output.log 2>&1 & echo $! | tee /home/piros/scripts/robot_pid.txt`;
                         break;
                     case 'slam.sh':
                         const mapName = options.map_name || `slam_map_${Date.now()}`;
-                        // Run SLAM in background with nohup
-                        command = `cd /home/piros/scripts && nohup bash ${actualPath} "${mapName}" > /tmp/slam_output.log 2>&1 & echo $!`;
+                        // Run SLAM in background with nohup and save PID to ros2_pid.txt
+                        command = `cd /home/piros/scripts && nohup bash ${actualPath} "${mapName}" > /tmp/slam_output.log 2>&1 & echo $! | tee /home/piros/ros2_pid.txt`;
                         break;
                     case 'nav2.sh':
-                        // Run nav2 in background with nohup to prevent it from stopping when SSH closes
-                        command = `cd /home/piros/scripts && nohup bash ${actualPath} > /tmp/nav2_output.log 2>&1 & echo $!`;
+                        // Run nav2 in background with nohup and save PID to ros2_pid.txt
+                        command = `cd /home/piros/scripts && nohup bash ${actualPath} > /tmp/nav2_output.log 2>&1 & echo $! | tee -a /home/piros/ros2_pid.txt`;
                         break;
                     case 'kill_robot.sh':
-                        // Kill robot script should run immediately, not in background
-                        command = `chmod +x ${actualPath} && ${actualPath}`;
+                        // Verify PID file exists and kill robot script should run immediately
+                        command = `ls -la /home/piros/scripts/robot_pid.txt 2>/dev/null && chmod +x ${actualPath} && ${actualPath} || (echo "PID file not found, executing script anyway" && chmod +x ${actualPath} && ${actualPath})`;
                         break;
                     case 'kill_all.sh':
                     case 'kill.sh': // Backward compatibility
-                        // Kill all script should run immediately, not in background
-                        command = `chmod +x ${actualPath} && ${actualPath}`;
+                        // Verify PID files exist and kill all script should run immediately
+                        command = `ls -la /home/piros/scripts/robot_pid.txt /home/piros/ros2_pid.txt 2>/dev/null && chmod +x ${actualPath} && ${actualPath} || (echo "Some PID files not found, executing script anyway" && chmod +x ${actualPath} && ${actualPath})`;
                         break;
                     default:
                         // Default: run in background
