@@ -1472,21 +1472,24 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           child: Column(
             children: [
-              // 📱 Mobile-friendly header layout
+              // 📱 6.7-inch screen optimized header layout
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final isNarrowScreen = constraints.maxWidth < 400;
+                  // 📱 Optimized for 6.7-inch screens (390-430px typical width)
+                  final isPhone67Inch = constraints.maxWidth >= 380 &&
+                      constraints.maxWidth <= 440;
+                  final isNarrowScreen = constraints.maxWidth < 380;
 
                   if (isNarrowScreen) {
-                    // Stack layout for very narrow screens
+                    // Ultra-compact layout for very small screens
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
                             Icon(Icons.map,
-                                color: Colors.purple.shade700, size: 24),
-                            SizedBox(width: 8),
+                                color: Colors.purple.shade700, size: 22),
+                            SizedBox(width: 6),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1494,15 +1497,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                                   Text(
                                     'Maps',
                                     style: TextStyle(
-                                      fontSize: 18,
+                                      fontSize: 16,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.purple.shade700,
                                     ),
                                   ),
                                   Text(
-                                    'Coordinate-based orders',
+                                    'Orders',
                                     style: TextStyle(
-                                      fontSize: 12,
+                                      fontSize: 11,
                                       color: Colors.purple.shade600,
                                     ),
                                   ),
@@ -1511,25 +1514,24 @@ class _DashboardScreenState extends State<DashboardScreen>
                             ),
                           ],
                         ),
-                        SizedBox(height: 12),
-                        // Mobile button row
+                        SizedBox(height: 10),
                         Row(
                           children: [
                             Expanded(
                               child: ElevatedButton.icon(
                                 onPressed: _refreshDashboard,
-                                icon: Icon(Icons.refresh, size: 16),
+                                icon: Icon(Icons.refresh, size: 14),
                                 label: Text('Refresh',
-                                    style: TextStyle(fontSize: 12)),
+                                    style: TextStyle(fontSize: 11)),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.blue,
                                   foregroundColor: Colors.white,
                                   padding: EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 8),
+                                      horizontal: 6, vertical: 6),
                                 ),
                               ),
                             ),
-                            SizedBox(width: 8),
+                            SizedBox(width: 6),
                             Expanded(
                               child: ElevatedButton.icon(
                                 onPressed: () => Navigator.push(
@@ -1537,14 +1539,106 @@ class _DashboardScreenState extends State<DashboardScreen>
                                   MaterialPageRoute(
                                       builder: (context) => EnhancedMapPage()),
                                 ),
-                                icon: Icon(Icons.edit, size: 16),
+                                icon: Icon(Icons.edit, size: 14),
                                 label: Text('Edit',
-                                    style: TextStyle(fontSize: 12)),
+                                    style: TextStyle(fontSize: 11)),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.purple,
                                   foregroundColor: Colors.white,
                                   padding: EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 8),
+                                      horizontal: 6, vertical: 6),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  } else if (isPhone67Inch) {
+                    // 📱 Optimized layout for 6.7-inch phones
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.purple.shade700.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(Icons.map,
+                                  color: Colors.purple.shade700, size: 26),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Maps Hub',
+                                    style: TextStyle(
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.purple.shade700,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Create coordinate-based orders',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.purple.shade600,
+                                      height: 1.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 14),
+                        // 📱 6.7-inch optimized button row
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton.icon(
+                                onPressed: _refreshDashboard,
+                                icon: Icon(Icons.refresh, size: 18),
+                                label: Text('Refresh',
+                                    style: TextStyle(fontSize: 13)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 10),
+                            Expanded(
+                              flex: 3,
+                              child: ElevatedButton.icon(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => EnhancedMapPage()),
+                                ),
+                                icon: Icon(Icons.edit, size: 18),
+                                label: Text('Edit Maps',
+                                    style: TextStyle(fontSize: 13)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.purple,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
                               ),
                             ),
@@ -1553,7 +1647,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ],
                     );
                   } else {
-                    // Standard layout for wider screens
+                    // Standard layout for larger screens and tablets
                     return Row(
                       children: [
                         Icon(Icons.map,
@@ -1960,44 +2054,86 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Container(
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.purple.shade100,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isNarrowScreen = constraints.maxWidth < 350;
+          // 📱 Optimized for 6.7-inch screens (390-430px typical width)
+          final isPhone67Inch =
+              constraints.maxWidth >= 380 && constraints.maxWidth <= 440;
+          final isNarrowScreen = constraints.maxWidth < 380;
 
           if (isNarrowScreen) {
-            // 📱 Mobile: 2x2 grid layout for stats
+            // Ultra-compact 2x2 grid for very small screens
             return Column(
               children: [
                 Row(
                   children: [
                     Expanded(
-                        child: _buildOrderStatItem(
+                        child: _buildCompactStatItem(
                             'Maps', totalMaps, Colors.purple)),
-                    _buildStatDivider(),
+                    SizedBox(width: 8),
                     Expanded(
-                        child: _buildOrderStatItem(
-                            'With Shapes', mapsWithShapes, Colors.blue)),
+                        child: _buildCompactStatItem(
+                            'Shapes', totalShapes, Colors.green)),
                   ],
                 ),
                 SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
-                        child: _buildOrderStatItem(
-                            'Total Shapes', totalShapes, Colors.green)),
-                    _buildStatDivider(),
+                        child: _buildCompactStatItem(
+                            'Active', mapsWithShapes, Colors.blue)),
+                    SizedBox(width: 8),
                     Expanded(
-                        child: _buildOrderStatItem('Devices',
+                        child: _buildCompactStatItem('Devices',
                             _connectedDevices.length, Colors.orange)),
                   ],
                 ),
               ],
             );
+          } else if (isPhone67Inch) {
+            // 📱 Optimized layout for 6.7-inch phones with better spacing
+            return Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                        child: _build67InchStatItem(
+                            'Maps', totalMaps, Colors.purple, Icons.map)),
+                    SizedBox(width: 10),
+                    Expanded(
+                        child: _build67InchStatItem('Shapes', totalShapes,
+                            Colors.green, Icons.shape_line)),
+                  ],
+                ),
+                SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _build67InchStatItem('Active', mapsWithShapes,
+                            Colors.blue, Icons.check_circle)),
+                    SizedBox(width: 10),
+                    Expanded(
+                        child: _build67InchStatItem(
+                            'Devices',
+                            _connectedDevices.length,
+                            Colors.orange,
+                            Icons.devices)),
+                  ],
+                ),
+              ],
+            );
           } else {
-            // Standard: Single row layout
+            // Standard single row layout for larger screens
             return Row(
               children: [
                 Expanded(
@@ -2019,6 +2155,73 @@ class _DashboardScreenState extends State<DashboardScreen>
             );
           }
         },
+      ),
+    );
+  }
+
+  // 📱 New compact stat item for very small screens
+  Widget _buildCompactStatItem(String label, int count, Color color) {
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      child: Column(
+        children: [
+          Text(
+            count.toString(),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 📱 New stat item optimized for 6.7-inch screens
+  Widget _build67InchStatItem(
+      String label, int count, Color color, IconData icon) {
+    return Container(
+      padding: EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 16),
+          SizedBox(width: 6),
+          Column(
+            children: [
+              Text(
+                count.toString(),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -2891,21 +3094,23 @@ class _DashboardScreenState extends State<DashboardScreen>
       elevation: 2,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isNarrowScreen = constraints.maxWidth < 350;
+          // 📱 Optimized for 6.7-inch screens (390-430px typical width)
+          final isPhone67Inch =
+              constraints.maxWidth >= 380 && constraints.maxWidth <= 440;
+          final isNarrowScreen = constraints.maxWidth < 380;
 
           if (isNarrowScreen) {
-            // 📱 Mobile-optimized vertical layout
+            // Ultra-compact layout for very small screens
             return Padding(
-              padding: EdgeInsets.all(12),
+              padding: EdgeInsets.all(10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header row with device info and map icon
                   Row(
                     children: [
                       Container(
-                        width: 40,
-                        height: 40,
+                        width: 36,
+                        height: 36,
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
@@ -2913,11 +3118,101 @@ class _DashboardScreenState extends State<DashboardScreen>
                               Colors.purple.shade600
                             ],
                           ),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Icon(Icons.map, color: Colors.white, size: 20),
+                        child: Icon(Icons.map, color: Colors.white, size: 18),
                       ),
-                      SizedBox(width: 12),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              device['name'],
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '${mapData.info.width}×${mapData.info.height}',
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _navigateToMap({'id': deviceId}),
+                          icon: Icon(Icons.edit, size: 14),
+                          label: Text('Edit', style: TextStyle(fontSize: 11)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.purple,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 6),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 6),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _showCreateOrderForDevice(deviceId),
+                          icon: Icon(Icons.touch_app, size: 14),
+                          label: Text('Order', style: TextStyle(fontSize: 11)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 6),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          } else if (isPhone67Inch) {
+            // 📱 Perfect layout for 6.7-inch phones
+            return Padding(
+              padding: EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Enhanced header for 6.7-inch screens
+                  Row(
+                    children: [
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.purple.shade400,
+                              Colors.purple.shade600
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.purple.shade200,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(Icons.map, color: Colors.white, size: 24),
+                      ),
+                      SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2926,17 +3221,27 @@ class _DashboardScreenState extends State<DashboardScreen>
                               device['name'],
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                                fontSize: 17,
+                                color: Colors.grey[800],
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            Text(
-                              'Map ${mapData.info.width}×${mapData.info.height}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
+                            SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Icon(Icons.straighten,
+                                    size: 14, color: Colors.grey[600]),
+                                SizedBox(width: 4),
+                                Text(
+                                  '${mapData.info.width} × ${mapData.info.height}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -2946,74 +3251,106 @@ class _DashboardScreenState extends State<DashboardScreen>
 
                   SizedBox(height: 12),
 
-                  // Description text
-                  Text(
-                    'Ready for coordinate orders',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.purple.shade600,
-                      fontStyle: FontStyle.italic,
+                  // Status and shapes info
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green, size: 14),
+                        SizedBox(width: 6),
+                        Text(
+                          'Ready for coordinate orders',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
-                  // Shape counts (if any)
+                  // Shape counts for 6.7-inch screens
                   if (shapeCounts.isNotEmpty) ...[
-                    SizedBox(height: 8),
+                    SizedBox(height: 10),
                     Wrap(
-                      spacing: 4,
+                      spacing: 6,
                       runSpacing: 4,
                       children: shapeCounts.entries.map((entry) {
                         final color = _getStationTypeColor(entry.key);
                         return Container(
                           padding:
-                              EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: color.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: color.withOpacity(0.3)),
+                            color: color.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: color.withOpacity(0.4)),
                           ),
-                          child: Text(
-                            '${entry.key}: ${entry.value}',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: color,
-                              fontWeight: FontWeight.w500,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(_getStationTypeIcon(entry.key),
+                                  color: color, size: 12),
+                              SizedBox(width: 4),
+                              Text(
+                                '${entry.key}: ${entry.value}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: color,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       }).toList(),
                     ),
                   ],
 
-                  SizedBox(height: 12),
+                  SizedBox(height: 14),
 
-                  // Action buttons row
+                  // Action buttons optimized for 6.7-inch
                   Row(
                     children: [
                       Expanded(
+                        flex: 2,
                         child: ElevatedButton.icon(
                           onPressed: () => _navigateToMap({'id': deviceId}),
-                          icon: Icon(Icons.edit, size: 16),
-                          label: Text('Edit', style: TextStyle(fontSize: 12)),
+                          icon: Icon(Icons.edit, size: 18),
+                          label:
+                              Text('Edit Map', style: TextStyle(fontSize: 13)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.purple,
                             foregroundColor: Colors.white,
                             padding: EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 8),
+                                horizontal: 12, vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                       ),
-                      SizedBox(width: 8),
+                      SizedBox(width: 10),
                       Expanded(
+                        flex: 3,
                         child: ElevatedButton.icon(
                           onPressed: () => _showCreateOrderForDevice(deviceId),
-                          icon: Icon(Icons.touch_app, size: 16),
-                          label: Text('Order', style: TextStyle(fontSize: 12)),
+                          icon: Icon(Icons.touch_app, size: 18),
+                          label: Text('Create Order',
+                              style: TextStyle(fontSize: 13)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
                             padding: EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 8),
+                                horizontal: 12, vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                       ),
@@ -3023,7 +3360,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             );
           } else {
-            // Standard layout for wider screens
+            // Standard layout for larger screens and tablets
             return ListTile(
               contentPadding: EdgeInsets.all(12),
               leading: Container(

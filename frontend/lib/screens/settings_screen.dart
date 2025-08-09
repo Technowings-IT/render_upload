@@ -134,40 +134,49 @@ class _SettingsScreenState extends State<SettingsScreen>
   Widget build(BuildContext context) {
     final theme = Provider.of<ThemeService>(context);
 
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(gradient: theme.backgroundGradient),
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: CustomScrollView(
-            slivers: [
-              _buildModernAppBar(theme),
-              SliverPadding(
-                padding: const EdgeInsets.all(20),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    _buildServerSettingsSection(theme),
-                    const SizedBox(height: 24),
-                    _buildAMRSettingsSection(theme),
-                    const SizedBox(height: 24),
-                    _buildThemeSection(theme),
-                    const SizedBox(height: 24),
-                    _buildNotificationSection(theme),
-                    const SizedBox(height: 24),
-                    _buildMapSettingsSection(theme),
-                    const SizedBox(height: 24),
-                    _buildAdvancedSection(theme),
-                    const SizedBox(height: 24),
-                    _buildSystemInfoSection(theme),
-                    const SizedBox(height: 100),
-                  ]),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        // Navigate back to dashboard with visual feedback when system back button is pressed
+        if (_enableHapticFeedback) HapticFeedback.lightImpact();
+        Navigator.pushReplacementNamed(context, '/dashboard');
+      },
+      child: Scaffold(
+        body: Container(
+          decoration: BoxDecoration(gradient: theme.backgroundGradient),
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: CustomScrollView(
+              slivers: [
+                _buildModernAppBar(theme),
+                SliverPadding(
+                  padding: const EdgeInsets.all(20),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      _buildServerSettingsSection(theme),
+                      const SizedBox(height: 24),
+                      _buildAMRSettingsSection(theme),
+                      const SizedBox(height: 24),
+                      _buildThemeSection(theme),
+                      const SizedBox(height: 24),
+                      _buildNotificationSection(theme),
+                      const SizedBox(height: 24),
+                      _buildMapSettingsSection(theme),
+                      const SizedBox(height: 24),
+                      _buildAdvancedSection(theme),
+                      const SizedBox(height: 24),
+                      _buildSystemInfoSection(theme),
+                      const SizedBox(height: 100),
+                    ]),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
+        floatingActionButton: _buildSaveFAB(theme),
       ),
-      floatingActionButton: _buildSaveFAB(theme),
     );
   }
 
@@ -178,6 +187,15 @@ class _SettingsScreenState extends State<SettingsScreen>
       pinned: true,
       backgroundColor: Colors.transparent,
       elevation: 0,
+      leading: IconButton(
+        icon: Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: () {
+          // Navigate back to dashboard with visual feedback
+          if (_enableHapticFeedback) HapticFeedback.lightImpact();
+          Navigator.pushReplacementNamed(context, '/dashboard');
+        },
+        tooltip: 'Back to Dashboard',
+      ),
       flexibleSpace: FlexibleSpaceBar(
         title: ShaderMask(
           shaderCallback: (bounds) => LinearGradient(
