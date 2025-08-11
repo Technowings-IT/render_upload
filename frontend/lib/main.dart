@@ -19,7 +19,7 @@ import 'services/api_service.dart';
 class AppConfig {
   // Your AMR backend server configuration
   static const String DEFAULT_SERVER_IP =
-      '192.168.208.79'; // Updated to actual backend IP where backend is running
+      '192.168.128.79'; // Updated to actual backend IP where backend is running
   static const int DEFAULT_SERVER_PORT = 3000; // Backend port
   static const int AMR_SSH_PORT = 22; // AMR SSH port (mentioned by user)
 

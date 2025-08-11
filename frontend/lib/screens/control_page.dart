@@ -220,7 +220,7 @@ class _ControlPageState extends State<ControlPage>
 
     if (!_webSocketService.isConnected) {
       _webSocketService.connect(
-        'ws://192.168.208.79:3000',
+        'ws://192.168.128.79:3000',
         deviceId: widget.deviceId,
         deviceInfo: {
           'type': 'mobile_controller',

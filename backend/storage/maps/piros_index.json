@@ -144,7 +144,25 @@
         },
         "saveTimestamp": 1754570369507
       }
+    },
+    {
+      "name": "complete_map_piros_1754887840243",
+      "filePath": "/home/vidit-agrawal/ agv-fleet-management /backend/storage/maps/piros_complete_map_piros_1754887840243.json",
+      "savedAt": "2025-08-11T04:50:40.246Z",
+      "fileSize": "12.73 KB",
+      "shapes": 2,
+      "mapType": "complete",
+      "metadata": {
+        "totalShapes": 2,
+        "hasOccupancyData": true,
+        "mapDimensions": {
+          "width": 47,
+          "height": 55,
+          "resolution": 0.05000000074505806
+        },
+        "saveTimestamp": 1754887840246
+      }
     }
   ],
-  "lastUpdated": "2025-08-07T12:39:29.509Z"
+  "lastUpdated": "2025-08-11T04:50:40.270Z"
 }

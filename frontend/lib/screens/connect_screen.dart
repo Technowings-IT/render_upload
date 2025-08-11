@@ -80,25 +80,26 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   // Helper methods for responsive design
   bool get isMobile => MediaQuery.of(context).size.width < mobileBreakpoint;
-  bool get isTablet => MediaQuery.of(context).size.width >= mobileBreakpoint && 
-                     MediaQuery.of(context).size.width < desktopBreakpoint;
+  bool get isTablet =>
+      MediaQuery.of(context).size.width >= mobileBreakpoint &&
+      MediaQuery.of(context).size.width < desktopBreakpoint;
   bool get isDesktop => MediaQuery.of(context).size.width >= desktopBreakpoint;
-  
+
   double get screenWidth => MediaQuery.of(context).size.width;
-  
+
   // Responsive values
   double get horizontalPadding {
     if (isMobile) return 16;
     if (isTablet) return 32;
     return 48;
   }
-  
+
   double get verticalSpacing {
     if (isMobile) return 16;
     if (isTablet) return 20;
     return 24;
   }
-  
+
   int get deviceGridCrossAxisCount {
     if (isMobile) return 1;
     if (isTablet) return 2;
@@ -106,9 +107,9 @@ class _ConnectScreenState extends State<ConnectScreen>
   }
 
   EdgeInsets get responsivePadding => EdgeInsets.symmetric(
-    horizontal: horizontalPadding,
-    vertical: verticalSpacing,
-  );
+        horizontal: horizontalPadding,
+        vertical: verticalSpacing,
+      );
 
   // Helper methods to determine actual device status based on backend connectivity
   String _getActualDeviceStatus(String deviceStatus) {
@@ -247,8 +248,8 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   void _loadSavedConnections() {
     setState(() {
-      _manualBackendIpController.text = '192.168.208.79';
-      _manualDeviceIpController.text = '192.168.208.29';
+      _manualBackendIpController.text = '192.168.128.79';
+      _manualDeviceIpController.text = '192.168.128.29';
     });
   }
 
@@ -307,7 +308,9 @@ class _ConnectScreenState extends State<ConnectScreen>
         decoration: BoxDecoration(gradient: theme.backgroundGradient),
         child: FadeTransition(
           opacity: _discoveryFade,
-          child: isDesktop ? _buildDesktopLayout(theme) : _buildMobileLayout(theme),
+          child: isDesktop
+              ? _buildDesktopLayout(theme)
+              : _buildMobileLayout(theme),
         ),
       ),
       floatingActionButton: _buildFloatingActionButton(theme),
@@ -371,7 +374,7 @@ class _ConnectScreenState extends State<ConnectScreen>
             ],
           ),
         ),
-        
+
         // Vertical divider
         Container(
           width: 1,
@@ -385,7 +388,7 @@ class _ConnectScreenState extends State<ConnectScreen>
             ),
           ),
         ),
-        
+
         // Main content area
         Expanded(
           child: Column(
@@ -465,9 +468,9 @@ class _ConnectScreenState extends State<ConnectScreen>
       height: 80,
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
       decoration: BoxDecoration(
-        color: theme.isDarkMode 
-          ? Colors.white.withOpacity(0.05) 
-          : Colors.black.withOpacity(0.03),
+        color: theme.isDarkMode
+            ? Colors.white.withOpacity(0.05)
+            : Colors.black.withOpacity(0.03),
         border: Border(
           bottom: BorderSide(
             color: theme.accentColor.withOpacity(0.1),
@@ -483,7 +486,8 @@ class _ConnectScreenState extends State<ConnectScreen>
               children: [
                 Text(
                   'Fleet Management Dashboard',
-                  style: theme.headlineMedium.copyWith(fontWeight: FontWeight.w600),
+                  style: theme.headlineMedium
+                      .copyWith(fontWeight: FontWeight.w600),
                 ),
                 Text(
                   'Connect and manage your AMR devices',
@@ -531,9 +535,11 @@ class _ConnectScreenState extends State<ConnectScreen>
         gradient: isPrimary ? theme.primaryGradient : null,
         color: isPrimary ? null : theme.accentColor.withOpacity(0.1),
         borderRadius: theme.borderRadiusMedium,
-        border: isPrimary ? null : Border.all(
-          color: theme.accentColor.withOpacity(0.3),
-        ),
+        border: isPrimary
+            ? null
+            : Border.all(
+                color: theme.accentColor.withOpacity(0.3),
+              ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -546,21 +552,21 @@ class _ConnectScreenState extends State<ConnectScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 isLoading
-                  ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          isPrimary ? Colors.white : theme.accentColor,
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            isPrimary ? Colors.white : theme.accentColor,
+                          ),
                         ),
+                      )
+                    : Icon(
+                        icon,
+                        color: isPrimary ? Colors.white : theme.accentColor,
+                        size: 18,
                       ),
-                    )
-                  : Icon(
-                      icon,
-                      color: isPrimary ? Colors.white : theme.accentColor,
-                      size: 18,
-                    ),
                 const SizedBox(width: 8),
                 Text(
                   label,
@@ -605,7 +611,8 @@ class _ConnectScreenState extends State<ConnectScreen>
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     gradient: isSelected ? theme.primaryGradient : null,
-                    color: isSelected ? null : theme.accentColor.withOpacity(0.1),
+                    color:
+                        isSelected ? null : theme.accentColor.withOpacity(0.1),
                     borderRadius: theme.borderRadiusSmall,
                   ),
                   child: Icon(
@@ -620,7 +627,8 @@ class _ConnectScreenState extends State<ConnectScreen>
                     tab['title'] as String,
                     style: theme.bodyMedium.copyWith(
                       color: isSelected ? theme.accentColor : null,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w500,
                     ),
                   ),
                 ),
@@ -640,7 +648,7 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   Widget _buildFloatingActionButton(ThemeService theme) {
     if (isDesktop) return Container(); // Don't show FAB on desktop
-    
+
     return Container(
       decoration: BoxDecoration(
         gradient: theme.primaryGradient,
@@ -721,42 +729,44 @@ class _ConnectScreenState extends State<ConnectScreen>
                 },
               ),
               // Network particles
-              ...List.generate(
-                  isTablet ? 12 : 8, (index) => _buildNetworkParticle(index, theme)),
+              ...List.generate(isTablet ? 12 : 8,
+                  (index) => _buildNetworkParticle(index, theme)),
             ],
           ),
         ),
       ),
-      actions: isMobile ? [
-        IconButton(
-          onPressed: _isLoading ? null : () => _refreshConnections(),
-          icon: AnimatedBuilder(
-            animation: _scanningController,
-            builder: (context, child) {
-              return Transform.rotate(
-                angle: _scanningAnimation.value * 2 * math.pi,
-                child: Icon(
-                  Icons.radar,
-                  color: theme.accentColor,
-                  size: 28,
+      actions: isMobile
+          ? [
+              IconButton(
+                onPressed: _isLoading ? null : () => _refreshConnections(),
+                icon: AnimatedBuilder(
+                  animation: _scanningController,
+                  builder: (context, child) {
+                    return Transform.rotate(
+                      angle: _scanningAnimation.value * 2 * math.pi,
+                      child: Icon(
+                        Icons.radar,
+                        color: theme.accentColor,
+                        size: 28,
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-          tooltip: 'Scan Network',
-        ),
-        IconButton(
-          onPressed: () => _startAutoDiscovery(),
-          icon: Icon(Icons.search, color: theme.accentColor),
-          tooltip: 'Discover Devices',
-        ),
-        IconButton(
-          onPressed: () => _goToDashboard(),
-          icon: Icon(Icons.dashboard, color: theme.accentColor),
-          tooltip: 'Go to Dashboard',
-        ),
-        const SizedBox(width: 8),
-      ] : [],
+                tooltip: 'Scan Network',
+              ),
+              IconButton(
+                onPressed: () => _startAutoDiscovery(),
+                icon: Icon(Icons.search, color: theme.accentColor),
+                tooltip: 'Discover Devices',
+              ),
+              IconButton(
+                onPressed: () => _goToDashboard(),
+                icon: Icon(Icons.dashboard, color: theme.accentColor),
+                tooltip: 'Go to Dashboard',
+              ),
+              const SizedBox(width: 8),
+            ]
+          : [],
     );
   }
 
@@ -865,7 +875,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                       SizedBox(height: isTablet ? 12 : 8),
                       Container(
                         padding: EdgeInsets.symmetric(
-                            horizontal: isTablet ? 16 : 12, 
+                            horizontal: isTablet ? 16 : 12,
                             vertical: isTablet ? 10 : 8),
                         decoration: BoxDecoration(
                           color: theme.warningColor.withOpacity(0.1),
@@ -876,7 +886,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                         child: Row(
                           children: [
                             Icon(Icons.warning,
-                                color: theme.warningColor, 
+                                color: theme.warningColor,
                                 size: isTablet ? 18 : 16),
                             SizedBox(width: isTablet ? 10 : 8),
                             Expanded(
@@ -897,7 +907,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                       SizedBox(height: isTablet ? 16 : 12),
                       Container(
                         padding: EdgeInsets.symmetric(
-                            horizontal: isTablet ? 16 : 12, 
+                            horizontal: isTablet ? 16 : 12,
                             vertical: isTablet ? 8 : 6),
                         decoration: BoxDecoration(
                           color: theme.accentColor.withOpacity(0.1),
@@ -945,7 +955,7 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   Widget _buildConnectionTabs(ThemeService theme) {
     if (isDesktop) return Container(); // Handled in sidebar for desktop
-    
+
     return Container(
       decoration: BoxDecoration(
         color: theme.isDarkMode
@@ -958,9 +968,7 @@ class _ConnectScreenState extends State<ConnectScreen>
               : Colors.black.withOpacity(0.1),
         ),
       ),
-      child: isTablet ? 
-        _buildTabletTabs(theme) : 
-        _buildMobileTabs(theme),
+      child: isTablet ? _buildTabletTabs(theme) : _buildMobileTabs(theme),
     );
   }
 
@@ -969,16 +977,29 @@ class _ConnectScreenState extends State<ConnectScreen>
       children: [
         _buildTabButton('Auto Discovery', 0, Icons.radar, theme),
         _buildTabButton('Manual Backend', 1, Icons.settings_ethernet, theme),
-        _buildTabButton('Manual Device', 2, Icons.precision_manufacturing, theme),
+        _buildTabButton(
+            'Manual Device', 2, Icons.precision_manufacturing, theme),
       ],
     );
   }
 
   Widget _buildTabletTabs(ThemeService theme) {
     final tabs = [
-      {'title': 'Auto Discovery', 'subtitle': 'Network scan', 'icon': Icons.radar},
-      {'title': 'Manual Backend', 'subtitle': 'Direct connection', 'icon': Icons.settings_ethernet},
-      {'title': 'Manual Device', 'subtitle': 'Add specific AMR', 'icon': Icons.precision_manufacturing},
+      {
+        'title': 'Auto Discovery',
+        'subtitle': 'Network scan',
+        'icon': Icons.radar
+      },
+      {
+        'title': 'Manual Backend',
+        'subtitle': 'Direct connection',
+        'icon': Icons.settings_ethernet
+      },
+      {
+        'title': 'Manual Device',
+        'subtitle': 'Add specific AMR',
+        'icon': Icons.precision_manufacturing
+      },
     ];
 
     return Row(
@@ -1020,9 +1041,9 @@ class _ConnectScreenState extends State<ConnectScreen>
                   Text(
                     tab['subtitle'] as String,
                     style: theme.bodySmall.copyWith(
-                      color: isSelected 
-                        ? Colors.white.withOpacity(0.8) 
-                        : theme.accentColor.withOpacity(0.6),
+                      color: isSelected
+                          ? Colors.white.withOpacity(0.8)
+                          : theme.accentColor.withOpacity(0.6),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -1106,8 +1127,8 @@ class _ConnectScreenState extends State<ConnectScreen>
                     return Transform.rotate(
                       angle: _radarSweep.value,
                       child: Icon(
-                        Icons.radar, 
-                        color: theme.infoColor, 
+                        Icons.radar,
+                        color: theme.infoColor,
                         size: isTablet ? 32 : 28,
                       ),
                     );
@@ -1120,7 +1141,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Network Discovery', 
+                      'Network Discovery',
                       style: theme.headlineMedium.copyWith(
                         fontSize: isTablet ? 20 : 18,
                       ),
@@ -1145,9 +1166,9 @@ class _ConnectScreenState extends State<ConnectScreen>
           ],
 
           // Action buttons
-          isTablet || isDesktop ? 
-            _buildTabletActionButtons(theme) : 
-            _buildMobileActionButtons(theme),
+          isTablet || isDesktop
+              ? _buildTabletActionButtons(theme)
+              : _buildMobileActionButtons(theme),
         ],
       ),
     );
@@ -1230,9 +1251,9 @@ class _ConnectScreenState extends State<ConnectScreen>
             ],
           ),
           SizedBox(height: isTablet ? 16 : 12),
-          isTablet || isDesktop ? 
-            _buildDiscoveredDevicesGrid(theme) :
-            _buildDiscoveredDevicesList(theme),
+          isTablet || isDesktop
+              ? _buildDiscoveredDevicesGrid(theme)
+              : _buildDiscoveredDevicesList(theme),
         ],
       ),
     );
@@ -1292,8 +1313,8 @@ class _ConnectScreenState extends State<ConnectScreen>
               borderRadius: theme.borderRadiusSmall,
             ),
             child: Icon(
-              Icons.router, 
-              color: theme.accentColor, 
+              Icons.router,
+              color: theme.accentColor,
               size: isTablet ? 24 : 20,
             ),
           ),
@@ -1349,7 +1370,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 ),
                 child: Icon(
                   Icons.settings_ethernet,
-                  color: theme.warningColor, 
+                  color: theme.warningColor,
                   size: isTablet ? 32 : 28,
                 ),
               ),
@@ -1378,9 +1399,9 @@ class _ConnectScreenState extends State<ConnectScreen>
           SizedBox(height: verticalSpacing),
 
           // Input fields
-          isTablet || isDesktop ? 
-            _buildTabletBackendInputs(theme) :
-            _buildMobileBackendInputs(theme),
+          isTablet || isDesktop
+              ? _buildTabletBackendInputs(theme)
+              : _buildMobileBackendInputs(theme),
 
           SizedBox(height: verticalSpacing),
 
@@ -1390,7 +1411,8 @@ class _ConnectScreenState extends State<ConnectScreen>
             child: ModernActionButton(
               label: _isConnecting ? 'Connecting...' : 'Connect to Backend',
               icon: Icons.wifi,
-              onPressed: _isConnecting ? () {} : () => _connectManualWebSocket(),
+              onPressed:
+                  _isConnecting ? () {} : () => _connectManualWebSocket(),
               isLoading: _isConnecting,
             ),
           ),
@@ -1405,7 +1427,7 @@ class _ConnectScreenState extends State<ConnectScreen>
         _buildModernTextField(
           controller: _manualBackendIpController,
           label: 'Backend IP Address',
-          hint: '192.168.208.79',
+          hint: '192.168.128.79',
           icon: Icons.computer,
           theme: theme,
         ),
@@ -1430,7 +1452,7 @@ class _ConnectScreenState extends State<ConnectScreen>
           child: _buildModernTextField(
             controller: _manualBackendIpController,
             label: 'Backend IP Address',
-            hint: '192.168.208.79',
+            hint: '192.168.128.79',
             icon: Icons.computer,
             theme: theme,
           ),
@@ -1464,7 +1486,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 ),
                 child: Icon(
                   Icons.precision_manufacturing,
-                  color: theme.accentColor, 
+                  color: theme.accentColor,
                   size: isTablet ? 32 : 28,
                 ),
               ),
@@ -1474,7 +1496,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Manual AMR Device', 
+                      'Manual AMR Device',
                       style: theme.headlineMedium.copyWith(
                         fontSize: isTablet ? 20 : 18,
                       ),
@@ -1493,9 +1515,9 @@ class _ConnectScreenState extends State<ConnectScreen>
           SizedBox(height: verticalSpacing),
 
           // Device information
-          isTablet || isDesktop ? 
-            _buildTabletDeviceInputs(theme) :
-            _buildMobileDeviceInputs(theme),
+          isTablet || isDesktop
+              ? _buildTabletDeviceInputs(theme)
+              : _buildMobileDeviceInputs(theme),
 
           SizedBox(height: verticalSpacing),
 
@@ -1536,7 +1558,7 @@ class _ConnectScreenState extends State<ConnectScreen>
         _buildModernTextField(
           controller: _manualDeviceIpController,
           label: 'AMR IP Address',
-          hint: '192.168.208.29',
+          hint: '192.168.128.29',
           icon: Icons.smart_toy,
           theme: theme,
           keyboardType: TextInputType.numberWithOptions(decimal: true),
@@ -1588,7 +1610,7 @@ class _ConnectScreenState extends State<ConnectScreen>
               child: _buildModernTextField(
                 controller: _manualDeviceIpController,
                 label: 'AMR IP Address',
-                hint: '192.168.208.29',
+                hint: '192.168.128.29',
                 icon: Icons.smart_toy,
                 theme: theme,
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
@@ -1638,8 +1660,8 @@ class _ConnectScreenState extends State<ConnectScreen>
               borderRadius: theme.borderRadiusSmall,
             ),
             child: Icon(
-              icon, 
-              color: theme.accentColor, 
+              icon,
+              color: theme.accentColor,
               size: isTablet ? 22 : 20,
             ),
           ),
@@ -1683,7 +1705,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 ),
                 child: Icon(
                   Icons.devices_other,
-                  color: theme.successColor, 
+                  color: theme.successColor,
                   size: isTablet ? 32 : 28,
                 ),
               ),
@@ -1693,7 +1715,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Connected Fleet', 
+                      'Connected Fleet',
                       style: theme.headlineMedium.copyWith(
                         fontSize: isTablet ? 20 : 18,
                       ),
@@ -1709,7 +1731,7 @@ class _ConnectScreenState extends State<ConnectScreen>
               ),
               Container(
                 padding: EdgeInsets.symmetric(
-                  horizontal: isTablet ? 16 : 12, 
+                  horizontal: isTablet ? 16 : 12,
                   vertical: isTablet ? 8 : 6,
                 ),
                 decoration: BoxDecoration(
@@ -1803,7 +1825,7 @@ class _ConnectScreenState extends State<ConnectScreen>
               child: Row(
                 children: [
                   Icon(
-                    Icons.warning, 
+                    Icons.warning,
                     color: theme.warningColor,
                     size: isTablet ? 24 : 20,
                   ),
@@ -1834,7 +1856,8 @@ class _ConnectScreenState extends State<ConnectScreen>
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: _connectedDevices.length,
-        separatorBuilder: (context, index) => SizedBox(height: isTablet ? 16 : 12),
+        separatorBuilder: (context, index) =>
+            SizedBox(height: isTablet ? 16 : 12),
         itemBuilder: (context, index) {
           final device = _connectedDevices[index];
           return _buildConnectedDeviceCard(device, theme);
@@ -1931,8 +1954,8 @@ class _ConnectScreenState extends State<ConnectScreen>
                               ),
                             )
                           : Icon(
-                              Icons.smart_toy, 
-                              color: Colors.white, 
+                              Icons.smart_toy,
+                              color: Colors.white,
                               size: isTablet ? 28 : 24,
                             ),
                     ),
@@ -1961,7 +1984,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        deviceName, 
+                        deviceName,
                         style: theme.bodyLarge.copyWith(
                           fontSize: isTablet ? 18 : 16,
                           fontWeight: FontWeight.w600,
@@ -1971,7 +1994,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                       ),
                       SizedBox(height: 4),
                       Text(
-                        'ID: $deviceId', 
+                        'ID: $deviceId',
                         style: theme.bodySmall.copyWith(
                           fontSize: isTablet ? 13 : 11,
                         ),
@@ -1984,14 +2007,14 @@ class _ConnectScreenState extends State<ConnectScreen>
               ],
             ),
             SizedBox(height: isTablet ? 16 : 12),
-            
+
             // Status indicator
             RoboticStatusIndicator(
               status: _getActualDeviceStatus(deviceStatus),
               label: _getDeviceStatusLabel(deviceStatus),
               animated: isOnline || isConnecting,
             ),
-            
+
             if (device['ipAddress'] != null) ...[
               SizedBox(height: isTablet ? 12 : 8),
               Row(
@@ -2010,9 +2033,9 @@ class _ConnectScreenState extends State<ConnectScreen>
                 ],
               ),
             ],
-            
+
             SizedBox(height: isTablet ? 16 : 12),
-            
+
             // Action buttons
             Row(
               children: [
@@ -2031,7 +2054,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                     child: IconButton(
                       onPressed: () => _showDeviceOptions(device),
                       icon: Icon(
-                        Icons.more_vert, 
+                        Icons.more_vert,
                         color: theme.accentColor,
                         size: isTablet ? 20 : 18,
                       ),
@@ -2045,12 +2068,14 @@ class _ConnectScreenState extends State<ConnectScreen>
     );
   }
 
-  Widget _buildDeviceActionButton(Map<String, dynamic> device, ThemeService theme) {
+  Widget _buildDeviceActionButton(
+      Map<String, dynamic> device, ThemeService theme) {
     final deviceId = device['id']?.toString() ?? '';
     final deviceStatus = device['status']?.toString() ?? 'unknown';
     final isDeviceConnected = deviceStatus == 'connected';
     final isOnline = isDeviceConnected && _isWebSocketConnected;
-    final isConnecting = deviceStatus == 'connecting' || _connectingDevices.contains(deviceId);
+    final isConnecting =
+        deviceStatus == 'connecting' || _connectingDevices.contains(deviceId);
     final isRetrying = _retryingDevices.contains(deviceId);
 
     String label;
@@ -2094,7 +2119,7 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   // Keep all existing methods from the original implementation
   // (All the connection, discovery, and device management methods remain the same)
-  
+
   Future<String?> _detectBackendIP() async {
     // Implementation remains the same as original
     final networkInfo = await _getNetworkInfo();
@@ -2566,11 +2591,13 @@ class _ConnectScreenState extends State<ConnectScreen>
     }
   }
 
-  void _showMobileDeviceOptions(BuildContext context, Map<String, dynamic> device, ThemeService theme) {
+  void _showMobileDeviceOptions(
+      BuildContext context, Map<String, dynamic> device, ThemeService theme) {
     final deviceId = device['id']?.toString() ?? '';
     final deviceStatus = device['status']?.toString() ?? 'unknown';
     final isOnline = deviceStatus == 'connected';
-    final isConnecting = deviceStatus == 'connecting' || _connectingDevices.contains(deviceId);
+    final isConnecting =
+        deviceStatus == 'connecting' || _connectingDevices.contains(deviceId);
     final isRemoving = _removingDevices.contains(deviceId);
     final isRetrying = _retryingDevices.contains(deviceId);
 
@@ -2597,7 +2624,6 @@ class _ConnectScreenState extends State<ConnectScreen>
                 ),
               ),
               SizedBox(height: isTablet ? 24 : 20),
-
               if (isConnecting) ...[
                 Container(
                   padding: EdgeInsets.all(isTablet ? 20 : 16),
@@ -2634,13 +2660,11 @@ class _ConnectScreenState extends State<ConnectScreen>
                 ),
                 SizedBox(height: isTablet ? 24 : 20),
               ],
-
               if (isOnline)
                 _buildDeviceOption('Control Device', Icons.gamepad, () {
                   Navigator.pop(context);
                   _navigateToControl(device);
                 }, theme),
-
               if (!isOnline && !isConnecting)
                 _buildDeviceOption(
                   isRetrying ? 'Retrying Connection...' : 'Retry Connection',
@@ -2654,7 +2678,6 @@ class _ConnectScreenState extends State<ConnectScreen>
                   theme,
                   isDisabled: isRetrying,
                 ),
-
               _buildDeviceOption(
                 'Map Editor',
                 Icons.map,
@@ -2667,12 +2690,10 @@ class _ConnectScreenState extends State<ConnectScreen>
                 theme,
                 isDisabled: isConnecting,
               ),
-
               _buildDeviceOption('Device Status', Icons.info, () {
                 Navigator.pop(context);
                 _showDeviceStatus(device);
               }, theme),
-
               _buildDeviceOption(
                 isRemoving ? 'Removing Device...' : 'Remove Device',
                 Icons.delete,
@@ -2693,7 +2714,8 @@ class _ConnectScreenState extends State<ConnectScreen>
     );
   }
 
-  void _showDesktopDeviceOptions(BuildContext context, Map<String, dynamic> device, ThemeService theme) {
+  void _showDesktopDeviceOptions(
+      BuildContext context, Map<String, dynamic> device, ThemeService theme) {
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -2717,22 +2739,18 @@ class _ConnectScreenState extends State<ConnectScreen>
                   style: theme.headlineLarge,
                 ),
                 const SizedBox(height: 24),
-                
                 _buildDeviceOption('Control Device', Icons.gamepad, () {
                   Navigator.pop(context);
                   _navigateToControl(device);
                 }, theme),
-
                 _buildDeviceOption('Map Editor', Icons.map, () {
                   Navigator.pop(context);
                   _navigateToMap(device);
                 }, theme),
-
                 _buildDeviceOption('Device Status', Icons.info, () {
                   Navigator.pop(context);
                   _showDeviceStatus(device);
                 }, theme),
-
                 _buildDeviceOption(
                   'Remove Device',
                   Icons.delete,
@@ -2784,7 +2802,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                       ),
                     )
                   : Icon(
-                      icon, 
+                      icon,
                       color: displayColor,
                       size: isTablet ? 22 : 18,
                     ),
@@ -2807,8 +2825,8 @@ class _ConnectScreenState extends State<ConnectScreen>
               ),
             ),
             Icon(
-              Icons.arrow_forward_ios, 
-              color: displayColor, 
+              Icons.arrow_forward_ios,
+              color: displayColor,
               size: isTablet ? 18 : 16,
             ),
           ],
@@ -2852,7 +2870,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 Row(
                   children: [
                     Icon(
-                      Icons.info, 
+                      Icons.info,
                       color: theme.infoColor,
                       size: isTablet ? 28 : 24,
                     ),
@@ -2866,12 +2884,17 @@ class _ConnectScreenState extends State<ConnectScreen>
                   ],
                 ),
                 SizedBox(height: isTablet ? 24 : 20),
-                _buildStatusRow('Device ID', device['id']?.toString() ?? '', theme),
-                _buildStatusRow('Name', device['name']?.toString() ?? '', theme),
-                _buildStatusRow('Type', device['type']?.toString() ?? '', theme),
-                _buildStatusRow('Status', device['status']?.toString() ?? '', theme),
+                _buildStatusRow(
+                    'Device ID', device['id']?.toString() ?? '', theme),
+                _buildStatusRow(
+                    'Name', device['name']?.toString() ?? '', theme),
+                _buildStatusRow(
+                    'Type', device['type']?.toString() ?? '', theme),
+                _buildStatusRow(
+                    'Status', device['status']?.toString() ?? '', theme),
                 if (device['ipAddress'] != null)
-                  _buildStatusRow('IP Address', device['ipAddress'].toString(), theme),
+                  _buildStatusRow(
+                      'IP Address', device['ipAddress'].toString(), theme),
                 SizedBox(height: isTablet ? 32 : 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -2965,7 +2988,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 Row(
                   children: [
                     Icon(
-                      Icons.warning, 
+                      Icons.warning,
                       color: theme.errorColor,
                       size: isTablet ? 28 : 24,
                     ),
@@ -3178,7 +3201,7 @@ class _ConnectScreenState extends State<ConnectScreen>
                 Row(
                   children: [
                     Icon(
-                      Icons.check_circle, 
+                      Icons.check_circle,
                       color: theme.successColor,
                       size: isTablet ? 28 : 24,
                     ),

@@ -2,7 +2,7 @@
 const http = require('http');
 const WebSocket = require('ws');
 
-const SERVER_HOST = '192.168.208.79';
+const SERVER_HOST = '192.168.128.79';
 const SERVER_PORT = 3000;
 
 async function testBackendServer() {
