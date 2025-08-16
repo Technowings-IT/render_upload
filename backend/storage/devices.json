@@ -2,7 +2,7 @@
   {
     "id": "piros",
     "name": "mirai-x",
-    "ipAddress": "192.168.128.29",
+    "ipAddress": "192.168.128.240",
     "type": "differential_drive",
     "capabilities": [
       "mapping",
@@ -11,7 +11,7 @@
     ],
     "status": "disconnected",
     "connectedAt": "2025-08-09T04:57:09.621Z",
-    "lastSeen": "2025-08-11T05:19:48.527Z",
-    "lastStartup": "2025-08-11T07:06:48.873Z"
+    "lastSeen": "2025-08-11T11:08:47.914Z",
+    "lastStartup": "2025-08-14T06:48:13.605Z"
   }
 ]
