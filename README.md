@@ -42,8 +42,8 @@ A comprehensive fleet management system for Automated Guided Vehicles (AMRs) bui
 ## 📋 Prerequisites
 
 ### System Requirements
-- **OS**: Ubuntu 20.04+ or Ubuntu 22.04 (recommended)
-- **ROS2**: Humble Hawksbill or later
+- **OS**: Ubuntu 22.04 (recommended)
+- **ROS2**: jazzy
 - **Node.js**: v16.0.0 or later
 - **Python**: 3.8 or later
 - **Flutter**: 3.0.0 or later
