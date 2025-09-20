@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y curl gnupg2 \
 WORKDIR /app
 
 # Copy backend code into container
-COPY backend/ .
+COPY . .
 
 # Install Node.js dependencies
 RUN npm install
@@ -21,4 +21,5 @@ CMD [ "bash", "-c", "source /opt/ros/jazzy/setup.bash && node app.js" ]
 
 # Expose port your backend listens on (adjust if needed)
 EXPOSE 3000
+
 
