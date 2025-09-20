@@ -1,25 +1,23 @@
-# Use ROS 2 Jazzy base image
+# Use ROS Jazzy base image
 FROM osrf/ros:jazzy-desktop
 
-# Install Node.js 16 (LTS)
+# Install Node.js 20
 RUN apt-get update && apt-get install -y curl gnupg2 \
-  && curl -fsSL https://deb.nodesource.com/setup_16.x | bash - \
+  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
   && apt-get install -y nodejs build-essential \
   && apt-get clean
 
-# Set working directory inside container
+# Create app directory
 WORKDIR /app
 
-# Copy backend code into container
+# Copy backend files
 COPY . .
 
-# Install Node.js dependencies
+# Optional: remove lock file to avoid EINTEGRITY
+RUN rm -f package-lock.json
+
+# Install dependencies
 RUN npm install
 
-# Source ROS 2 setup and run your Node.js backend
-CMD [ "bash", "-c", "source /opt/ros/jazzy/setup.bash && node app.js" ]
-
-# Expose port your backend listens on (adjust if needed)
-EXPOSE 3000
-
-
+# Set default command to run the backend
+CMD [ "node", "app.js" ]
