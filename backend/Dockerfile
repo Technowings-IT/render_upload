@@ -17,7 +17,8 @@ COPY backend/ .
 RUN npm install
 
 # Source ROS 2 setup and run your Node.js backend
-CMD [ "bash", "-c", "source /opt/ros/jazzy/setup.bash && node index.js" ]
+CMD [ "bash", "-c", "source /opt/ros/jazzy/setup.bash && node app.js" ]
 
 # Expose port your backend listens on (adjust if needed)
 EXPOSE 3000
+
