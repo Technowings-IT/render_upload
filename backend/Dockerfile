@@ -1,23 +1,26 @@
-# Use ROS Jazzy base image
 FROM osrf/ros:jazzy-desktop
 
-# Install Node.js 20
-RUN apt-get update && apt-get install -y curl gnupg2 \
-  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-  && apt-get install -y nodejs build-essential \
-  && apt-get clean
+# Install Node.js 20 (LTS) + build tools
+RUN apt-get update && \
+    apt-get install -y curl gnupg2 build-essential python3 git && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean
 
-# Create app directory
+# Show Node/NPM versions
+RUN node -v && npm -v
+
+# Set working directory
 WORKDIR /app
 
-# Copy backend files
+# Copy project files
 COPY . .
-
-# Optional: remove lock file to avoid EINTEGRITY
-RUN rm -f package-lock.json
 
 # Install dependencies
 RUN npm install
 
-# Set default command to run the backend
-CMD [ "node", "app.js" ]
+# Optional: Expose a port (if you’re running a server)
+# EXPOSE 3000
+
+# Default command
+CMD ["npm", "start", "node"]
