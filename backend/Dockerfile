@@ -1,5 +1,5 @@
 # Use Ubuntu 18.04 (Bionic) as Jazzy is targeted here
-FROM ubuntu:18.04
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
@@ -56,3 +56,4 @@ EXPOSE 3000
 
 # Source ROS setup and start app
 CMD ["/bin/bash", "-c", "source /opt/ros/jazzy/setup.bash && npm start"]
+
