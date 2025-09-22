@@ -1,5 +1,5 @@
-# Use Ubuntu 18.04 (Bionic) as Jazzy is targeted here
-FROM ubuntu:18.04
+# Use Ubuntu 22.04 (Jammy) as ROS2 Jazzy requires this version
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
@@ -7,13 +7,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
     ROS_DISTRO=jazzy \
     PATH=/opt/ros/jazzy/bin:$PATH \
     LD_LIBRARY_PATH=/opt/ros/jazzy/lib:$LD_LIBRARY_PATH \
-    PYTHONPATH=/opt/ros/jazzy/lib/python3.6/site-packages:$PYTHONPATH
+    PYTHONPATH=/opt/ros/jazzy/lib/python3.10/site-packages:$PYTHONPATH
 
 # Enable universe repo and install basic tools
 RUN apt-get update && apt-get install -y software-properties-common && \
     add-apt-repository universe && apt-get update
 
-# Install OS-level dependencies
+# Install OS-level dependencies and configure locale
 RUN apt-get install -y --no-install-recommends \
     locales \
     curl \
@@ -24,7 +24,9 @@ RUN apt-get install -y --no-install-recommends \
     python3-setuptools \
     git \
     wget && \
+    echo "C.UTF-8 UTF-8" >> /etc/locale.gen && \
     locale-gen C.UTF-8 && \
+    update-locale LANG=C.UTF-8 LC_ALL=C.UTF-8 && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python-based ROS tools via pip
@@ -34,8 +36,8 @@ RUN pip3 install -U \
     vcstool
 
 # Add ROS2 Jazzy apt repo and install
-RUN curl -sSL http://repo.ros2.org/repos.key | apt-key add - && \
-    echo "deb http://repo.ros2.org/ubuntu/main bionic main" > /etc/apt/sources.list.d/ros2-latest.list && \
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
     apt-get update && \
     apt-get install -y --no-install-recommends ros-jazzy-desktop && \
     rm -rf /var/lib/apt/lists/*
@@ -43,10 +45,10 @@ RUN curl -sSL http://repo.ros2.org/repos.key | apt-key add - && \
 # Initialize rosdep (required for ros package dependencies)
 RUN rosdep init && rosdep update
 
-# Install Node.js 14 (compatible with jazzy/rclnodejs)
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash - && \
+# Install Node.js 18 (recommended for modern ROS2 development)
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
-    npm install -g npm@8 && \
+    npm install -g npm@latest && \
     rm -rf /var/lib/apt/lists/*
 
 # Set working directory
