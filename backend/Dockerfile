@@ -1,5 +1,5 @@
-# Use Ubuntu 22.04 (Jammy) as ROS2 Jazzy requires this version
-FROM ubuntu:22.04
+# Use Ubuntu 24.04 (Noble) as ROS2 Jazzy officially requires this version
+FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     ROS_DISTRO=jazzy \
     PATH=/opt/ros/jazzy/bin:$PATH \
     LD_LIBRARY_PATH=/opt/ros/jazzy/lib:$LD_LIBRARY_PATH \
-    PYTHONPATH=/opt/ros/jazzy/lib/python3.10/site-packages:$PYTHONPATH
+    PYTHONPATH=/opt/ros/jazzy/lib/python3.12/site-packages:$PYTHONPATH
 
 # Enable universe repo and install basic tools
 RUN apt-get update && apt-get install -y software-properties-common && \
@@ -37,7 +37,7 @@ RUN pip3 install -U \
 
 # Add ROS2 Jazzy apt repo and install
 RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
     apt-get update && \
     apt-get install -y --no-install-recommends ros-jazzy-desktop && \
     rm -rf /var/lib/apt/lists/*
