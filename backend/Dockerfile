@@ -9,8 +9,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LD_LIBRARY_PATH=/opt/ros/jazzy/lib:$LD_LIBRARY_PATH \
     PYTHONPATH=/opt/ros/jazzy/lib/python3.6/site-packages:$PYTHONPATH
 
-# Install prerequisites and build tools
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Enable universe repository and install prerequisites
+RUN apt-get update && apt-get install -y software-properties-common && \
+    add-apt-repository universe && \
+    apt-get update
+
+# Install base packages
+RUN apt-get install -y --no-install-recommends \
     locales \
     curl \
     gnupg2 \
@@ -18,13 +23,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     python3-pip \
     python3-setuptools \
+    git \
+    wget
+
+# Install ROS2 build tools and helpers
+RUN apt-get install -y --no-install-recommends \
     python3-colcon-common-extensions \
     python3-rosdep \
-    python3-vcstool \
-    git \
-    wget && \
-    locale-gen C.UTF-8 && \
-    rm -rf /var/lib/apt/lists/*
+    python3-vcstool
+
+# Generate locale and clean up
+RUN locale-gen C.UTF-8 && rm -rf /var/lib/apt/lists/*
 
 # Add ROS2 Jazzy apt repo and key (archived)
 RUN curl -sSL http://repo.ros2.org/repos.key | apt-key add - && \
