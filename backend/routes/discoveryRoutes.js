@@ -7,7 +7,7 @@ const rosConnection = require('../ros/utils/ros_connection');
 
 const router = express.Router();
 
-// ✅ NEW: HTTP endpoint for device discovery
+//  NEW: HTTP endpoint for device discovery
 router.get('/discover', async (req, res) => {
     try {
         const networkInterfaces = os.networkInterfaces();
@@ -34,10 +34,10 @@ router.get('/discover', async (req, res) => {
             timestamp: new Date().toISOString()
         });
         
-        console.log(`🔍 Discovery request handled - ${devices.length} devices available`);
+        console.log(` Discovery request handled - ${devices.length} devices available`);
         
     } catch (error) {
-        console.error('❌ Error handling discovery request:', error);
+        console.error(' Error handling discovery request:', error);
         res.status(500).json({
             success: false,
             error: 'Discovery failed',
@@ -46,7 +46,7 @@ router.get('/discover', async (req, res) => {
     }
 });
 
-// ✅ NEW: WebSocket endpoint info
+//  NEW: WebSocket endpoint info
 router.get('/websocket-info', (req, res) => {
     try {
         const serverInfo = getServerInfo();
@@ -69,7 +69,7 @@ router.get('/websocket-info', (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error getting WebSocket info:', error);
+        console.error(' Error getting WebSocket info:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to get WebSocket info'
@@ -77,7 +77,7 @@ router.get('/websocket-info', (req, res) => {
     }
 });
 
-// ✅ NEW: Auto-connect endpoint for AMRs
+//  NEW: Auto-connect endpoint for AMRs
 router.post('/auto-connect', async (req, res) => {
     try {
         const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
@@ -105,7 +105,7 @@ router.post('/auto-connect', async (req, res) => {
             const storageManager = require('../ros/utils/storageManager');
             await storageManager.saveDevice(connectedDeviceId);
         } catch (storageError) {
-            console.warn('⚠️ Could not save device to storage:', storageError.message);
+            console.warn('️ Could not save device to storage:', storageError.message);
         }
         
         res.json({
@@ -124,10 +124,10 @@ router.post('/auto-connect', async (req, res) => {
             }
         });
         
-        console.log(`✅ Auto-connected device: ${connectedDeviceId} from ${clientIP}`);
+        console.log(` Auto-connected device: ${connectedDeviceId} from ${clientIP}`);
         
     } catch (error) {
-        console.error('❌ Error auto-connecting device:', error);
+        console.error(' Error auto-connecting device:', error);
         res.status(500).json({
             success: false,
             error: 'Auto-connection failed',
@@ -136,7 +136,7 @@ router.post('/auto-connect', async (req, res) => {
     }
 });
 
-// ✅ NEW: Network scan endpoint
+//  NEW: Network scan endpoint
 router.get('/network-scan', async (req, res) => {
     try {
         const { subnet, startIP, endIP } = req.query;
@@ -145,7 +145,7 @@ router.get('/network-scan', async (req, res) => {
         const start = parseInt(startIP) || config.NETWORK.DISCOVERY.AMR_IP_RANGE.START;
         const end = parseInt(endIP) || config.NETWORK.DISCOVERY.AMR_IP_RANGE.END;
         
-        console.log(`🔍 Starting network scan: ${targetSubnet}.${start}-${end}`);
+        console.log(` Starting network scan: ${targetSubnet}.${start}-${end}`);
         
         const discoveredDevices = await scanNetworkForAMRs(targetSubnet, start, end);
         
@@ -158,10 +158,10 @@ router.get('/network-scan', async (req, res) => {
             timestamp: new Date().toISOString()
         });
         
-        console.log(`✅ Network scan complete: ${discoveredDevices.length} devices found`);
+        console.log(` Network scan complete: ${discoveredDevices.length} devices found`);
         
     } catch (error) {
-        console.error('❌ Network scan failed:', error);
+        console.error(' Network scan failed:', error);
         res.status(500).json({
             success: false,
             error: 'Network scan failed',
@@ -170,7 +170,7 @@ router.get('/network-scan', async (req, res) => {
     }
 });
 
-// ✅ NEW: Health check with discovery info
+//  NEW: Health check with discovery info
 router.get('/health', (req, res) => {
     try {
         const rosStatus = rosConnection.getROS2Status();
@@ -199,7 +199,7 @@ router.get('/health', (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Health check failed:', error);
+        console.error(' Health check failed:', error);
         res.status(500).json({
             success: false,
             error: 'Health check failed'
@@ -356,7 +356,7 @@ async function checkAMRAtIP(ip) {
     }
 }
 
-// ✅ NEW: UDP broadcast listener for AMR discovery
+//  NEW: UDP broadcast listener for AMR discovery
 function initializeUDPDiscovery() {
     try {
         const server = dgram.createSocket('udp4');
@@ -366,7 +366,7 @@ function initializeUDPDiscovery() {
                 const message = JSON.parse(msg.toString());
                 
                 if (message.type === 'AMR_discovery') {
-                    console.log(`📡 Discovery request from ${rinfo.address}:${rinfo.port}`);
+                    console.log(` Discovery request from ${rinfo.address}:${rinfo.port}`);
                     
                     // Send discovery response
                     const response = {
@@ -385,9 +385,9 @@ function initializeUDPDiscovery() {
                     const responseBuffer = Buffer.from(JSON.stringify(response));
                     server.send(responseBuffer, rinfo.port, rinfo.address, (err) => {
                         if (err) {
-                            console.error('❌ Error sending discovery response:', err);
+                            console.error(' Error sending discovery response:', err);
                         } else {
-                            console.log(`✅ Sent discovery response to ${rinfo.address}:${rinfo.port}`);
+                            console.log(` Sent discovery response to ${rinfo.address}:${rinfo.port}`);
                         }
                     });
                 }
@@ -397,13 +397,13 @@ function initializeUDPDiscovery() {
         });
         
         server.bind(config.NETWORK.DISCOVERY.PORT, () => {
-            console.log(`📡 UDP discovery server listening on port ${config.NETWORK.DISCOVERY.PORT}`);
+            console.log(` UDP discovery server listening on port ${config.NETWORK.DISCOVERY.PORT}`);
         });
         
         return server;
         
     } catch (error) {
-        console.error('❌ Failed to initialize UDP discovery:', error);
+        console.error(' Failed to initialize UDP discovery:', error);
         return null;
     }
 }

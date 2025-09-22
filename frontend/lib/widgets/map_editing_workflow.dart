@@ -267,10 +267,10 @@ class _EnhancedMapEditingWorkflowState extends State<EnhancedMapEditingWorkflow>
                 Wrap(
                   spacing: 12,
                   children: [
-                    _buildFeatureChip('🎨 Advanced Tools'),
-                    _buildFeatureChip('📍 Location Points'),
-                    _buildFeatureChip('🚀 Auto Deploy'),
-                    _buildFeatureChip('💾 Backup & Restore'),
+                    _buildFeatureChip(' Advanced Tools'),
+                    _buildFeatureChip(' Location Points'),
+                    _buildFeatureChip(' Auto Deploy'),
+                    _buildFeatureChip(' Backup & Restore'),
                   ],
                 ),
               ],
@@ -1717,17 +1717,17 @@ class _EnhancedMapEditingWorkflowState extends State<EnhancedMapEditingWorkflow>
   String _getLocationTypeIcon(String type) {
     switch (type.toLowerCase()) {
       case 'pickup':
-        return '📦';
+        return '';
       case 'drop':
-        return '📍';
+        return '';
       case 'home':
-        return '🏠';
+        return '';
       case 'charging':
-        return '🔋';
+        return '';
       case 'waypoint':
-        return '📌';
+        return '';
       default:
-        return '📍';
+        return '';
     }
   }
 

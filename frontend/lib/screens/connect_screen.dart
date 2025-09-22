@@ -260,42 +260,37 @@ class _ConnectScreenState extends State<ConnectScreen>
       _connectionStatus = 'Scanning network for AMR systems...';
     });
 
-    _radarController.repeat();
+    // Skip local discovery for live backend
+    final isLiveBackend = _apiService.baseUrl?.contains('https://') ?? false;
 
-    try {
-      final backendIP = await _detectBackendIP();
+    if (isLiveBackend) {
+      // For live backend - check connection status directly
+      setState(() {
+        _connectionStatus = 'Connected to live fleet backend';
+        _isWebSocketConnected = _webSocketService.isConnected;
+      });
 
-      if (!mounted) return;
+      // Load devices from live backend
+      await _loadConnectedDevices();
+      return;
+    }
+  }
 
-      if (backendIP != null) {
-        setState(() {
-          _detectedBackendIP = backendIP;
-          _connectionStatus = 'AMR Backend detected at $backendIP';
-        });
-        await _connectToDetectedBackend(backendIP);
-      } else {
-        if (mounted) {
-          setState(() {
-            _connectionStatus =
-                'No AMR backend found - manual connection available';
-          });
-        }
-      }
+  void _checkLiveBackendStatus() async {
+    if (!mounted) return;
 
-      if (mounted) {
-        await _discoverAMRDevices();
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _connectionStatus = 'Discovery failed: ${e.toString()}';
-        });
-      }
-      print('❌ Device discovery failed: $e');
-    } finally {
-      if (mounted && _radarController.isAnimating) {
-        _radarController.stop();
-      }
+    final isConnected =
+        _apiService.isInitialized && _webSocketService.isConnected;
+
+    setState(() {
+      _isWebSocketConnected = isConnected;
+      _connectionStatus = isConnected
+          ? 'Connected to live fleet backend'
+          : 'Backend connection failed';
+    });
+
+    if (isConnected) {
+      await _loadConnectedDevices();
     }
   }
 
@@ -2126,7 +2121,7 @@ class _ConnectScreenState extends State<ConnectScreen>
     if (networkInfo == null) return null;
 
     final subnet = networkInfo['subnet']!;
-    print('🔍 Scanning subnet: $subnet for AMR backend...');
+    print(' Scanning subnet: $subnet for AMR backend...');
 
     final deviceIP = networkInfo['ip']!;
     final deviceIPLast = int.parse(deviceIP.split('.').last);
@@ -2156,7 +2151,7 @@ class _ConnectScreenState extends State<ConnectScreen>
       for (int j = 0; j < results.length; j++) {
         if (results[j] != null) {
           final foundIP = batch.elementAt(j);
-          print('✅ Found AMR backend at: $foundIP');
+          print(' Found AMR backend at: $foundIP');
           return foundIP;
         }
       }
@@ -2204,7 +2199,7 @@ class _ConnectScreenState extends State<ConnectScreen>
         }
       }
     } catch (e) {
-      print('❌ Error getting network info: $e');
+      print(' Error getting network info: $e');
     }
     return null;
   }
@@ -2321,12 +2316,12 @@ class _ConnectScreenState extends State<ConnectScreen>
       });
 
       _showSuccessSnackBar(_isWebSocketConnected
-          ? '🔗 Connecting to ${newDevice['name']} at $deviceIp...'
-          : '📝 ${newDevice['name']} added - will connect when backend is online');
+          ? ' Connecting to ${newDevice['name']} at $deviceIp...'
+          : ' ${newDevice['name']} added - will connect when backend is online');
 
       if (!_isWebSocketConnected) {
         _showWarningSnackBar(
-            '⚠️ Connect to backend first to establish device connection');
+            '️ Connect to backend first to establish device connection');
         return;
       }
 
@@ -2341,7 +2336,7 @@ class _ConnectScreenState extends State<ConnectScreen>
       if (!mounted) return;
 
       if (result['success'] == true) {
-        _showSuccessSnackBar('✅ AMR device connected successfully!');
+        _showSuccessSnackBar(' AMR device connected successfully!');
 
         setState(() {
           final deviceIndex =
@@ -2362,7 +2357,7 @@ class _ConnectScreenState extends State<ConnectScreen>
         setState(() {
           _connectedDevices = originalDevices;
         });
-        _showErrorSnackBar('❌ Failed to connect device: ${result['error']}');
+        _showErrorSnackBar(' Failed to connect device: ${result['error']}');
       }
     } catch (e) {
       setState(() {
@@ -2371,7 +2366,7 @@ class _ConnectScreenState extends State<ConnectScreen>
       });
 
       if (mounted) {
-        _showErrorSnackBar('❌ Failed to connect AMR device: $e');
+        _showErrorSnackBar(' Failed to connect AMR device: $e');
       }
     } finally {
       if (mounted) {
@@ -2424,9 +2419,9 @@ class _ConnectScreenState extends State<ConnectScreen>
         _discoveredDevices = devices;
       });
 
-      print('🔍 Discovered ${devices.length} AMR devices');
+      print(' Discovered ${devices.length} AMR devices');
     } catch (e) {
-      print('❌ Device discovery failed: $e');
+      print(' Device discovery failed: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -2497,13 +2492,13 @@ class _ConnectScreenState extends State<ConnectScreen>
         _connectedDevices = devices;
       });
 
-      print('✅ Loaded ${devices.length} connected devices');
+      print(' Loaded ${devices.length} connected devices');
     } catch (e) {
-      print('❌ Error loading devices: $e');
+      print(' Error loading devices: $e');
 
       if (e.toString().contains('Network error') ||
           e.toString().contains('Connection failed')) {
-        print('🔄 Network error detected, testing backend connectivity...');
+        print(' Network error detected, testing backend connectivity...');
 
         try {
           final isHealthy =
@@ -2511,12 +2506,12 @@ class _ConnectScreenState extends State<ConnectScreen>
           if (!isHealthy) {
             if (mounted) {
               _showErrorSnackBar(
-                  '❌ Cannot connect to backend server. Please check if the server is running.');
+                  ' Cannot connect to backend server. Please check if the server is running.');
             }
           } else {
             if (mounted) {
               _showWarningSnackBar(
-                  '⚠️ Temporary connection issue. Retrying device loading...');
+                  '️ Temporary connection issue. Retrying device loading...');
               Future.delayed(Duration(seconds: 2), () {
                 if (mounted) _loadConnectedDevices();
               });
@@ -2525,12 +2520,12 @@ class _ConnectScreenState extends State<ConnectScreen>
         } catch (connectivityError) {
           if (mounted) {
             _showErrorSnackBar(
-                '❌ Backend server is unreachable. Please verify server status.');
+                ' Backend server is unreachable. Please verify server status.');
           }
         }
       } else {
         if (mounted) {
-          _showErrorSnackBar('❌ Failed to load devices: ${e.toString()}');
+          _showErrorSnackBar(' Failed to load devices: ${e.toString()}');
         }
       }
 
@@ -3142,10 +3137,10 @@ class _ConnectScreenState extends State<ConnectScreen>
         if (!mounted) return;
 
         if (result['success'] == true) {
-          _showSuccessSnackBar('✅ Device reconnected successfully!');
+          _showSuccessSnackBar(' Device reconnected successfully!');
           _loadConnectedDevices();
         } else {
-          _showErrorSnackBar('❌ Failed to reconnect: ${result['error']}');
+          _showErrorSnackBar(' Failed to reconnect: ${result['error']}');
         }
       } else {
         throw Exception('Device IP address not available');
@@ -3166,7 +3161,7 @@ class _ConnectScreenState extends State<ConnectScreen>
           errorMessage =
               'Connection retry failed: ${e.toString().replaceAll('Exception: ', '')}';
         }
-        _showErrorSnackBar('❌ $errorMessage');
+        _showErrorSnackBar(' $errorMessage');
       }
     } finally {
       if (mounted) {
@@ -3359,9 +3354,9 @@ class _ConnectScreenState extends State<ConnectScreen>
         _discoveredDevices = devices;
       });
 
-      print('🔍 Discovered ${devices.length} AMR devices');
+      print(' Discovered ${devices.length} AMR devices');
     } catch (e) {
-      print('❌ Device discovery failed: $e');
+      print(' Device discovery failed: $e');
     } finally {
       if (mounted) {
         setState(() {

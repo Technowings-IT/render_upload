@@ -76,7 +76,7 @@ class ModernGlassCard extends StatelessWidget {
   }
 }
 
-// 🤖 Robotic Status Indicator
+//  Robotic Status Indicator
 class RoboticStatusIndicator extends StatefulWidget {
   final String status;
   final String label;
@@ -187,7 +187,7 @@ class _RoboticStatusIndicatorState extends State<RoboticStatusIndicator>
   }
 }
 
-// 🎯 Modern Action Button with Hover Effect
+//  Modern Action Button with Hover Effect
 class ModernActionButton extends StatefulWidget {
   final String label;
   final IconData icon;
@@ -309,7 +309,7 @@ class _ModernActionButtonState extends State<ModernActionButton>
   }
 }
 
-// 📊 Modern Data Grid
+//  Modern Data Grid
 class ModernDataGrid extends StatelessWidget {
   final String title;
   final List<Map<String, dynamic>> data;
@@ -400,7 +400,7 @@ class ModernDataGrid extends StatelessWidget {
   }
 }
 
-// 🔄 Modern Loading Indicator
+//  Modern Loading Indicator
 class ModernLoadingIndicator extends StatefulWidget {
   final String message;
   final double size;
@@ -511,7 +511,7 @@ class _ModernLoadingIndicatorState extends State<ModernLoadingIndicator>
   }
 }
 
-// 📊 Modern Stats Card
+//  Modern Stats Card
 class ModernStatsCard extends StatelessWidget {
   final String title;
   final String value;
@@ -605,7 +605,7 @@ class ModernStatsCard extends StatelessWidget {
   }
 }
 
-// 🎛️ Modern Toggle Switch
+// ️ Modern Toggle Switch
 class ModernToggleSwitch extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
@@ -665,7 +665,7 @@ class ModernToggleSwitch extends StatelessWidget {
   }
 }
 
-// 🔧 Modern Settings Section
+//  Modern Settings Section
 class ModernSettingsSection extends StatelessWidget {
   final String title;
   final List<Widget> children;

@@ -6,18 +6,18 @@ const SERVER_HOST = '192.168.128.79';
 const SERVER_PORT = 3000;
 
 async function testBackendServer() {
-    console.log('🚀 Testing AMR Fleet Management Backend...\n');
+    console.log(' Testing AMR Fleet Management Backend...\n');
     
     // Test 1: HTTP Health Check
     console.log('1️⃣ Testing HTTP API...');
     try {
         const healthResponse = await makeRequest('GET', '/api/health');
-        console.log('✅ Health endpoint working');
+        console.log(' Health endpoint working');
         console.log(`   Status: ${healthResponse.data?.status}`);
         console.log(`   Connected devices: ${healthResponse.data?.connectedDevices}`);
         console.log(`   ROS2 status: ${healthResponse.data?.ros2Status}`);
     } catch (error) {
-        console.log('❌ Health endpoint failed:', error.message);
+        console.log(' Health endpoint failed:', error.message);
         return;
     }
     
@@ -25,10 +25,10 @@ async function testBackendServer() {
     console.log('\n2️⃣ Testing device endpoints...');
     try {
         const devices = await makeRequest('GET', '/api/devices');
-        console.log('✅ Devices endpoint working');
+        console.log(' Devices endpoint working');
         console.log(`   Found ${devices.devices?.length || 0} devices`);
     } catch (error) {
-        console.log('❌ Devices endpoint failed:', error.message);
+        console.log(' Devices endpoint failed:', error.message);
     }
     
     // Test 3: WebSocket Connection
@@ -90,13 +90,13 @@ function testWebSocket() {
     const ws = new WebSocket(wsUrl);
     
     const timeout = setTimeout(() => {
-        console.log('❌ WebSocket connection timeout');
+        console.log(' WebSocket connection timeout');
         ws.close();
     }, 10000);
     
     ws.on('open', () => {
         clearTimeout(timeout);
-        console.log('✅ WebSocket connected successfully');
+        console.log(' WebSocket connected successfully');
         
         // Test sending a message
         ws.send(JSON.stringify({
@@ -109,26 +109,26 @@ function testWebSocket() {
     ws.on('message', (data) => {
         try {
             const message = JSON.parse(data);
-            console.log(`   📨 Received: ${message.type}`);
+            console.log(`    Received: ${message.type}`);
             
             if (message.type === 'connection') {
                 console.log(`   Client ID: ${message.clientId}`);
                 console.log(`   Capabilities: ${Object.keys(message.capabilities || {}).join(', ')}`);
             }
         } catch (e) {
-            console.log(`   📨 Received raw: ${data}`);
+            console.log(`    Received raw: ${data}`);
         }
     });
     
     ws.on('error', (error) => {
         clearTimeout(timeout);
-        console.log('❌ WebSocket error:', error.message);
+        console.log(' WebSocket error:', error.message);
     });
     
     ws.on('close', () => {
         clearTimeout(timeout);
-        console.log('🔌 WebSocket connection closed');
-        console.log('\n🎉 Backend test completed!');
+        console.log(' WebSocket connection closed');
+        console.log('\n Backend test completed!');
     });
     
     // Close connection after 5 seconds

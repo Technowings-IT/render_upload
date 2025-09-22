@@ -16,11 +16,11 @@ function initializeSubscribers(node, deviceId = 'piros') {
         const wsModule = require('../../websocket/clientConnection');
         broadcastToSubscribers = wsModule.broadcastToSubscribers;
     } catch (error) {
-        console.warn('⚠️ WebSocket module not available, using fallback');
+        console.warn('️ WebSocket module not available, using fallback');
         broadcastToSubscribers = () => { }; // Fallback function
     }
 
-    console.log(`✅ Subscribers initialized with ROS node for device: ${currentDeviceId}`);
+    console.log(` Subscribers initialized with ROS node for device: ${currentDeviceId}`);
 
     // List available topics for debugging
     setTimeout(() => {
@@ -33,7 +33,7 @@ async function listAvailableTopics() {
     try {
         if (rosNode) {
             const topics = rosNode.getTopicNamesAndTypes();
-            console.log('🔍 Available ROS topics:');
+            console.log(' Available ROS topics:');
             topics.forEach(topic => {
                 console.log(`   ${topic.name} [${topic.types.join(', ')}]`);
             });
@@ -47,22 +47,22 @@ async function listAvailableTopics() {
                 // '/joint_states'
             ];
 
-            console.log('🎯 Checking for required topics:');
+            console.log(' Checking for required topics:');
             requiredTopics.forEach(topicName => {
                 const found = topics.find(t => t.name === topicName);
                 if (found) {
-                    console.log(`   ✅ ${topicName} [${found.types.join(', ')}]`);
+                    console.log(`    ${topicName} [${found.types.join(', ')}]`);
                 } else {
-                    console.log(`   ❌ ${topicName} - NOT FOUND`);
+                    console.log(`    ${topicName} - NOT FOUND`);
                 }
             });
         }
     } catch (error) {
-        console.error('❌ Error listing topics:', error);
+        console.error(' Error listing topics:', error);
     }
 }
 
-// ✅ FIXED: Create subscriber with proper error handling
+//  FIXED: Create subscriber with proper error handling
 function getOrCreateSubscriber(topicName, messageType, callback, qosOptions = {}) {
     if (!subscribers[topicName]) {
         if (!rosNode) {
@@ -84,25 +84,25 @@ function getOrCreateSubscriber(topicName, messageType, callback, qosOptions = {}
             );
 
             subscribers[topicName] = subscriber;
-            console.log(`📥 ✅ Created subscriber for topic: ${topicName} [${messageType}]`);
+            console.log(`  Created subscriber for topic: ${topicName} [${messageType}]`);
 
-            // ✅ FIXED: Add proper safety checks before calling isClosed()
+            //  FIXED: Add proper safety checks before calling isClosed()
             setTimeout(() => {
                 try {
                     if (subscriber && typeof subscriber.isClosed === 'function' && !subscriber.isClosed()) {
-                        console.log(`🔗 Confirmed subscription active: ${topicName}`);
+                        console.log(` Confirmed subscription active: ${topicName}`);
                     } else if (subscriber && typeof subscriber.isClosed !== 'function') {
-                        console.log(`🔗 Subscription created (isClosed method not available): ${topicName}`);
+                        console.log(` Subscription created (isClosed method not available): ${topicName}`);
                     } else {
-                        console.log(`❌ Subscription failed: ${topicName}`);
+                        console.log(` Subscription failed: ${topicName}`);
                     }
                 } catch (verifyError) {
-                    console.log(`⚠️ Could not verify subscription for ${topicName}: ${verifyError.message}`);
+                    console.log(`️ Could not verify subscription for ${topicName}: ${verifyError.message}`);
                 }
             }, 1000);
 
         } catch (error) {
-            console.error(`❌ Failed to create subscriber for ${topicName}:`, error);
+            console.error(` Failed to create subscriber for ${topicName}:`, error);
             throw error;
         }
     }
@@ -148,11 +148,11 @@ function subscribeToPosition() {
 
             // Console log every 3 seconds to avoid spam
             if (Date.now() % 3000 < 100) {
-                console.log(`📍 [${currentDeviceId}] AMCL Position: (${positionData.position.x.toFixed(2)}, ${positionData.position.y.toFixed(2)}) θ=${positionData.orientation.yaw.toFixed(2)}`);
+                console.log(` [${currentDeviceId}] AMCL Position: (${positionData.position.x.toFixed(2)}, ${positionData.position.y.toFixed(2)}) θ=${positionData.orientation.yaw.toFixed(2)}`);
             }
 
         } catch (error) {
-            console.error('❌ Error processing AMCL pose message:', error);
+            console.error(' Error processing AMCL pose message:', error);
         }
     };
 
@@ -167,15 +167,15 @@ function subscribeToPosition() {
     for (const topicName of amclTopics) {
         try {
             getOrCreateSubscriber(topicName, 'geometry_msgs/msg/PoseWithCovarianceStamped', callback);
-            console.log(`✅ Successfully subscribed to AMCL topic: ${topicName}`);
+            console.log(` Successfully subscribed to AMCL topic: ${topicName}`);
             return; // Success, exit function
         } catch (error) {
-            console.warn(`⚠️ Failed to subscribe to ${topicName}, trying next...`);
+            console.warn(`️ Failed to subscribe to ${topicName}, trying next...`);
         }
     }
 
     // If all AMCL topics fail, fallback to odometry
-    console.warn('⚠️ All AMCL topics failed, falling back to odometry');
+    console.warn('️ All AMCL topics failed, falling back to odometry');
     subscribeToOdometry();
 }
 
@@ -241,11 +241,11 @@ function subscribeToOdometry() {
 
             // Console log every 3 seconds to avoid spam
             if (Date.now() % 3000 < 100) {
-                console.log(`🧭 [${currentDeviceId}] Odometry: (${positionData.position.x.toFixed(2)}, ${positionData.position.y.toFixed(2)}) θ=${positionData.orientation.yaw.toFixed(2)} v=${positionData.velocity.linear.x.toFixed(2)}m/s`);
+                console.log(` [${currentDeviceId}] Odometry: (${positionData.position.x.toFixed(2)}, ${positionData.position.y.toFixed(2)}) θ=${positionData.orientation.yaw.toFixed(2)} v=${positionData.velocity.linear.x.toFixed(2)}m/s`);
             }
 
         } catch (error) {
-            console.error('❌ Error processing odometry message:', error);
+            console.error(' Error processing odometry message:', error);
         }
     };
 
@@ -260,14 +260,14 @@ function subscribeToOdometry() {
     for (const topicName of odomTopics) {
         try {
             getOrCreateSubscriber(topicName, 'nav_msgs/msg/Odometry', callback);
-            console.log(`✅ Successfully subscribed to odometry topic: ${topicName}`);
+            console.log(` Successfully subscribed to odometry topic: ${topicName}`);
             return; // Success, exit function
         } catch (error) {
-            console.warn(`⚠️ Failed to subscribe to ${topicName}, trying next...`);
+            console.warn(`️ Failed to subscribe to ${topicName}, trying next...`);
         }
     }
 
-    console.error('❌ Failed to subscribe to any odometry topics');
+    console.error(' Failed to subscribe to any odometry topics');
 }
 
 
@@ -313,11 +313,11 @@ function subscribeToGlobalCostmap() {
 
             // Log occasionally with more details
             if (!global.lastGlobalCostmapBroadcast || Date.now() - global.lastGlobalCostmapBroadcast > 3000) {
-                console.log(`🌍 [${currentDeviceId}] Global costmap: ${costmapData.info.width}x${costmapData.info.height} @ ${costmapData.info.resolution.toFixed(3)}m/px`);
+                console.log(` [${currentDeviceId}] Global costmap: ${costmapData.info.width}x${costmapData.info.height} @ ${costmapData.info.resolution.toFixed(3)}m/px`);
                 global.lastGlobalCostmapBroadcast = Date.now();
             }
         } catch (error) {
-            console.error('❌ Error processing global costmap:', error);
+            console.error(' Error processing global costmap:', error);
         }
     };
 
@@ -337,14 +337,14 @@ function subscribeToGlobalCostmap() {
                 durability: 'transient_local', // <-- This is the key!
                 history: 'keep_last'
             });
-            console.log(`✅ Successfully subscribed to global costmap: ${topicName}`);
+            console.log(` Successfully subscribed to global costmap: ${topicName}`);
             return;
         } catch (error) {
-            console.warn(`⚠️ Failed to subscribe to ${topicName}, trying next...`);
+            console.warn(`️ Failed to subscribe to ${topicName}, trying next...`);
         }
     }
 
-    console.warn('⚠️ No global costmap topics found');
+    console.warn('️ No global costmap topics found');
 }
 /**
  * Subscribe to /map topic (for occupancy grid)
@@ -384,7 +384,7 @@ function subscribeToMap() {
 
             updateGlobalLiveData('map', mapData);
 
-            // ✅ FIXED: Broadcast with proper type name
+            //  FIXED: Broadcast with proper type name
             broadcastToSubscribers('real_time_data', {
                 type: 'map_update',
                 data: mapData,
@@ -393,11 +393,11 @@ function subscribeToMap() {
             });
 
             if (!global.lastMapBroadcast || Date.now() - global.lastMapBroadcast > 5000) {
-                console.log(`🗺️ [${currentDeviceId}] Map: ${mapData.info.width}x${mapData.info.height} @ ${mapData.info.resolution.toFixed(3)}m/px`);
+                console.log(`️ [${currentDeviceId}] Map: ${mapData.info.width}x${mapData.info.height} @ ${mapData.info.resolution.toFixed(3)}m/px`);
                 global.lastMapBroadcast = Date.now();
             }
         } catch (error) {
-            console.error('❌ Error processing map:', error);
+            console.error(' Error processing map:', error);
         }
     };
 
@@ -410,14 +410,14 @@ function subscribeToMap() {
                 durability: 'transient_local', // <-- This is the fix!
                 history: 'keep_last'
             });
-            console.log(`✅ Successfully subscribed to map: ${topicName}`);
+            console.log(` Successfully subscribed to map: ${topicName}`);
             return topicName;
         } catch (error) {
-            console.warn(`⚠️ Failed to subscribe to ${topicName}: ${error.message}`);
+            console.warn(`️ Failed to subscribe to ${topicName}: ${error.message}`);
         }
     }
 
-    console.error('❌ Failed to subscribe to any /map topic');
+    console.error(' Failed to subscribe to any /map topic');
     return null;
 }
 /**
@@ -462,11 +462,11 @@ function subscribeToLocalCostmap() {
 
             // Log occasionally (more frequent for local costmap)
             if (!global.lastLocalCostmapBroadcast || Date.now() - global.lastLocalCostmapBroadcast > 2000) {
-                console.log(`🏠 [${currentDeviceId}] Local costmap: ${costmapData.info.width}x${costmapData.info.height} @ ${costmapData.info.resolution.toFixed(3)}m/px`);
+                console.log(` [${currentDeviceId}] Local costmap: ${costmapData.info.width}x${costmapData.info.height} @ ${costmapData.info.resolution.toFixed(3)}m/px`);
                 global.lastLocalCostmapBroadcast = Date.now();
             }
         } catch (error) {
-            console.error('❌ Error processing local costmap:', error);
+            console.error(' Error processing local costmap:', error);
         }
     };
 
@@ -481,14 +481,14 @@ function subscribeToLocalCostmap() {
     for (const topicName of localCostmapTopics) {
         try {
             getOrCreateSubscriber(topicName, 'nav_msgs/msg/OccupancyGrid', callback);
-            console.log(`✅ Successfully subscribed to local costmap: ${topicName}`);
+            console.log(` Successfully subscribed to local costmap: ${topicName}`);
             return;
         } catch (error) {
-            console.warn(`⚠️ Failed to subscribe to ${topicName}, trying next...`);
+            console.warn(`️ Failed to subscribe to ${topicName}, trying next...`);
         }
     }
 
-    console.warn('⚠️ No local costmap topics found');
+    console.warn('️ No local costmap topics found');
 }
 
 /**
@@ -523,11 +523,11 @@ function subscribeToVelocityFeedback() {
 
             // Log occasionally to avoid spam
             if (Date.now() % 2000 < 100) {
-                console.log(`🚗 [${currentDeviceId}] Velocity: linear=(${velocityData.linear.x.toFixed(2)}, ${velocityData.linear.y.toFixed(2)}) angular=${velocityData.angular.z.toFixed(2)}`);
+                console.log(` [${currentDeviceId}] Velocity: linear=(${velocityData.linear.x.toFixed(2)}, ${velocityData.linear.y.toFixed(2)}) angular=${velocityData.angular.z.toFixed(2)}`);
             }
 
         } catch (error) {
-            console.error('❌ Error processing twist velocity feedback:', error);
+            console.error(' Error processing twist velocity feedback:', error);
         }
     };
 
@@ -576,11 +576,11 @@ function subscribeToVelocityFeedback() {
 
             // Log occasionally to avoid spam
             if (Date.now() % 2000 < 100) {
-                console.log(`🛞 [${currentDeviceId}] Wheel velocities: [${velocityData.wheel_velocities.map(v => v.toFixed(2)).join(', ')}]`);
+                console.log(` [${currentDeviceId}] Wheel velocities: [${velocityData.wheel_velocities.map(v => v.toFixed(2)).join(', ')}]`);
             }
 
         } catch (error) {
-            console.error('❌ Error processing array velocity feedback:', error);
+            console.error(' Error processing array velocity feedback:', error);
         }
     };
 
@@ -597,14 +597,14 @@ function subscribeToVelocityFeedback() {
     for (const { topic, type, callback } of velocityTopicsWithTypes) {
         try {
             getOrCreateSubscriber(topic, type, callback);
-            console.log(`✅ Successfully subscribed to velocity feedback: ${topic} [${type}]`);
+            console.log(` Successfully subscribed to velocity feedback: ${topic} [${type}]`);
             return;
         } catch (error) {
-            console.warn(`⚠️ Failed to subscribe to ${topic} with ${type}, trying next...`);
+            console.warn(`️ Failed to subscribe to ${topic} with ${type}, trying next...`);
         }
     }
 
-    console.warn('⚠️ No velocity feedback topics found');
+    console.warn('️ No velocity feedback topics found');
 }
 
 /**
@@ -634,15 +634,15 @@ function subscribeToVelocityFeedback() {
 //             }
 
 //         } catch (error) {
-//             console.error('❌ Error processing joint states:', error);
+//             console.error(' Error processing joint states:', error);
 //         }
 //     };
 
 //     try {
 //         getOrCreateSubscriber('/joint_states', 'sensor_msgs/msg/JointState', callback);
-//         console.log('✅ Successfully subscribed to joint states');
+//         console.log(' Successfully subscribed to joint states');
 //     } catch (error) {
-//         console.warn('⚠️ Joint states topic not available');
+//         console.warn('️ Joint states topic not available');
 //     }
 // }
 
@@ -679,11 +679,11 @@ function subscribeToBattery() {
 
             // Log every 10 seconds
             if (Date.now() % 10000 < 100) {
-                console.log(`🔋 [${currentDeviceId}] Battery: ${batteryData.percentage?.toFixed(1) || 'N/A'}% (${batteryData.voltage?.toFixed(1) || 'N/A'}V) ${batteryData.charging ? '⚡' : ''}`);
+                console.log(` [${currentDeviceId}] Battery: ${batteryData.percentage?.toFixed(1) || 'N/A'}% (${batteryData.voltage?.toFixed(1) || 'N/A'}V) ${batteryData.charging ? '' : ''}`);
             }
 
         } catch (error) {
-            console.error('❌ Error processing battery state data:', error);
+            console.error(' Error processing battery state data:', error);
         }
     };
 
@@ -744,11 +744,11 @@ function subscribeToBattery() {
 
             // Log every 10 seconds
             if (Date.now() % 10000 < 100) {
-                console.log(`🔋 [${currentDeviceId}] Battery Array: ${batteryData.percentage?.toFixed(1) || 'N/A'}% (${batteryData.voltage?.toFixed(1) || 'N/A'}V) ${batteryData.charging ? '⚡' : ''} [${dataArray.map(v => v.toFixed(2)).join(', ')}]`);
+                console.log(` [${currentDeviceId}] Battery Array: ${batteryData.percentage?.toFixed(1) || 'N/A'}% (${batteryData.voltage?.toFixed(1) || 'N/A'}V) ${batteryData.charging ? '' : ''} [${dataArray.map(v => v.toFixed(2)).join(', ')}]`);
             }
 
         } catch (error) {
-            console.error('❌ Error processing battery array data:', error);
+            console.error(' Error processing battery array data:', error);
         }
     };
 
@@ -770,14 +770,14 @@ function subscribeToBattery() {
     for (const { topic, type, callback } of batteryTopicsWithTypes) {
         try {
             getOrCreateSubscriber(topic, type, callback);
-            console.log(`✅ Successfully subscribed to battery: ${topic} [${type}]`);
+            console.log(` Successfully subscribed to battery: ${topic} [${type}]`);
             return;
         } catch (error) {
-            console.warn(`⚠️ Failed to subscribe to ${topic} with ${type}, trying next...`);
+            console.warn(`️ Failed to subscribe to ${topic} with ${type}, trying next...`);
         }
     }
 
-    console.warn('⚠️ No battery topics found');
+    console.warn('️ No battery topics found');
 }
 
 /**
@@ -785,69 +785,69 @@ function subscribeToBattery() {
  * FIXED: Enhanced error handling for missing Nav2 packages
  */
 function subscribeToAllTopics() {
-    console.log(`📥 Subscribing to essential AMR topics for device: ${currentDeviceId}...`);
+    console.log(` Subscribing to essential AMR topics for device: ${currentDeviceId}...`);
 
     // Core position tracking (PRIORITY)
-    console.log('🎯 Priority 1: Position tracking...');
+    console.log(' Priority 1: Position tracking...');
     try {
         subscribeToPosition();
     } catch (error) {
-        console.error('❌ Failed to subscribe to position topics:', error.message);
+        console.error(' Failed to subscribe to position topics:', error.message);
     }
 
     // Costmaps for navigation visualization (PRIORITY)
-    console.log('🎯 Priority 2: Costmaps...');
+    console.log(' Priority 2: Costmaps...');
     try {
         subscribeToGlobalCostmap();
         subscribeToLocalCostmap();
     } catch (error) {
-        console.error('❌ Failed to subscribe to costmap topics:', error.message);
+        console.error(' Failed to subscribe to costmap topics:', error.message);
     }
 
     // Control feedback
-    console.log('🎯 Priority 3: Control feedback...');
+    console.log(' Priority 3: Control feedback...');
     try {
         subscribeToVelocityFeedback();
     } catch (error) {
-        console.error('❌ Failed to subscribe to velocity feedback topics:', error.message);
+        console.error(' Failed to subscribe to velocity feedback topics:', error.message);
     }
 
     // Map data
-    console.log('🎯 Priority 4: Map...');
+    console.log(' Priority 4: Map...');
     try {
         subscribeToMap();
     } catch (error) {
-        console.error('❌ Failed to subscribe to map topics:', error.message);
+        console.error(' Failed to subscribe to map topics:', error.message);
     }
 
     // Navigation feedback and status (OPTIONAL - may not be available)
-    console.log('🎯 Priority 5: Navigation progress (optional)...');
+    console.log(' Priority 5: Navigation progress (optional)...');
     try {
         const navFeedbackResult = subscribeToNavigationFeedback();
         const navStatusResult = subscribeToNavigationStatus();
         
         if (!navFeedbackResult && !navStatusResult) {
-            console.log('💡 Navigation feedback disabled - this is normal if Nav2 is not installed');
+            console.log(' Navigation feedback disabled - this is normal if Nav2 is not installed');
         }
     } catch (error) {
-        console.warn('⚠️ Navigation feedback topics not available:', error.message);
-        console.log('💡 This is normal if Nav2 packages are not installed on your system');
+        console.warn('️ Navigation feedback topics not available:', error.message);
+        console.log(' This is normal if Nav2 packages are not installed on your system');
     }
 
     // Battery monitoring
-    console.log('🎯 Priority 6: Battery...');
+    console.log(' Priority 6: Battery...');
     try {
         subscribeToBattery();
     } catch (error) {
-        console.error('❌ Failed to subscribe to battery topics:', error.message);
+        console.error(' Failed to subscribe to battery topics:', error.message);
     }
 
-    console.log(`✅ All topic subscriptions attempted for device: ${currentDeviceId}`);
-    console.log('💡 Missing topics are normal - they depend on what ROS2 packages you have installed');
+    console.log(` All topic subscriptions attempted for device: ${currentDeviceId}`);
+    console.log(' Missing topics are normal - they depend on what ROS2 packages you have installed');
 
     // List active subscriptions after 3 seconds
     setTimeout(() => {
-        console.log('📊 Active subscriptions summary:');
+        console.log(' Active subscriptions summary:');
         const activeCount = Object.keys(subscribers).length;
         console.log(`   Total attempted: ${activeCount} topics`);
         
@@ -856,28 +856,28 @@ function subscribeToAllTopics() {
             const sub = subscribers[topic];
             try {
                 if (sub && typeof sub.isClosed === 'function' && !sub.isClosed()) {
-                    console.log(`   ✅ ${topic}`);
+                    console.log(`    ${topic}`);
                     successCount++;
                 } else if (sub && typeof sub.isClosed !== 'function') {
-                    console.log(`   ✅ ${topic} (status unknown)`);
+                    console.log(`    ${topic} (status unknown)`);
                     successCount++;
                 } else {
-                    console.log(`   ❌ ${topic} (failed/closed)`);
+                    console.log(`    ${topic} (failed/closed)`);
                 }
             } catch (statusError) {
-                console.log(`   ⚠️ ${topic} (status check failed: ${statusError.message})`);
+                console.log(`   ️ ${topic} (status check failed: ${statusError.message})`);
             }
         });
         
-        console.log(`📈 Subscription success rate: ${successCount}/${activeCount} topics`);
+        console.log(` Subscription success rate: ${successCount}/${activeCount} topics`);
         
         if (successCount === 0) {
-            console.log('🚨 No active subscriptions! Check if ROS2 topics are being published');
-            console.log('💡 Try: ros2 topic list');
+            console.log(' No active subscriptions! Check if ROS2 topics are being published');
+            console.log(' Try: ros2 topic list');
         } else if (successCount < 3) {
-            console.log('⚠️ Limited subscriptions active. Some AMR features may not work');
+            console.log('️ Limited subscriptions active. Some AMR features may not work');
         } else {
-            console.log('✅ Good subscription coverage - AMR monitoring should work well');
+            console.log(' Good subscription coverage - AMR monitoring should work well');
         }
     }, 3000);
 }
@@ -887,7 +887,7 @@ function subscribeToAllTopics() {
  */
 function setDeviceId(deviceId) {
     currentDeviceId = deviceId;
-    console.log(`🏷️ Device ID updated to: ${currentDeviceId}`);
+    console.log(`️ Device ID updated to: ${currentDeviceId}`);
 }
 
 // Utility functions
@@ -916,7 +916,7 @@ function getSubscriptionStatus() {
     Object.keys(subscribers).forEach(topic => {
         const sub = subscribers[topic];
         try {
-            // ✅ FIXED: Added safety check for isClosed method
+            //  FIXED: Added safety check for isClosed method
             if (sub && typeof sub.isClosed === 'function') {
                 status[topic] = sub.isClosed() ? 'inactive' : 'active';
             } else if (sub) {
@@ -935,30 +935,30 @@ function getSubscriptionStatus() {
  * Cleanup all subscribers
  */
 function cleanup() {
-    console.log('🧹 Cleaning up subscribers...');
+    console.log(' Cleaning up subscribers...');
     Object.keys(subscribers).forEach(topicName => {
         try {
             const sub = subscribers[topicName];
-            // ✅ FIXED: Added safety check for destroy method
+            //  FIXED: Added safety check for destroy method
             if (sub && typeof sub.destroy === 'function') {
                 if (typeof sub.isClosed === 'function' && !sub.isClosed()) {
                     sub.destroy();
-                    console.log(`   ✅ Cleaned up: ${topicName}`);
+                    console.log(`    Cleaned up: ${topicName}`);
                 } else if (typeof sub.isClosed !== 'function') {
                     sub.destroy();
-                    console.log(`   ✅ Cleaned up: ${topicName}`);
+                    console.log(`    Cleaned up: ${topicName}`);
                 }
             }
         } catch (e) {
-            console.log(`   ⚠️ Error cleaning ${topicName}:`, e.message);
+            console.log(`   ️ Error cleaning ${topicName}:`, e.message);
         }
     });
     subscribers = {};
-    console.log('✅ Subscribers cleanup complete');
+    console.log(' Subscribers cleanup complete');
 }
 
 /**
- * ✅ FIXED: Test subscribing status with proper error handling
+ *  FIXED: Test subscribing status with proper error handling
  */
 function testSubscribing() {
     try {
@@ -969,7 +969,7 @@ function testSubscribing() {
 
         for (const topic of topics) {
             const sub = subscribers[topic];
-            // ✅ FIXED: Only check isClosed if it exists and is a function
+            //  FIXED: Only check isClosed if it exists and is a function
             if (sub && typeof sub.isClosed === 'function') {
                 if (sub.isClosed()) {
                     return { success: false, error: `Subscriber for ${topic} is closed` };
@@ -993,7 +993,7 @@ function testSubscribing() {
  * FIXED: More robust error handling for missing nav2 messages
  */
 function subscribeToNavigationFeedback() {
-    console.log('🧭 Attempting to subscribe to navigation feedback...');
+    console.log(' Attempting to subscribe to navigation feedback...');
     
     // Simplified callback for basic navigation feedback
     const basicCallback = (feedbackMsg) => {
@@ -1064,15 +1064,15 @@ function subscribeToNavigationFeedback() {
 
             // Log occasionally
             if (!global.lastNavigationFeedbackLog || Date.now() - global.lastNavigationFeedbackLog > 5000) {
-                console.log(`🧭 [${currentDeviceId}] Navigation feedback received`);
+                console.log(` [${currentDeviceId}] Navigation feedback received`);
                 if (navigationFeedback.current_pose) {
-                    console.log(`   📍 Position: (${navigationFeedback.current_pose.position.x.toFixed(2)}, ${navigationFeedback.current_pose.position.y.toFixed(2)})`);
+                    console.log(`    Position: (${navigationFeedback.current_pose.position.x.toFixed(2)}, ${navigationFeedback.current_pose.position.y.toFixed(2)})`);
                 }
                 global.lastNavigationFeedbackLog = Date.now();
             }
 
         } catch (error) {
-            console.error('❌ Error processing navigation feedback:', error);
+            console.error(' Error processing navigation feedback:', error);
         }
     };
 
@@ -1100,16 +1100,16 @@ function subscribeToNavigationFeedback() {
                 durability: 'volatile',
                 history: 'keep_last'
             });
-            console.log(`✅ Successfully subscribed to navigation feedback: ${topic} [${type}]`);
+            console.log(` Successfully subscribed to navigation feedback: ${topic} [${type}]`);
             return topic;
         } catch (error) {
-            console.warn(`⚠️ Navigation topic ${topic} with ${type} not available: ${error.message}`);
+            console.warn(`️ Navigation topic ${topic} with ${type} not available: ${error.message}`);
             continue;
         }
     }
 
-    console.warn('⚠️ No navigation feedback topics available - navigation feedback disabled');
-    console.log('💡 This is normal if Nav2 is not installed or navigation is not running');
+    console.warn('️ No navigation feedback topics available - navigation feedback disabled');
+    console.log(' This is normal if Nav2 is not installed or navigation is not running');
     return null;
 }
 
@@ -1118,7 +1118,7 @@ function subscribeToNavigationFeedback() {
  * FIXED: More robust error handling for missing nav2 messages
  */
 function subscribeToNavigationStatus() {
-    console.log('📊 Attempting to subscribe to navigation status...');
+    console.log(' Attempting to subscribe to navigation status...');
     
     const statusCallback = (statusMsg) => {
         try {
@@ -1167,7 +1167,7 @@ function subscribeToNavigationStatus() {
 
             // Log status changes
             if (!global.lastNavigationStatus || global.lastNavigationStatus !== navigationStatus.status_text) {
-                console.log(`📊 [${currentDeviceId}] Navigation Status: ${navigationStatus.status_text}`);
+                console.log(` [${currentDeviceId}] Navigation Status: ${navigationStatus.status_text}`);
                 if (navigationStatus.result) {
                     console.log(`   Result: ${navigationStatus.result.success ? 'SUCCESS' : 'FAILED'} - ${navigationStatus.result.error_msg}`);
                 }
@@ -1175,7 +1175,7 @@ function subscribeToNavigationStatus() {
             }
 
         } catch (error) {
-            console.error('❌ Error processing navigation status:', error);
+            console.error(' Error processing navigation status:', error);
         }
     };
 
@@ -1202,16 +1202,16 @@ function subscribeToNavigationStatus() {
                 durability: 'volatile',
                 history: 'keep_last'
             });
-            console.log(`✅ Successfully subscribed to navigation status: ${topic} [${type}]`);
+            console.log(` Successfully subscribed to navigation status: ${topic} [${type}]`);
             return topic;
         } catch (error) {
-            console.warn(`⚠️ Navigation status topic ${topic} with ${type} not available: ${error.message}`);
+            console.warn(`️ Navigation status topic ${topic} with ${type} not available: ${error.message}`);
             continue;
         }
     }
 
-    console.warn('⚠️ No navigation status topics available - navigation status disabled');
-    console.log('💡 This is normal if Nav2 is not installed or navigation is not running');
+    console.warn('️ No navigation status topics available - navigation status disabled');
+    console.log(' This is normal if Nav2 is not installed or navigation is not running');
     return null;
 }
 

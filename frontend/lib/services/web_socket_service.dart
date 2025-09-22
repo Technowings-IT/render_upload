@@ -25,13 +25,13 @@ class WebSocketService {
   String? _clientId;
   String? _serverUrl;
 
-  // ✅ FIXED: Added missing analytics fields
+  //  FIXED: Added missing analytics fields
   final Map<String, int> _messageStats = {};
   int _totalMessagesReceived = 0;
   int _totalMessagesSent = 0;
   DateTime? _lastConnectionTime;
 
-  // ✅ FIXED: Added missing message queue fields
+  //  FIXED: Added missing message queue fields
   final List<Map<String, dynamic>> _messageQueue = [];
   static const int _maxQueueSize = 100;
 
@@ -57,7 +57,7 @@ class WebSocketService {
   StreamController<bool>? _connectionStateController;
   StreamController<String>? _errorController;
 
-  // ✅ FIXED: Added analytics controller
+  //  FIXED: Added analytics controller
   final StreamController<Map<String, dynamic>> _analyticsDataController =
       StreamController<Map<String, dynamic>>.broadcast();
 
@@ -67,7 +67,7 @@ class WebSocketService {
   bool get isConnected => _isConnected;
   String? get clientId => _clientId;
 
-  // ✅ FIXED: Analytics getters
+  //  FIXED: Analytics getters
   Map<String, int> get messageStats => Map.unmodifiable(_messageStats);
   int get totalMessagesReceived => _totalMessagesReceived;
   int get totalMessagesSent => _totalMessagesSent;
@@ -118,7 +118,7 @@ class WebSocketService {
     return _errorController!.stream;
   }
 
-  // ✅ FIXED: Analytics stream
+  //  FIXED: Analytics stream
   Stream<Map<String, dynamic>> get analyticsData =>
       _analyticsDataController.stream;
 
@@ -178,7 +178,7 @@ class WebSocketService {
       // Process any queued messages
       _processMessageQueue();
 
-      print('📡 Subscribed to all topics, waiting for server data...');
+      print(' Subscribed to all topics, waiting for server data...');
     }
   }
 
@@ -203,7 +203,7 @@ class WebSocketService {
     Map<String, dynamic>? deviceInfo,
   }) async {
     if (_isReconnecting) {
-      print('🔄 Already attempting to reconnect, skipping...');
+      print(' Already attempting to reconnect, skipping...');
       return false;
     }
 
@@ -213,11 +213,11 @@ class WebSocketService {
       // Close existing connection properly
       await _cleanup();
 
-      print('🔌 Connecting to WebSocket server: $_serverUrl');
+      print(' Connecting to WebSocket server: $_serverUrl');
 
       final uri = Uri.parse(_serverUrl!);
 
-      // ✅ FIXED: Create connection with proper options
+      //  FIXED: Create connection with proper options
       _channel = IOWebSocketChannel.connect(
         uri,
         protocols: ['websocket'],
@@ -225,7 +225,7 @@ class WebSocketService {
         pingInterval: const Duration(seconds: 20),
       );
 
-      // ✅ FIXED: Improved connection establishment
+      //  FIXED: Improved connection establishment
       bool connectionEstablished = false;
       final completer = Completer<bool>();
 
@@ -266,7 +266,7 @@ class WebSocketService {
           _handleMessage(data);
         },
         onError: (error) {
-          print('❌ WebSocket stream error: $error');
+          print(' WebSocket stream error: $error');
           _handleDisconnection();
           if (!connectionEstablished) {
             connectionEstablished = true;
@@ -275,7 +275,7 @@ class WebSocketService {
           }
         },
         onDone: () {
-          print('🔌 WebSocket stream closed during connection');
+          print(' WebSocket stream closed during connection');
           _handleDisconnection();
           if (!connectionEstablished) {
             connectionEstablished = true;
@@ -297,7 +297,7 @@ class WebSocketService {
         _startHeartbeat();
         _subscribeToTopics();
 
-        print('✅ WebSocket connected successfully');
+        print(' WebSocket connected successfully');
 
         if (_connectionStateController != null &&
             !_connectionStateController!.isClosed) {
@@ -306,12 +306,12 @@ class WebSocketService {
 
         return true;
       } else {
-        print('❌ WebSocket connection failed');
+        print(' WebSocket connection failed');
         await _cleanup();
         return false;
       }
     } catch (e) {
-      print('❌ Failed to connect to WebSocket: $e');
+      print(' Failed to connect to WebSocket: $e');
       await _cleanup();
       return false;
     } finally {
@@ -320,7 +320,7 @@ class WebSocketService {
   }
 
   void disconnect() {
-    print('📱 Disconnecting WebSocket...');
+    print(' Disconnecting WebSocket...');
     _isConnected = false;
     _clientId = null;
     _stopApplicationPing();
@@ -331,7 +331,7 @@ class WebSocketService {
       try {
         _channel!.sink.close(1000, 'Client disconnect');
       } catch (e) {
-        print('⚠️ Error closing WebSocket: $e');
+        print('️ Error closing WebSocket: $e');
       }
       _channel = null;
     }
@@ -341,11 +341,11 @@ class WebSocketService {
       _connectionStateController!.add(false);
     }
 
-    print('✅ WebSocket disconnected');
+    print(' WebSocket disconnected');
   }
 
   // ==========================================
-  // ✅ FIXED: PING/HEARTBEAT METHODS
+  //  FIXED: PING/HEARTBEAT METHODS
   // ==========================================
   void _startApplicationPing() {
     _stopApplicationPing();
@@ -363,13 +363,13 @@ class WebSocketService {
                 DateTime.now().difference(_lastMessageReceived!);
             if (timeSinceLastMessage > const Duration(minutes: 2)) {
               print(
-                  '💔 No messages received for ${timeSinceLastMessage.inSeconds}s, reconnecting...');
+                  ' No messages received for ${timeSinceLastMessage.inSeconds}s, reconnecting...');
               _handleDisconnection();
               return;
             }
           }
         } catch (e) {
-          print('❌ Error sending ping: $e');
+          print(' Error sending ping: $e');
           _handleDisconnection();
         }
       } else {
@@ -407,19 +407,19 @@ class WebSocketService {
     });
   }
 
-  // ✅ FIXED: MESSAGE QUEUE HANDLING
+  //  FIXED: MESSAGE QUEUE HANDLING
   void _queueMessage(Map<String, dynamic> message) {
     if (_messageQueue.length < _maxQueueSize) {
       _messageQueue.add(message);
-      print('📥 Message queued: ${message['type']}');
+      print(' Message queued: ${message['type']}');
     } else {
-      print('🗑️ Message queue full, dropping message: ${message['type']}');
+      print('️ Message queue full, dropping message: ${message['type']}');
     }
   }
 
   void _processMessageQueue() {
     if (_messageQueue.isNotEmpty) {
-      print('📤 Processing ${_messageQueue.length} queued messages');
+      print(' Processing ${_messageQueue.length} queued messages');
       final messages = List<Map<String, dynamic>>.from(_messageQueue);
       _messageQueue.clear();
       for (final message in messages) {
@@ -429,7 +429,7 @@ class WebSocketService {
   }
 
   // ==========================================
-  // ✅ FIXED: MESSAGE HANDLING METHODS
+  //  FIXED: MESSAGE HANDLING METHODS
   // ==========================================
   void _handleMessage(dynamic data) {
     try {
@@ -462,7 +462,7 @@ class WebSocketService {
               !_connectionStateController!.isClosed) {
             _connectionStateController!.add(true);
           }
-          print('✅ Connection established with client ID: $_clientId');
+          print(' Connection established with client ID: $_clientId');
           break;
 
         case 'ping':
@@ -471,7 +471,7 @@ class WebSocketService {
 
         case 'pong':
           _lastPongReceived = DateTime.now();
-          print('🏓 Pong received from server');
+          print(' Pong received from server');
           break;
 
         case 'heartbeat':
@@ -479,12 +479,12 @@ class WebSocketService {
           break;
 
         case 'heartbeat_ack':
-          print('💓 Heartbeat acknowledged');
+          print(' Heartbeat acknowledged');
           break;
 
         case 'initial_data':
           print(
-              '📊 Received initial data: ${message['devices']?.length ?? 0} devices');
+              ' Received initial data: ${message['devices']?.length ?? 0} devices');
           if (_deviceEventsController != null &&
               !_deviceEventsController!.isClosed) {
             _deviceEventsController!.add({
@@ -502,14 +502,14 @@ class WebSocketService {
         case 'subscription_ack':
         case 'subscription_confirmed':
           print(
-              '📡 Subscribed to topic: ${message['topic'] ?? message['topics']}');
+              ' Subscribed to topic: ${message['topic'] ?? message['topics']}');
           if (message['deviceId'] != null) {
             print('   Device: ${message['deviceId']}');
           }
           break;
 
         case 'device_connected':
-          print('🔌 Device connection confirmed: ${message['deviceId']}');
+          print(' Device connection confirmed: ${message['deviceId']}');
           if (_deviceEventsController != null &&
               !_deviceEventsController!.isClosed) {
             _deviceEventsController!.add({
@@ -547,7 +547,7 @@ class WebSocketService {
 
         case 'error':
           final errorMsg = message['message'] ?? 'Unknown server error';
-          print('❌ Server error: $errorMsg');
+          print(' Server error: $errorMsg');
           if (_errorController != null && !_errorController!.isClosed) {
             _errorController!.add(errorMsg);
           }
@@ -567,7 +567,7 @@ class WebSocketService {
           break;
 
         case 'device_disconnected':
-          print('🔌 Device ${message['deviceId']} disconnected');
+          print(' Device ${message['deviceId']} disconnected');
           if (_deviceEventsController != null &&
               !_deviceEventsController!.isClosed) {
             _deviceEventsController!.add({
@@ -587,11 +587,11 @@ class WebSocketService {
           break;
 
         default:
-          print('❓ Unknown message type: ${message['type']}');
+          print(' Unknown message type: ${message['type']}');
       }
     } catch (e) {
-      print('❌ Error handling message: $e');
-      print('📨 Raw message data: $data');
+      print(' Error handling message: $e');
+      print(' Raw message data: $data');
     }
   }
 
@@ -601,9 +601,9 @@ class WebSocketService {
         'type': 'pong',
         'timestamp': DateTime.now().toIso8601String(),
       });
-      print('🏓 Sent pong response to server');
+      print(' Sent pong response to server');
     } catch (e) {
-      print('❌ Error sending pong: $e');
+      print(' Error sending pong: $e');
     }
   }
 
@@ -646,15 +646,15 @@ class WebSocketService {
           }
           break;
         default:
-          print('❓ Unknown broadcast topic: $topic');
+          print(' Unknown broadcast topic: $topic');
       }
     } catch (e) {
-      print('❌ Error handling broadcast for topic $topic: $e');
+      print(' Error handling broadcast for topic $topic: $e');
     }
   }
 
   // ==========================================
-  // ✅ FIXED: RECONNECTION METHODS
+  //  FIXED: RECONNECTION METHODS
   // ==========================================
   void _handleDisconnection() {
     _isConnected = false;
@@ -674,7 +674,7 @@ class WebSocketService {
         !_isReconnecting) {
       _reconnectAttempts++;
       print(
-          '🔄 WebSocket disconnected, attempting to reconnect... (attempt $_reconnectAttempts/$maxReconnectAttempts)');
+          ' WebSocket disconnected, attempting to reconnect... (attempt $_reconnectAttempts/$maxReconnectAttempts)');
 
       final baseDelay = Duration(seconds: math.min(2 + _reconnectAttempts, 10));
       final jitter = Duration(milliseconds: math.Random().nextInt(1000));
@@ -683,7 +683,7 @@ class WebSocketService {
       print('⏳ Waiting ${totalDelay.inSeconds}s before reconnect attempt...');
       _startReconnectTimer(totalDelay);
     } else {
-      print('❌ WebSocket disconnected, max reconnection attempts reached');
+      print(' WebSocket disconnected, max reconnection attempts reached');
       if (_errorController != null && !_errorController!.isClosed) {
         _errorController!
             .add('Connection lost after $_reconnectAttempts attempts');
@@ -706,10 +706,10 @@ class WebSocketService {
       };
 
       _channel?.sink.add(jsonEncode(message));
-      print('📤 Sent script command: $command for device: $deviceId');
+      print(' Sent script command: $command for device: $deviceId');
       return true;
     } catch (e) {
-      print('❌ Error sending script command: $e');
+      print(' Error sending script command: $e');
       return false;
     }
   }
@@ -736,7 +736,7 @@ class WebSocketService {
     _reconnectTimer = Timer(delay ?? const Duration(seconds: 5), () async {
       if (!_isConnected && _serverUrl != null && !_isReconnecting) {
         print(
-            '🔄 Attempting to reconnect... (attempt $_reconnectAttempts/$maxReconnectAttempts)');
+            ' Attempting to reconnect... (attempt $_reconnectAttempts/$maxReconnectAttempts)');
         final success = await _attemptConnection();
         if (!success) {
           _handleDisconnection();
@@ -782,10 +782,10 @@ class WebSocketService {
             ...message,
             'queued_at': DateTime.now().toIso8601String(),
           });
-          print('📮 Message queued (offline): ${message['type']}');
+          print(' Message queued (offline): ${message['type']}');
           return true;
         } else {
-          print('❌ Message queue full, dropping message: ${message['type']}');
+          print(' Message queue full, dropping message: ${message['type']}');
           return false;
         }
       }
@@ -801,10 +801,10 @@ class WebSocketService {
           (_messageStats[message['type']] ?? 0) + 1;
 
       print(
-          '📤 Sent: ${message['type']} to ${message['deviceId'] ?? 'server'}');
+          ' Sent: ${message['type']} to ${message['deviceId'] ?? 'server'}');
       return true;
     } catch (e) {
-      print('❌ Error sending message: $e');
+      print(' Error sending message: $e');
       _errorController?.add('Failed to send message: $e');
       return false;
     }
@@ -974,7 +974,7 @@ class WebSocketService {
 
   void clearMessageQueue() {
     _messageQueue.clear();
-    print('🗑️ Message queue cleared');
+    print('️ Message queue cleared');
   }
 
   // ==========================================

@@ -197,7 +197,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
             try {
               // Handle odometry data
             } catch (e) {
-              print('❌ Error parsing odometry data: $e');
+              print(' Error parsing odometry data: $e');
             }
             break;
         }
@@ -208,7 +208,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   void _handleMapEvent(Map<String, dynamic> data) {
     switch (data['type']) {
       case 'map_edited':
-        print('🗺️ Map edited by another client: ${data['editType']}');
+        print('️ Map edited by another client: ${data['editType']}');
         _showInfoSnackBar('Map updated by another client');
         break;
       case 'map_updated':
@@ -236,7 +236,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         });
       }
     } catch (e) {
-      // print('❌ Error loading devices: $e');
+      // print(' Error loading devices: $e');
       // if (e is ApiException) {
       //   if (e.isNetworkError) {
       //     _showErrorSnackBar(
@@ -303,7 +303,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
   }
 
   void _loadMapForDevice(String deviceId) async {
-    print('🔄 Loading map for device: $deviceId');
+    print(' Loading map for device: $deviceId');
 
     if (mounted) {
       setState(() {
@@ -336,9 +336,9 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
           _showInfoSnackBar(
               'Map loaded successfully with ${mapData.shapes.length} locations from ${_loadSource}');
           print(
-              '✅ Map loaded successfully for device: $deviceId from source: ${_loadSource}');
+              ' Map loaded successfully for device: $deviceId from source: ${_loadSource}');
         } catch (parseError) {
-          print('❌ Error parsing map data: $parseError');
+          print(' Error parsing map data: $parseError');
 
           if (mounted) {
             setState(() {
@@ -362,7 +362,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         _showInfoSnackBar('No existing map found. Created new empty map.');
       }
     } catch (e) {
-      print('❌ Error loading map: $e');
+      print(' Error loading map: $e');
       if (mounted) {
         setState(() {
           _error = 'Failed to load map data: $e';
@@ -431,7 +431,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
     });
 
     try {
-      print('🔄 Loading ROS2 saved map: $mapName');
+      print(' Loading ROS2 saved map: $mapName');
 
       final response = await _apiService.loadROS2SavedMap(
         deviceId: _selectedDeviceId!,
@@ -453,7 +453,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         });
 
         _showInfoSnackBar('ROS2 saved map loaded: $mapName');
-        print('✅ ROS2 saved map loaded successfully: $mapName');
+        print(' ROS2 saved map loaded successfully: $mapName');
       } else {
         setState(() {
           _error = response['error'] ?? 'Failed to load ROS2 saved map';
@@ -461,7 +461,7 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
         _showErrorSnackBar('Failed to load ROS2 map: ${response['error']}');
       }
     } catch (e) {
-      print('❌ Error loading ROS2 saved map: $e');
+      print(' Error loading ROS2 saved map: $e');
       setState(() {
         _error = 'Failed to load ROS2 saved map: $e';
       });
@@ -2774,10 +2774,10 @@ class _EnhancedMapPageState extends State<EnhancedMapPage>
 
       _showInfoSnackBar(
           'Map saved successfully with ${_currentMap!.shapes.length} locations');
-      print('✅ Map saved successfully for device: $_selectedDeviceId');
+      print(' Map saved successfully for device: $_selectedDeviceId');
     } catch (e) {
       Navigator.of(context).pop(); // Close loading dialog
-      print('❌ Error saving map: $e');
+      print(' Error saving map: $e');
 
       if (e is ApiException) {
         _showErrorSnackBar('Failed to save map: ${e.message}');
@@ -3080,13 +3080,13 @@ class _SavedMapsScreenState extends State<SavedMapsScreen> {
         _isLoading = false;
       });
 
-      print('✅ Loaded ${maps.length} saved maps');
+      print(' Loaded ${maps.length} saved maps');
     } catch (e) {
       setState(() {
         _error = 'Failed to load saved maps: $e';
         _isLoading = false;
       });
-      print('❌ Error loading saved maps: $e');
+      print(' Error loading saved maps: $e');
     }
   }
 

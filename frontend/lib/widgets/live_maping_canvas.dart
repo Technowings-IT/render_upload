@@ -43,7 +43,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
   late AnimationController _robotAnimationController;
   late AnimationController _centeringAnimationController;
 
-  // ✅ Keep original coordinate system
+  //  Keep original coordinate system
   double _scale = 1.5;
   Offset _translation = Offset.zero;
 
@@ -64,7 +64,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
   bool _autoCenterPaused = false; // NEW: Manual pause state
   Timer? _userInteractionTimer;
 
-  // ✅ Keep original visual settings
+  //  Keep original visual settings
   static const double _gridSpacing = 20.0;
   static const double _robotDisplaySize = 12.0;
   static const double _trailWidth = 2.5;
@@ -89,43 +89,43 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
       _robotAnimationController.repeat(reverse: true);
     }
 
-    // ✅ Initial centering with delay
+    //  Initial centering with delay
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.currentOdometry?.position != null) {
         _centerOnRobotImmediate();
       }
-      // 🐛 DEBUG: Print map data info
+      //  DEBUG: Print map data info
       _debugMapData();
     });
   }
 
   void _debugMapData() {
-    print('🗺️ === MAP DEBUG INFO ===');
-    print('🗺️ mapData: ${widget.mapData != null ? "Available" : "NULL"}');
+    print('️ === MAP DEBUG INFO ===');
+    print('️ mapData: ${widget.mapData != null ? "Available" : "NULL"}');
     if (widget.mapData != null) {
       print(
-          '🗺️ Map size: ${widget.mapData!.info.width}x${widget.mapData!.info.height}');
-      print('🗺️ Map resolution: ${widget.mapData!.info.resolution}m/px');
+          '️ Map size: ${widget.mapData!.info.width}x${widget.mapData!.info.height}');
+      print('️ Map resolution: ${widget.mapData!.info.resolution}m/px');
       print(
-          '🗺️ Map origin: (${widget.mapData!.info.origin.x}, ${widget.mapData!.info.origin.y})');
+          '️ Map origin: (${widget.mapData!.info.origin.x}, ${widget.mapData!.info.origin.y})');
       print(
-          '🗺️ Occupancy data length: ${widget.mapData!.occupancyData.length}');
+          '️ Occupancy data length: ${widget.mapData!.occupancyData.length}');
       print(
-          '🗺️ Expected length: ${widget.mapData!.info.width * widget.mapData!.info.height}');
+          '️ Expected length: ${widget.mapData!.info.width * widget.mapData!.info.height}');
     }
 
     print(
-        '🏠 globalCostmap: ${widget.globalCostmap != null ? "Available" : "NULL"}');
+        ' globalCostmap: ${widget.globalCostmap != null ? "Available" : "NULL"}');
     if (widget.globalCostmap != null) {
-      print('🏠 Global costmap: ${widget.globalCostmap!['info']}');
+      print(' Global costmap: ${widget.globalCostmap!['info']}');
     }
 
     print(
-        '🏠 localCostmap: ${widget.localCostmap != null ? "Available" : "NULL"}');
+        ' localCostmap: ${widget.localCostmap != null ? "Available" : "NULL"}');
     if (widget.localCostmap != null) {
-      print('🏠 Local costmap: ${widget.localCostmap!['info']}');
+      print(' Local costmap: ${widget.localCostmap!['info']}');
     }
-    print('🗺️ === END DEBUG ===');
+    print('️ === END DEBUG ===');
   }
 
   @override
@@ -140,7 +140,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
       _robotAnimationController.reset();
     }
 
-    // ✅ FIXED: Auto-centering logic with better coordinate handling
+    //  FIXED: Auto-centering logic with better coordinate handling
     if (_autoCenter && !_autoCenterPaused && widget.currentOdometry != null) {
       final currentPos = widget.currentOdometry!.position;
 
@@ -148,11 +148,11 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
       if (_lastRobotPosition != null) {
         final distance = _distanceBetween(_lastRobotPosition!, currentPos);
         print(
-            '🤖 Robot moved: ${distance.toStringAsFixed(3)}m from (${_lastRobotPosition!.x.toStringAsFixed(2)}, ${_lastRobotPosition!.y.toStringAsFixed(2)}) to (${currentPos.x.toStringAsFixed(2)}, ${currentPos.y.toStringAsFixed(2)})');
+            ' Robot moved: ${distance.toStringAsFixed(3)}m from (${_lastRobotPosition!.x.toStringAsFixed(2)}, ${_lastRobotPosition!.y.toStringAsFixed(2)}) to (${currentPos.x.toStringAsFixed(2)}, ${currentPos.y.toStringAsFixed(2)})');
       }
 
       if (_shouldAutoCenter(currentPos)) {
-        print('🎯 Auto-centering triggered');
+        print(' Auto-centering triggered');
         _centerOnRobotSmooth();
       }
       _lastRobotPosition = currentPos;
@@ -161,11 +161,11 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     // Debug map data changes
     if (widget.mapData != oldWidget.mapData && widget.mapData != null) {
       print(
-          '🗺️ Map data updated: ${widget.mapData!.info.width}x${widget.mapData!.info.height}');
+          '️ Map data updated: ${widget.mapData!.info.width}x${widget.mapData!.info.height}');
     }
   }
 
-  // ✅ UPDATED: Better auto-center logic using new settings
+  //  UPDATED: Better auto-center logic using new settings
   bool _shouldAutoCenter(Position robotPos) {
     // Check if auto-center is enabled and not paused
     if (!_autoCenter || _autoCenterPaused) return false;
@@ -198,7 +198,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     return _isRobotOutOfView(robotPos);
   }
 
-  // ✅ IMPROVED: Better viewport detection
+  //  IMPROVED: Better viewport detection
   bool _isRobotOutOfView(Position robotPos) {
     if (!mounted) return false;
 
@@ -240,7 +240,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     final size = MediaQuery.of(context).size;
     final screenCenter = Offset(size.width / 2, size.height / 2);
 
-    // ✅ FIXED: Correct coordinate transformation to match painter
+    //  FIXED: Correct coordinate transformation to match painter
     final targetTransform = Matrix4.identity()
       ..translate(screenCenter.dx, screenCenter.dy)
       ..scale(_scale)
@@ -251,7 +251,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     _lastAutoCenter = DateTime.now();
 
     print(
-        '🎯 Immediate center on robot: (${robotPos.x.toStringAsFixed(2)}, ${robotPos.y.toStringAsFixed(2)})');
+        ' Immediate center on robot: (${robotPos.x.toStringAsFixed(2)}, ${robotPos.y.toStringAsFixed(2)})');
   }
 
   void _centerOnRobotSmooth() {
@@ -263,7 +263,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
 
     final currentTransform = _transformationController.value;
 
-    // ✅ FIXED: Correct coordinate transformation to match painter
+    //  FIXED: Correct coordinate transformation to match painter
     final targetTransform = Matrix4.identity()
       ..translate(screenCenter.dx, screenCenter.dy)
       ..scale(_scale)
@@ -289,10 +289,10 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     _lastAutoCenter = DateTime.now();
 
     print(
-        '🎯 Smooth center on robot: (${robotPos.x.toStringAsFixed(2)}, ${robotPos.y.toStringAsFixed(2)})');
+        ' Smooth center on robot: (${robotPos.x.toStringAsFixed(2)}, ${robotPos.y.toStringAsFixed(2)})');
   }
 
-  // ✅ FIXED: Correct screen coordinate mapping
+  //  FIXED: Correct screen coordinate mapping
   Offset _mapToScreenCoordinates(Offset mapPoint) {
     final transform = _transformationController.value;
 
@@ -304,7 +304,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     return MatrixUtils.transformPoint(transform, worldPoint);
   }
 
-  // ✅ IMPROVED: Less aggressive interaction detection
+  //  IMPROVED: Less aggressive interaction detection
   void _onInteractionStart(ScaleStartDetails details) {
     _isUserPanning = true;
     _lastUserInteraction = DateTime.now();
@@ -350,7 +350,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     });
   }
 
-  // ✅ ADDITIONAL: Force center button for manual override
+  //  ADDITIONAL: Force center button for manual override
   void _forceCenterOnRobot() {
     if (widget.currentOdometry?.position != null) {
       // Cancel any user interaction state
@@ -361,7 +361,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
       // Force immediate centering
       _centerOnRobotImmediate();
 
-      print('🎯 Force center triggered by user');
+      print(' Force center triggered by user');
     }
   }
 
@@ -606,11 +606,11 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // ✅ Controls bar outside the mapping area
+        //  Controls bar outside the mapping area
         Container(
-          height: 50, // ✅ Reduced height for smaller screens
+          height: 50, //  Reduced height for smaller screens
           padding: const EdgeInsets.symmetric(
-              horizontal: 8, vertical: 4), // ✅ Reduced padding
+              horizontal: 8, vertical: 4), //  Reduced padding
           decoration: BoxDecoration(
             color: Colors.black.withOpacity(0.8),
             border: Border(
@@ -619,7 +619,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
           ),
           child: Row(
             children: [
-              // ✅ MOVED: All controls to the left side
+              //  MOVED: All controls to the left side
               // Auto-center controls - more compact
               _buildCompactControlButton(
                 icon: _autoCenterPaused ? Icons.pause : Icons.my_location,
@@ -647,10 +647,10 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                     : _autoCenter
                         ? 'Auto Center: ON'
                         : 'Auto Center: OFF',
-                isSmall: true, // ✅ Make smaller
+                isSmall: true, //  Make smaller
               ),
 
-              const SizedBox(width: 4), // ✅ Reduced spacing
+              const SizedBox(width: 4), //  Reduced spacing
 
               // Manual center button
               _buildCompactControlButton(
@@ -662,10 +662,10 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                   }
                 },
                 tooltip: 'Center Now',
-                isSmall: true, // ✅ Make smaller
+                isSmall: true, //  Make smaller
               ),
 
-              const SizedBox(width: 4), // ✅ Reduced spacing
+              const SizedBox(width: 4), //  Reduced spacing
 
               // Pause/Resume auto-center button
               _buildCompactControlButton(
@@ -679,16 +679,16 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                 tooltip: _autoCenterPaused
                     ? 'Resume Auto-Center'
                     : 'Pause Auto-Center',
-                isSmall: true, // ✅ Make smaller
+                isSmall: true, //  Make smaller
               ),
 
-              const SizedBox(width: 8), // ✅ Slightly more spacing before zoom
+              const SizedBox(width: 8), //  Slightly more spacing before zoom
 
               // Zoom controls - more compact
               Container(
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(15), // ✅ Smaller radius
+                  borderRadius: BorderRadius.circular(15), //  Smaller radius
                 ),
                 child: Row(
                   children: [
@@ -697,11 +697,11 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                       color: Colors.white,
                       onPressed: () => _zoomOut(),
                       tooltip: 'Zoom Out',
-                      isSmall: true, // ✅ Already small, keep consistent
+                      isSmall: true, //  Already small, keep consistent
                     ),
                     Container(
                       width: 1,
-                      height: 16, // ✅ Reduced height
+                      height: 16, //  Reduced height
                       color: Colors.white.withOpacity(0.3),
                     ),
                     _buildCompactControlButton(
@@ -709,13 +709,13 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                       color: Colors.white,
                       onPressed: () => _zoomIn(),
                       tooltip: 'Zoom In',
-                      isSmall: true, // ✅ Already small, keep consistent
+                      isSmall: true, //  Already small, keep consistent
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(width: 4), // ✅ Reduced spacing
+              const SizedBox(width: 4), //  Reduced spacing
 
               // Movement status indicator
               _buildCompactControlButton(
@@ -725,10 +725,10 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                 tooltip: _scale > _movementThreshold
                     ? 'Movement: Enabled'
                     : 'Movement: Locked',
-                isSmall: true, // ✅ Make smaller
+                isSmall: true, //  Make smaller
               ),
 
-              const SizedBox(width: 4), // ✅ Reduced spacing
+              const SizedBox(width: 4), //  Reduced spacing
 
               // Reset view button
               _buildCompactControlButton(
@@ -736,27 +736,27 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                 color: Colors.purple,
                 onPressed: _resetView,
                 tooltip: 'Reset View',
-                isSmall: true, // ✅ Make smaller
+                isSmall: true, //  Make smaller
               ),
 
-              const SizedBox(width: 8), // ✅ Add some spacing
+              const SizedBox(width: 8), //  Add some spacing
 
               // Mapping status indicator - moved to right side of controls
               if (widget.mappingActive) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4), // ✅ Reduced padding
+                      horizontal: 8, vertical: 4), //  Reduced padding
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Colors.green, Colors.lightGreen],
                     ),
-                    borderRadius: BorderRadius.circular(12), // ✅ Smaller radius
+                    borderRadius: BorderRadius.circular(12), //  Smaller radius
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       SizedBox(
-                        width: 10, // ✅ Smaller spinner
+                        width: 10, //  Smaller spinner
                         height: 10,
                         child: CircularProgressIndicator(
                           strokeWidth: 1.5,
@@ -770,7 +770,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          fontSize: 9, // ✅ Smaller font
+                          fontSize: 9, //  Smaller font
                         ),
                       ),
                     ],
@@ -778,12 +778,12 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                 ),
               ],
 
-              // ✅ REMOVED: Spacer() - no longer needed since everything is left-aligned
+              //  REMOVED: Spacer() - no longer needed since everything is left-aligned
             ],
           ),
         ),
 
-        // ✅ Mapping area without overlapping controls
+        //  Mapping area without overlapping controls
         Expanded(
           child: Stack(
             children: [
@@ -830,7 +830,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     );
   }
 
-  // ✅ Helper method for compact control buttons
+  //  Helper method for compact control buttons
   Widget _buildCompactControlButton({
     required IconData icon,
     required Color color,
@@ -841,7 +841,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
     return Tooltip(
       message: tooltip,
       child: Container(
-        width: isSmall ? 28 : 32, // ✅ Made even smaller for mobile
+        width: isSmall ? 28 : 32, //  Made even smaller for mobile
         height: isSmall ? 28 : 32,
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -850,7 +850,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
                 : [Colors.grey.withOpacity(0.8), Colors.grey],
           ),
           borderRadius:
-              BorderRadius.circular(isSmall ? 14 : 16), // ✅ Adjusted radius
+              BorderRadius.circular(isSmall ? 14 : 16), //  Adjusted radius
           boxShadow: onPressed != null
               ? [
                   BoxShadow(
@@ -866,7 +866,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
           icon: Icon(
             icon,
             color: Colors.white,
-            size: isSmall ? 14 : 16, // ✅ Smaller icons for mobile
+            size: isSmall ? 14 : 16, //  Smaller icons for mobile
           ),
           padding: EdgeInsets.zero,
         ),
@@ -913,7 +913,7 @@ class _LiveMappingCanvasState extends State<LiveMappingCanvas>
   }
 }
 
-// ✅ FIXED: Keep original painter approach but with ROS colors
+//  FIXED: Keep original painter approach but with ROS colors
 class ROSStyleLiveMapPainter extends CustomPainter {
   final MapData? mapData;
   final OdometryData? currentOdometry;
@@ -928,7 +928,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
   final double scale;
   final double movementThreshold;
 
-  // ✅ Keep original visual constants
+  //  Keep original visual constants
   static const double _gridSpacing = 20.0;
   static const double _robotSize = 12.0;
   static const double _trailWidth = 2.5;
@@ -954,7 +954,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
     // Draw subtle grid background
     _drawSubtleGrid(canvas, size);
 
-    // ✅ FIXED: Draw ROS-style occupancy grid as the base layer
+    //  FIXED: Draw ROS-style occupancy grid as the base layer
     if (showOccupancyGrid && mapData != null) {
       _drawROSStyleOccupancyGrid(canvas, size, mapData!);
     }
@@ -985,7 +985,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
   }
 
   void _drawSubtleGrid(Canvas canvas, Size size) {
-    // ✅ Very subtle grid lines
+    //  Very subtle grid lines
     final majorGridPaint = Paint()
       ..color = Colors.grey.withOpacity(0.15)
       ..strokeWidth = 0.5;
@@ -1024,10 +1024,10 @@ class ROSStyleLiveMapPainter extends CustomPainter {
         Offset(centerX, 0), Offset(centerX, size.height), axisPaint);
   }
 
-  // ✅ FIXED: ROS-style occupancy grid with NO cell skipping
+  //  FIXED: ROS-style occupancy grid with NO cell skipping
   void _drawROSStyleOccupancyGrid(Canvas canvas, Size size, MapData mapData) {
     if (mapData.occupancyData.isEmpty) {
-      print('⚠️ No occupancy data to render');
+      print('️ No occupancy data to render');
       return;
     }
 
@@ -1037,7 +1037,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
 
     final cellSize = resolution * _gridSpacing;
 
-    // ✅ ROS standard colors
+    //  ROS standard colors
     final rosColors = {
       'free': Color(0xFF00FFFF), // Cyan for free space (value 0)
       'unknown': Color(0xFF808080), // Grey for unknown space (value -1)
@@ -1049,7 +1049,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
 
     int renderedCells = 0;
 
-    // ✅ FIXED: Render ALL cells (no skipping y += 2, x += 2)
+    //  FIXED: Render ALL cells (no skipping y += 2, x += 2)
     for (int y = 0; y < info.height; y++) {
       for (int x = 0; x < info.width; x++) {
         final index = y * info.width + x;
@@ -1059,7 +1059,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
 
         Color cellColor;
 
-        // ✅ ROS-style color mapping
+        //  ROS-style color mapping
         if (value == -1) {
           cellColor = rosColors['unknown']!; // Grey for unknown
         } else if (value == 0) {
@@ -1084,7 +1084,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
           ..color = cellColor
           ..style = PaintingStyle.fill;
 
-        // ✅ Keep original coordinate system
+        //  Keep original coordinate system
         final screenX =
             size.width / 2 + (origin.x + x * resolution) * _gridSpacing;
         final screenY =
@@ -1099,17 +1099,17 @@ class ROSStyleLiveMapPainter extends CustomPainter {
       }
     }
 
-    print('🗺️ Rendered $renderedCells ROS-style occupancy cells');
+    print('️ Rendered $renderedCells ROS-style occupancy cells');
   }
 
-  // ✅ FIXED: ROS-style costmap with proper overlay colors
+  //  FIXED: ROS-style costmap with proper overlay colors
   void _drawROSStyleCostmap(Canvas canvas, Size size,
       Map<String, dynamic> costmap, Color baseColor, String type) {
     final info = costmap['info'];
     final data = costmap['data'] as List?;
 
     if (info == null || data == null) {
-      print('⚠️ No $type costmap data to render');
+      print('️ No $type costmap data to render');
       return;
     }
 
@@ -1119,7 +1119,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
     final origin = info['origin'];
 
     if (width == 0 || height == 0 || origin == null) {
-      print('⚠️ Invalid $type costmap dimensions or origin');
+      print('️ Invalid $type costmap dimensions or origin');
       return;
     }
 
@@ -1127,11 +1127,11 @@ class ROSStyleLiveMapPainter extends CustomPainter {
     final originY = origin['position']?['y'] as double? ?? 0.0;
 
     print(
-        '🏠 Rendering ROS-style $type costmap: ${width}x$height, resolution: $resolution, origin: ($originX, $originY)');
+        ' Rendering ROS-style $type costmap: ${width}x$height, resolution: $resolution, origin: ($originX, $originY)');
 
     final cellSize = resolution * _gridSpacing;
 
-    // ✅ ROS-style costmap colors
+    //  ROS-style costmap colors
     final rosCostmapColors = {
       'global': {
         'low': Color(0x3300FF00), // Light green
@@ -1151,7 +1151,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
 
     int renderedCells = 0;
 
-    // ✅ Render all costmap cells (no skipping)
+    //  Render all costmap cells (no skipping)
     for (int y = 0; y < height; y++) {
       for (int x = 0; x < width; x++) {
         final index = y * width + x;
@@ -1162,7 +1162,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
 
         Color cellColor;
 
-        // ✅ ROS costmap color mapping
+        //  ROS costmap color mapping
         if (value >= 100) {
           cellColor = colors['lethal']!; // Lethal obstacle (red)
         } else if (value >= 99) {
@@ -1180,7 +1180,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
           ..color = cellColor
           ..style = PaintingStyle.fill;
 
-        // ✅ Keep original coordinate system
+        //  Keep original coordinate system
         final screenX =
             size.width / 2 + (originX + x * resolution) * _gridSpacing;
         final screenY =
@@ -1195,7 +1195,7 @@ class ROSStyleLiveMapPainter extends CustomPainter {
       }
     }
 
-    print('🏠 Rendered $renderedCells ROS-style $type costmap cells');
+    print(' Rendered $renderedCells ROS-style $type costmap cells');
   }
 
   void _drawRobotTrail(Canvas canvas, Size size) {

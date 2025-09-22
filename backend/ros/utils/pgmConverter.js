@@ -48,11 +48,11 @@ class PGMConverter {
       // Write to file
       await fs.writeFile(outputPath, imageBuffer);
       
-      console.log(`✅ PGM file saved: ${outputPath}`);
+      console.log(` PGM file saved: ${outputPath}`);
       return true;
 
     } catch (error) {
-      console.error('❌ Error converting occupancy grid to PGM:', error);
+      console.error(' Error converting occupancy grid to PGM:', error);
       throw error;
     }
   }
@@ -100,7 +100,7 @@ class PGMConverter {
       const data = await fs.readFile(filePath);
       return this.parsePGM(data);
     } catch (error) {
-      console.error(`❌ Error reading PGM file ${filePath}:`, error);
+      console.error(` Error reading PGM file ${filePath}:`, error);
       throw error;
     }
   }
@@ -361,7 +361,7 @@ free_thresh: 0.196
       const yamlContent = this.generateMapYAML(mapData, imageName);
       await fs.writeFile(yamlPath, yamlContent, 'utf8');
 
-      console.log(`✅ Map package saved: ${basePath}.{pgm,yaml}`);
+      console.log(` Map package saved: ${basePath}.{pgm,yaml}`);
       
       return {
         pgm: pgmPath,
@@ -369,7 +369,7 @@ free_thresh: 0.196
       };
 
     } catch (error) {
-      console.error('❌ Error saving map package:', error);
+      console.error(' Error saving map package:', error);
       throw error;
     }
   }
@@ -398,11 +398,11 @@ free_thresh: 0.196
       
       const mapData = this.convertPGMToOccupancyGrid(pgmData, metadata.resolution, origin);
       
-      console.log(`✅ Map package loaded: ${yamlPath}`);
+      console.log(` Map package loaded: ${yamlPath}`);
       return mapData;
 
     } catch (error) {
-      console.error('❌ Error loading map package:', error);
+      console.error(' Error loading map package:', error);
       throw error;
     }
   }

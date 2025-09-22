@@ -41,9 +41,9 @@ global.robotTrails = {};
 // FIXED: Initialize ROS2ScriptManager with error handling
 try {
     global.ros2ScriptManager = new ROS2ScriptManager();
-    console.log('✅ ROS2ScriptManager initialized successfully');
+    console.log(' ROS2ScriptManager initialized successfully');
 } catch (error) {
-    console.error('❌ Failed to initialize ROS2ScriptManager:', error);
+    console.error(' Failed to initialize ROS2ScriptManager:', error);
     console.error('Stack trace:', error.stack);
     // Continue without ROS2ScriptManager if it fails
     global.ros2ScriptManager = null;
@@ -52,7 +52,7 @@ try {
 // Setup ROS2 Script Manager event handlers (only if initialized successfully)
 if (global.ros2ScriptManager) {
     global.ros2ScriptManager.on('slam_started', (data) => {
-        console.log('🗺️ SLAM started:', data);
+        console.log('️ SLAM started:', data);
         // Broadcast to WebSocket clients
         if (global.webSocketInstance) {
             global.webSocketInstance.broadcastToSubscribers('script_status', {
@@ -67,7 +67,7 @@ if (global.ros2ScriptManager) {
     });
 
     global.ros2ScriptManager.on('navigation_started', (data) => {
-        console.log('🚀 Navigation started:', data);
+        console.log(' Navigation started:', data);
         if (global.webSocketInstance) {
             global.webSocketInstance.broadcastToSubscribers('script_status', {
                 type: 'script_status_update',
@@ -81,7 +81,7 @@ if (global.ros2ScriptManager) {
     });
 
     global.ros2ScriptManager.on('robot_control_started', () => {
-        console.log('🤖 Robot control started');
+        console.log(' Robot control started');
         if (global.webSocketInstance) {
             global.webSocketInstance.broadcastToSubscribers('script_status', {
                 type: 'script_status_update',
@@ -97,7 +97,7 @@ if (global.ros2ScriptManager) {
     ['slam_stopped', 'navigation_stopped', 'robot_control_stopped'].forEach(event => {
         global.ros2ScriptManager.on(event, (code) => {
             const processName = event.replace('_stopped', '');
-            console.log(`🛑 ${processName} stopped with code:`, code);
+            console.log(` ${processName} stopped with code:`, code);
             if (global.webSocketInstance) {
                 global.webSocketInstance.broadcastToSubscribers('script_status', {
                     type: 'script_status_update',
@@ -148,24 +148,24 @@ app.use('/api/simple-orders', simpleCoordinateRoutes);
 
 // Request logging middleware
 app.use((req, res, next) => {
-    console.log(`📝 ${req.method} ${req.path} - ${req.ip || 'unknown'} - ${new Date().toISOString()}`);
+    console.log(` ${req.method} ${req.path} - ${req.ip || 'unknown'} - ${new Date().toISOString()}`);
     next();
 });
 
-// ✅ NEW: Add discovery routes
+//  NEW: Add discovery routes
 app.use('/api/discovery', discoveryRoutes);
 
 // Existing routes
 app.use('/api/control', controlRoutes);
 app.use('/api', mapRoutes);
 
-// ✅ NEW: Order management routes
+//  NEW: Order management routes
 app.use('/api/orders', orderRoutes);
 
-// ✅ NEW: Enhanced order execution routes with target_pose integration
+//  NEW: Enhanced order execution routes with target_pose integration
 app.use('/api/enhanced-orders', enhancedOrderExecutionRoutes);
 
-// ✅ NEW: Analytics routes
+//  NEW: Analytics routes
 app.use('/api/analytics', analyticsRoutes);
 
 // NEW: ROS2 Script Management API endpoints
@@ -185,7 +185,7 @@ app.get('/api/ros2/scripts/status', (req, res) => {
             ...status
         });
     } catch (error) {
-        console.error('❌ Error getting script status:', error);
+        console.error(' Error getting script status:', error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -233,7 +233,7 @@ app.post('/api/ros2/scripts/:scriptType/start', async (req, res) => {
         });
 
     } catch (error) {
-        console.error(`❌ Error starting ${req.params.scriptType}:`, error);
+        console.error(` Error starting ${req.params.scriptType}:`, error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -262,7 +262,7 @@ app.post('/api/ros2/scripts/:scriptType/stop', async (req, res) => {
         });
 
     } catch (error) {
-        console.error(`❌ Error stopping ${req.params.scriptType}:`, error);
+        console.error(` Error stopping ${req.params.scriptType}:`, error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -290,7 +290,7 @@ app.post('/api/ros2/scripts/stop-all', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error stopping all scripts:', error);
+        console.error(' Error stopping all scripts:', error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -318,7 +318,7 @@ app.post('/api/ros2/scripts/emergency-stop', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error during emergency stop:', error);
+        console.error(' Error during emergency stop:', error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -346,7 +346,7 @@ app.get('/api/ros2/pi/status', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error checking Pi status:', error);
+        console.error(' Error checking Pi status:', error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -355,7 +355,7 @@ app.get('/api/ros2/pi/status', async (req, res) => {
     }
 });
 
-// ✅ ENHANCED: Health check endpoint
+//  ENHANCED: Health check endpoint
 app.get('/health', (req, res) => {
     try {
         const rosStatus = rosConnection.getROS2Status();
@@ -391,7 +391,7 @@ app.get('/health', (req, res) => {
                     initialized: storageManager.initialized || false,
                     devicesCount: global.connectedDevices?.length || 0,
                     mapsCount: Object.keys(global.deviceMaps || {}).length,
-                    ordersCount: Object.values(global.deviceOrders || {}).flat().length // ✅ NEW: Order count
+                    ordersCount: Object.values(global.deviceOrders || {}).flat().length //  NEW: Order count
                 },
                 discovery: {
                     http: true,
@@ -403,7 +403,7 @@ app.get('/health', (req, res) => {
             version: '1.0.0'
         });
     } catch (error) {
-        console.error('❌ Health check error:', error);
+        console.error(' Health check error:', error);
         res.status(500).json({
             success: false,
             error: 'Health check failed',
@@ -412,7 +412,7 @@ app.get('/health', (req, res) => {
     }
 });
 
-// ✅ ENHANCED: Get all connected devices with order info
+//  ENHANCED: Get all connected devices with order info
 app.get('/api/devices', (req, res) => {
     try {
         const devices = global.connectedDevices.map(device => ({
@@ -431,11 +431,11 @@ app.get('/api/devices', (req, res) => {
             total: devices.length,
             connected: devices.filter(d => d.status === 'connected').length,
             mapping: devices.filter(d => d.mappingStatus?.active).length,
-            withActiveOrders: devices.filter(d => d.activeOrders > 0).length, // ✅ NEW
+            withActiveOrders: devices.filter(d => d.activeOrders > 0).length, //  NEW
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('❌ Error getting devices:', error);
+        console.error(' Error getting devices:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to get devices',
@@ -444,7 +444,7 @@ app.get('/api/devices', (req, res) => {
     }
 });
 
-// ✅ NEW: Get order statistics across all devices
+//  NEW: Get order statistics across all devices
 app.get('/api/orders/stats', async (req, res) => {
     try {
         const { timeRange = '7d' } = req.query;
@@ -497,7 +497,7 @@ app.get('/api/orders/stats', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error getting order stats:', error);
+        console.error(' Error getting order stats:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to get order statistics',
@@ -506,7 +506,7 @@ app.get('/api/orders/stats', async (req, res) => {
     }
 });
 
-// ✅ FIXED: System status endpoint (fixed syntax error)
+//  FIXED: System status endpoint (fixed syntax error)
 app.get('/api/system/status', async (req, res) => {
     try {
         const rosStatus = rosConnection.getROS2Status();
@@ -536,7 +536,7 @@ app.get('/api/system/status', async (req, res) => {
                     activeDevices: Object.values(global.deviceMappingStates || {}).filter(s => s.active).length,
                     totalMaps: Object.keys(global.deviceMaps || {}).length
                 },
-                orders: { // ✅ NEW: Order statistics
+                orders: { //  NEW: Order statistics
                     totalOrders: Object.values(global.deviceOrders || {}).flat().length,
                     activeOrders: Object.values(global.deviceOrders || {}).flat().filter(o => o.status === 'active').length,
                     pendingOrders: Object.values(global.deviceOrders || {}).flat().filter(o => o.status === 'pending').length,
@@ -551,7 +551,7 @@ app.get('/api/system/status', async (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('❌ Error getting system status:', error);
+        console.error(' Error getting system status:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to get system status',
@@ -560,7 +560,7 @@ app.get('/api/system/status', async (req, res) => {
     }
 });
 
-// ✅ NEW: ROS Debug and Recovery Endpoints
+//  NEW: ROS Debug and Recovery Endpoints
 app.get('/api/ros/status', (req, res) => {
     try {
         const rosStatus = rosConnection.getROS2Status();
@@ -587,10 +587,10 @@ app.get('/api/ros/status', (req, res) => {
     }
 });
 
-// ✅ NEW: Manual ROS recovery endpoint
+//  NEW: Manual ROS recovery endpoint
 app.post('/api/ros/recover', async (req, res) => {
     try {
-        console.log('🔄 Manual ROS recovery requested via API');
+        console.log(' Manual ROS recovery requested via API');
 
         const result = await rosConnection.recoverConnection();
 
@@ -610,7 +610,7 @@ app.post('/api/ros/recover', async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('❌ Error during manual ROS recovery:', error);
+        console.error(' Error during manual ROS recovery:', error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -619,7 +619,7 @@ app.post('/api/ros/recover', async (req, res) => {
     }
 });
 
-// ✅ NEW: Test ROS publishing endpoint
+//  NEW: Test ROS publishing endpoint
 app.post('/api/ros/test', async (req, res) => {
     try {
         const testResult = rosConnection.testConnection();
@@ -639,10 +639,10 @@ app.post('/api/ros/test', async (req, res) => {
     }
 });
 
-// ✅ NEW: Emergency stop endpoint
+//  NEW: Emergency stop endpoint
 app.post('/api/ros/emergency-stop', (req, res) => {
     try {
-        console.log('🛑 Emergency stop requested via API');
+        console.log(' Emergency stop requested via API');
 
         const result = rosConnection.emergencyStop();
 
@@ -653,7 +653,7 @@ app.post('/api/ros/emergency-stop', (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('❌ Error during emergency stop:', error);
+        console.error(' Error during emergency stop:', error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -662,7 +662,7 @@ app.post('/api/ros/emergency-stop', (req, res) => {
     }
 });
 
-// ✅ NEW: Update max speeds endpoint  
+//  NEW: Update max speeds endpoint  
 app.post('/api/ros/max-speeds', (req, res) => {
     try {
         const { maxLinearSpeed, maxAngularSpeed } = req.body;
@@ -684,7 +684,7 @@ app.post('/api/ros/max-speeds', (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('❌ Error updating max speeds:', error);
+        console.error(' Error updating max speeds:', error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -693,12 +693,12 @@ app.post('/api/ros/max-speeds', (req, res) => {
     }
 });
 
-// ✅ NEW: Manual joystick test endpoint
+//  NEW: Manual joystick test endpoint
 app.post('/api/ros/test-joystick', (req, res) => {
     try {
         const { x = 0, y = 0, deadman = false, maxLinearSpeed = 0.3, maxAngularSpeed = 0.8 } = req.body;
 
-        console.log(`🎮 Manual joystick test: x=${x}, y=${y}, deadman=${deadman}`);
+        console.log(` Manual joystick test: x=${x}, y=${y}, deadman=${deadman}`);
 
         const result = rosConnection.publishJoystick(x, y, deadman, maxLinearSpeed, maxAngularSpeed);
 
@@ -711,7 +711,7 @@ app.post('/api/ros/test-joystick', (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('❌ Error testing joystick:', error);
+        console.error(' Error testing joystick:', error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -720,7 +720,7 @@ app.post('/api/ros/test-joystick', (req, res) => {
     }
 });
 
-// ✅ NEW: ROS Health Monitor endpoints
+//  NEW: ROS Health Monitor endpoints
 app.get('/api/ros/monitor/status', (req, res) => {
     try {
         const monitorStatus = rosHealthMonitor.getMonitorStatus();
@@ -762,7 +762,7 @@ app.post('/api/ros/monitor/reset', (req, res) => {
 
 app.post('/api/ros/monitor/force-recovery', async (req, res) => {
     try {
-        console.log('🚑 Forced ROS recovery requested via API');
+        console.log(' Forced ROS recovery requested via API');
         await rosHealthMonitor.attemptRecovery();
 
         res.json({
@@ -780,7 +780,7 @@ app.post('/api/ros/monitor/force-recovery', async (req, res) => {
     }
 });
 
-// ✅ NEW: Quick connect endpoint for AMRs
+//  NEW: Quick connect endpoint for AMRs
 app.post('/api/connect', async (req, res) => {
     try {
         const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
@@ -804,7 +804,7 @@ app.post('/api/connect', async (req, res) => {
         try {
             await storageManager.saveDevice(connectedDeviceId);
         } catch (storageError) {
-            console.warn('⚠️ Could not save device to storage:', storageError.message);
+            console.warn('️ Could not save device to storage:', storageError.message);
         }
 
         res.json({
@@ -823,10 +823,10 @@ app.post('/api/connect', async (req, res) => {
             timestamp: new Date().toISOString()
         });
 
-        console.log(`✅ Quick-connected device: ${connectedDeviceId} from ${clientIP}`);
+        console.log(` Quick-connected device: ${connectedDeviceId} from ${clientIP}`);
 
     } catch (error) {
-        console.error('❌ Error quick-connecting device:', error);
+        console.error(' Error quick-connecting device:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to connect device',
@@ -837,7 +837,7 @@ app.post('/api/connect', async (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error('❌ Application error:', err);
+    console.error(' Application error:', err);
     res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -858,45 +858,45 @@ app.use((req, res) => {
 });
 
 async function initializeApplication() {
-    console.log('🚀 Initializing AMR Fleet Management System...');
+    console.log(' Initializing AMR Fleet Management System...');
 
     try {
         // 1. Initialize storage manager
-        console.log('📂 Initializing storage manager...');
+        console.log(' Initializing storage manager...');
         try {
             await storageManager.initialize();
-            console.log('✅ Storage manager initialized');
+            console.log(' Storage manager initialized');
         } catch (storageError) {
-            console.warn('⚠️ Storage manager initialization failed:', storageError.message);
+            console.warn('️ Storage manager initialization failed:', storageError.message);
         }
 
         // 2. Initialize ROS2 connection
-        console.log('🤖 Initializing ROS2 connection...');
+        console.log(' Initializing ROS2 connection...');
         await rosConnection.initializeROS();
-        console.log('✅ ROS2 connection established');
+        console.log(' ROS2 connection established');
 
-        // ✅ NEW: Initialize ROS health monitor
-        console.log('🔍 Starting ROS health monitor...');
+        //  NEW: Initialize ROS health monitor
+        console.log(' Starting ROS health monitor...');
         rosHealthMonitor.initializeMonitor(rosConnection);
-        console.log('✅ ROS health monitor started');
+        console.log(' ROS health monitor started');
 
         // 3. Test ROS2 connectivity
-        console.log('🔍 Testing ROS2 connectivity...');
+        console.log(' Testing ROS2 connectivity...');
         const connectivityTest = await rosConnection.testConnection();
-        console.log(`📊 ROS2 connectivity: ${connectivityTest.requiredTopicsFound?.length || 0} required topics found`);
+        console.log(` ROS2 connectivity: ${connectivityTest.requiredTopicsFound?.length || 0} required topics found`);
 
         // 4. Initialize WebSocket server
-        console.log('🔌 Initializing WebSocket server...');
+        console.log(' Initializing WebSocket server...');
         initializeWebSocketServer(server);
-        console.log('✅ WebSocket server initialized');
+        console.log(' WebSocket server initialized');
 
         // 5. Initialize UDP discovery server
-        console.log('📡 Initializing UDP discovery...');
+        console.log(' Initializing UDP discovery...');
         const udpServer = initializeUDPDiscovery();
         if (udpServer) {
-            console.log('✅ UDP discovery server started');
+            console.log(' UDP discovery server started');
         } else {
-            console.warn('⚠️ UDP discovery server failed to start');
+            console.warn('️ UDP discovery server failed to start');
         }
 
         // Store WebSocket instance globally for message handler
@@ -908,7 +908,7 @@ async function initializeApplication() {
         // 6. Auto-connect default AMR if not already connected
         setTimeout(async () => {
             if (global.connectedDevices.length === 0) {
-                console.log('🔍 No devices found, attempting auto-connection...');
+                console.log(' No devices found, attempting auto-connection...');
                 try {
                     const deviceInfo = {
                         id: 'piros', // Changed to match your device name
@@ -924,21 +924,21 @@ async function initializeApplication() {
                     try {
                         await storageManager.saveDevice('piros');
                     } catch (saveError) {
-                        console.warn('⚠️ Could not save auto-connected device:', saveError.message);
+                        console.warn('️ Could not save auto-connected device:', saveError.message);
                     }
 
-                    console.log('✅ Default AMR auto-connected');
+                    console.log(' Default AMR auto-connected');
                 } catch (error) {
-                    console.warn('⚠️ Could not auto-connect default AMR:', error.message);
+                    console.warn('️ Could not auto-connect default AMR:', error.message);
                 }
             }
         }, 3000);
 
-        console.log('✅ AMR Fleet Management System initialized successfully');
+        console.log(' AMR Fleet Management System initialized successfully');
         return true;
 
     } catch (error) {
-        console.error('❌ Failed to initialize application:', error);
+        console.error(' Failed to initialize application:', error);
         throw error;
     }
 }
@@ -952,37 +952,37 @@ async function startServer() {
                 require('./routes/discoveryRoutes').getServerInfo() :
                 { ip: config.SERVER.HOST, port: config.SERVER.PORT };
 
-            console.log(`\n🎉 AMR Fleet Backend Server Started`);
-            console.log(`📍 Server: http://${serverInfo.ip}:${serverInfo.port}`);
-            console.log(`🔌 WebSocket: ws://${serverInfo.ip}:${serverInfo.port}`);
-            console.log(`🗂️ Health Check: http://${serverInfo.ip}:${serverInfo.port}/health`);
-            console.log(`🎮 Control API: http://${serverInfo.ip}:${serverInfo.port}/api/control`);
-            console.log(`🔍 Discovery API: http://${serverInfo.ip}:${serverInfo.port}/api/discovery`);
-            console.log(`🔧 ROS Debug API: http://${serverInfo.ip}:${serverInfo.port}/api/ros/*`);
-            console.log(`📋 Order Management API: http://${serverInfo.ip}:${serverInfo.port}/api/orders/*`); // ✅ NEW
-            console.log(`📊 Analytics API: http://${serverInfo.ip}:${serverInfo.port}/api/analytics`); // ✅ NEW
-            console.log(`📡 UDP Discovery: Port ${config.NETWORK.DISCOVERY.PORT}`);
-            console.log(`\n📊 System Status:`);
-            console.log(`   - Storage: ✅ Ready`);
-            console.log(`   - WebSocket: ✅ Ready`);
-            console.log(`   - Device Discovery: ✅ Ready`);
-            console.log(`   - ROS Health Monitor: ✅ Active`);
-            console.log(`   - Order Management: ✅ Ready`); // ✅ NEW
-            console.log('✅ Map and PGM conversion routes added');
+            console.log(`\n AMR Fleet Backend Server Started`);
+            console.log(` Server: http://${serverInfo.ip}:${serverInfo.port}`);
+            console.log(` WebSocket: ws://${serverInfo.ip}:${serverInfo.port}`);
+            console.log(`️ Health Check: http://${serverInfo.ip}:${serverInfo.port}/health`);
+            console.log(` Control API: http://${serverInfo.ip}:${serverInfo.port}/api/control`);
+            console.log(` Discovery API: http://${serverInfo.ip}:${serverInfo.port}/api/discovery`);
+            console.log(` ROS Debug API: http://${serverInfo.ip}:${serverInfo.port}/api/ros/*`);
+            console.log(` Order Management API: http://${serverInfo.ip}:${serverInfo.port}/api/orders/*`); //  NEW
+            console.log(` Analytics API: http://${serverInfo.ip}:${serverInfo.port}/api/analytics`); //  NEW
+            console.log(` UDP Discovery: Port ${config.NETWORK.DISCOVERY.PORT}`);
+            console.log(`\n System Status:`);
+            console.log(`   - Storage:  Ready`);
+            console.log(`   - WebSocket:  Ready`);
+            console.log(`   - Device Discovery:  Ready`);
+            console.log(`   - ROS Health Monitor:  Active`);
+            console.log(`   - Order Management:  Ready`); //  NEW
+            console.log(' Map and PGM conversion routes added');
             console.log(`   - Connected Devices: ${global.connectedDevices.length}`);
-            console.log(`\n🤖 Ready for AMR connections!\n`);
+            console.log(`\n Ready for AMR connections!\n`);
 
             // Test ROS2 publishing capability
             setTimeout(async () => {
                 try {
                     const publisherTest = require('./ros/utils/publishers').testPublishing();
                     if (publisherTest.success) {
-                        console.log('✅ ROS2 publishing test successful');
+                        console.log(' ROS2 publishing test successful');
                     } else {
-                        console.warn('⚠️ ROS2 publishing test failed:', publisherTest.error);
+                        console.warn('️ ROS2 publishing test failed:', publisherTest.error);
                     }
                 } catch (testError) {
-                    console.warn('⚠️ Could not test ROS2 publishing:', testError.message);
+                    console.warn('️ Could not test ROS2 publishing:', testError.message);
                 }
             }, 2000);
 
@@ -991,18 +991,18 @@ async function startServer() {
                 try {
                     const subscriberTest = require('./ros/utils/subscribers').testSubscribing();
                     if (subscriberTest.success) {
-                        console.log('✅ ROS2 subscribing test successful');
+                        console.log(' ROS2 subscribing test successful');
                     } else {
-                        console.warn('⚠️ ROS2 subscribing test failed:', subscriberTest.error);
+                        console.warn('️ ROS2 subscribing test failed:', subscriberTest.error);
                     }
                 } catch (testError) {
-                    console.warn('⚠️ Could not test ROS2 subscribing:', testError.message);
+                    console.warn('️ Could not test ROS2 subscribing:', testError.message);
                 }
             }, 2500);
         });
 
     } catch (error) {
-        console.error('💥 Failed to start server:', error);
+        console.error(' Failed to start server:', error);
         process.exit(1);
     }
 }
@@ -1012,53 +1012,53 @@ process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 
 async function gracefulShutdown(signal) {
-    console.log(`\n📴 Received ${signal}, starting graceful shutdown...`);
+    console.log(`\n Received ${signal}, starting graceful shutdown...`);
 
     try {
-        // ✅ NEW: Stop health monitoring first
-        console.log('🔍 Stopping ROS health monitor...');
+        //  NEW: Stop health monitoring first
+        console.log(' Stopping ROS health monitor...');
         rosHealthMonitor.cleanup();
 
         // Cleanup ROS2 Script Manager
         if (global.ros2ScriptManager) {
-            console.log('🤖 Cleaning up ROS2 Script Manager...');
+            console.log(' Cleaning up ROS2 Script Manager...');
             await global.ros2ScriptManager.cleanup();
         }
 
         // Stop accepting new connections
         server.close(() => {
-            console.log('🔌 HTTP server closed');
+            console.log(' HTTP server closed');
         });
 
         // Cleanup ROS2 connection
         await rosConnection.shutdown();
-        console.log('🤖 ROS2 connection closed');
+        console.log(' ROS2 connection closed');
 
         // Cleanup storage
         try {
             await storageManager.cleanup();
-            console.log('💾 Storage manager cleaned up');
+            console.log(' Storage manager cleaned up');
         } catch (e) {
-            console.warn('⚠️ Storage cleanup warning:', e.message);
+            console.warn('️ Storage cleanup warning:', e.message);
         }
 
-        console.log('✅ Graceful shutdown completed');
+        console.log(' Graceful shutdown completed');
         process.exit(0);
 
     } catch (error) {
-        console.error('❌ Error during shutdown:', error);
+        console.error(' Error during shutdown:', error);
         process.exit(1);
     }
 }
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-    console.error('💥 Uncaught Exception:', error);
+    console.error(' Uncaught Exception:', error);
     gracefulShutdown('UNCAUGHT_EXCEPTION');
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+    console.error(' Unhandled Rejection at:', promise, 'reason:', reason);
     gracefulShutdown('UNHANDLED_REJECTION');
 });
 

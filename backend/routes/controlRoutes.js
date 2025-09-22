@@ -70,7 +70,7 @@ router.get('/devices', (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error getting devices:', error);
+        console.error(' Error getting devices:', error);
         res.status(500).json({ error: 'Failed to get devices' });
     }
 });
@@ -124,10 +124,10 @@ router.post('/devices/connect', async (req, res) => {
             device: deviceInfo
         });
 
-        console.log(`✅ Device ${deviceId} connected via API`);
+        console.log(` Device ${deviceId} connected via API`);
 
     } catch (error) {
-        console.error('❌ Error connecting device:', error);
+        console.error(' Error connecting device:', error);
         res.status(500).json({
             error: 'Failed to connect device',
             details: error.message
@@ -153,7 +153,7 @@ router.get('/devices/:deviceId/orders', validateDevice, (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('❌ Error getting orders:', error);
+        console.error(' Error getting orders:', error);
         res.status(500).json({ error: 'Failed to get orders' });
     }
 });
@@ -197,7 +197,7 @@ router.post('/devices/:deviceId/orders', validateDevice, async (req, res) => {
             global.deviceOrders[req.deviceId] = [];
         }
         global.deviceOrders[req.deviceId].push(newOrder);
-        try { await storageManager.saveOrder(req.deviceId, orderId); } catch (storageError) { console.warn('⚠️ Failed to save order to storage:', storageError); }
+        try { await storageManager.saveOrder(req.deviceId, orderId); } catch (storageError) { console.warn('️ Failed to save order to storage:', storageError); }
         broadcastToSubscribers('order_events', {
             type: 'order_created',
             deviceId: req.deviceId,
@@ -215,9 +215,9 @@ router.post('/devices/:deviceId/orders', validateDevice, async (req, res) => {
                 position: wp.position
             }))
         });
-        console.log(`📋 Order created: ${newOrder.name} for device ${req.deviceId} (${waypoints.length} waypoints)`);
+        console.log(` Order created: ${newOrder.name} for device ${req.deviceId} (${waypoints.length} waypoints)`);
     } catch (error) {
-        console.error('❌ Error creating order:', error);
+        console.error(' Error creating order:', error);
         res.status(500).json({ error: 'Failed to create order', details: error.message });
     }
 });
@@ -236,7 +236,7 @@ router.get('/devices/:deviceId/orders/:orderId', validateDevice, validateOrder, 
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('❌ Error getting order:', error);
+        console.error(' Error getting order:', error);
         res.status(500).json({ error: 'Failed to get order' });
     }
 });
@@ -281,7 +281,7 @@ router.put('/orders/:orderId/status', validateOrder, async (req, res) => {
         if (!orderFound) {
             return res.status(404).json({ error: 'Order not found' });
         }
-        try { await storageManager.saveOrder(deviceId, req.orderId); } catch (storageError) { console.warn('⚠️ Failed to save order status to storage:', storageError); }
+        try { await storageManager.saveOrder(deviceId, req.orderId); } catch (storageError) { console.warn('️ Failed to save order status to storage:', storageError); }
         broadcastToSubscribers('order_events', {
             type: 'order_status_changed',
             deviceId: deviceId,
@@ -297,9 +297,9 @@ router.put('/orders/:orderId/status', validateOrder, async (req, res) => {
             status: status,
             order: updatedOrder
         });
-        console.log(`📋 Order ${req.orderId} status updated to: ${status}`);
+        console.log(` Order ${req.orderId} status updated to: ${status}`);
     } catch (error) {
-        console.error('❌ Error updating order status:', error);
+        console.error(' Error updating order status:', error);
         res.status(500).json({ error: 'Failed to update order status', details: error.message });
     }
 });
@@ -345,7 +345,7 @@ router.post('/devices/:deviceId/orders/:orderId/execute', validateDevice, valida
                     currentWaypoint: firstWaypoint,
                     goalResult: goalResult
                 });
-                console.log(`🚀 Order ${req.orderId} execution started - first waypoint: ${firstWaypoint.name}`);
+                console.log(` Order ${req.orderId} execution started - first waypoint: ${firstWaypoint.name}`);
             } else {
                 res.status(500).json({
                     error: 'Failed to send waypoint to AMR',
@@ -353,14 +353,14 @@ router.post('/devices/:deviceId/orders/:orderId/execute', validateDevice, valida
                 });
             }
         } catch (rosError) {
-            console.error('❌ ROS error during order execution:', rosError);
+            console.error(' ROS error during order execution:', rosError);
             res.status(500).json({
                 error: 'Failed to communicate with AMR',
                 details: rosError.message
             });
         }
     } catch (error) {
-        console.error('❌ Error executing order:', error);
+        console.error(' Error executing order:', error);
         res.status(500).json({ error: 'Failed to execute order', details: error.message });
     }
 });
@@ -394,7 +394,7 @@ router.post('/devices/:deviceId/orders/:orderId/pause', validateDevice, validate
         });
         console.log(`⏸️ Order ${req.orderId} paused`);
     } catch (error) {
-        console.error('❌ Error pausing order:', error);
+        console.error(' Error pausing order:', error);
         res.status(500).json({ error: 'Failed to pause order', details: error.message });
     }
 });
@@ -423,9 +423,9 @@ router.delete('/devices/:deviceId/orders/:orderId', validateDevice, validateOrde
             message: 'Order deleted successfully',
             orderId: req.orderId
         });
-        console.log(`🗑️ Order ${req.orderId} deleted`);
+        console.log(`️ Order ${req.orderId} deleted`);
     } catch (error) {
-        console.error('❌ Error deleting order:', error);
+        console.error(' Error deleting order:', error);
         res.status(500).json({ error: 'Failed to delete order', details: error.message });
     }
 });
@@ -465,7 +465,7 @@ router.get('/orders', (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('❌ Error getting all orders:', error);
+        console.error(' Error getting all orders:', error);
         res.status(500).json({ error: 'Failed to get orders' });
     }
 });
@@ -511,7 +511,7 @@ router.get('/devices/:deviceId/map/stations', validateDevice, (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('❌ Error getting map stations:', error);
+        console.error(' Error getting map stations:', error);
         res.status(500).json({ error: 'Failed to get map stations' });
     }
 });
@@ -553,9 +553,9 @@ router.post('/devices/:deviceId/connect', async (req, res) => {
             device: device,
             message: 'Device connected/registered successfully'
         });
-        console.log(`✅ Device ${deviceId} connected/registered from ${ipAddress}`);
+        console.log(` Device ${deviceId} connected/registered from ${ipAddress}`);
     } catch (error) {
-        console.error('❌ Error connecting device:', error);
+        console.error(' Error connecting device:', error);
         res.status(500).json({ error: 'Failed to connect device' });
     }
 });
@@ -582,7 +582,7 @@ router.get('/devices/:deviceId/status', validateDevice, (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error getting device status:', error);
+        console.error(' Error getting device status:', error);
         res.status(500).json({ error: 'Failed to get device status' });
     }
 });
@@ -618,7 +618,7 @@ router.post('/devices/:deviceId/joystick', validateDevice, (req, res) => {
         res.json(result);
 
     } catch (error) {
-        console.error('❌ Error processing joystick command:', error);
+        console.error(' Error processing joystick command:', error);
         res.status(500).json({
             error: 'Failed to process joystick command',
             details: error.message
@@ -649,7 +649,7 @@ router.post('/devices/:deviceId/velocity', validateDevice, (req, res) => {
         res.json(result);
 
     } catch (error) {
-        console.error('❌ Error processing velocity command:', error);
+        console.error(' Error processing velocity command:', error);
         res.status(500).json({
             error: 'Failed to process velocity command',
             details: error.message
@@ -670,12 +670,12 @@ router.post('/devices/:deviceId/emergency-stop', validateDevice, (req, res) => {
             timestamp: new Date().toISOString()
         });
 
-        console.log(`🛑 Emergency stop activated for device ${req.deviceId}`);
+        console.log(` Emergency stop activated for device ${req.deviceId}`);
 
         res.json(result);
 
     } catch (error) {
-        console.error('❌ Error processing emergency stop:', error);
+        console.error(' Error processing emergency stop:', error);
         res.status(500).json({
             error: 'Failed to process emergency stop',
             details: error.message
@@ -698,12 +698,12 @@ router.post('/devices/:deviceId/mapping/start', validateDevice, (req, res) => {
             timestamp: new Date().toISOString()
         });
 
-        console.log(`🗺️ Mapping started for device ${req.deviceId}`);
+        console.log(`️ Mapping started for device ${req.deviceId}`);
 
         res.json(result);
 
     } catch (error) {
-        console.error('❌ Error starting mapping:', error);
+        console.error(' Error starting mapping:', error);
         res.status(500).json({
             error: 'Failed to start mapping',
             details: error.message
@@ -724,12 +724,12 @@ router.post('/devices/:deviceId/mapping/stop', validateDevice, (req, res) => {
             timestamp: new Date().toISOString()
         });
 
-        console.log(`🛑 Mapping stopped for device ${req.deviceId}`);
+        console.log(` Mapping stopped for device ${req.deviceId}`);
 
         res.json(result);
 
     } catch (error) {
-        console.error('❌ Error stopping mapping:', error);
+        console.error(' Error stopping mapping:', error);
         res.status(500).json({
             error: 'Failed to stop mapping',
             details: error.message
@@ -753,7 +753,7 @@ router.get('/devices/:deviceId/mapping/status', validateDevice, (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error getting mapping status:', error);
+        console.error(' Error getting mapping status:', error);
         res.status(500).json({ error: 'Failed to get mapping status' });
     }
 });
@@ -781,12 +781,12 @@ router.post('/devices/:deviceId/goal', validateDevice, (req, res) => {
             timestamp: new Date().toISOString()
         });
 
-        console.log(`🎯 Goal set for device ${req.deviceId}: (${x}, ${y})`);
+        console.log(` Goal set for device ${req.deviceId}: (${x}, ${y})`);
 
         res.json(result);
 
     } catch (error) {
-        console.error('❌ Error setting goal:', error);
+        console.error(' Error setting goal:', error);
         res.status(500).json({
             error: 'Failed to set goal',
             details: error.message
@@ -848,10 +848,10 @@ router.post('/devices/:deviceId/map/save', validateDevice, async (req, res) => {
             mapData: mapData
         });
 
-        console.log(`💾 Map saved for device ${req.deviceId}: ${mapData.name}`);
+        console.log(` Map saved for device ${req.deviceId}: ${mapData.name}`);
 
     } catch (error) {
-        console.error('❌ Error saving map:', error);
+        console.error(' Error saving map:', error);
         res.status(500).json({
             error: 'Failed to save map',
             details: error.message
@@ -903,10 +903,10 @@ router.post('/devices/:deviceId/map/data', validateDevice, async (req, res) => {
             mapData: enhancedMapData
         });
 
-        console.log(`💾 Map data saved, published, and exported for device: ${req.deviceId}`);
+        console.log(` Map data saved, published, and exported for device: ${req.deviceId}`);
 
     } catch (error) {
-        console.error('❌ Error saving map data:', error);
+        console.error(' Error saving map data:', error);
         res.status(500).json({
             error: 'Failed to save map data',
             details: error.message
@@ -939,7 +939,7 @@ router.post('/devices/:deviceId/move', validateDevice, (req, res) => {
         res.json(result);
 
     } catch (error) {
-        console.error('❌ Error processing move command:', error);
+        console.error(' Error processing move command:', error);
         res.status(500).json({
             error: 'Failed to process move command',
             details: error.message
@@ -972,9 +972,9 @@ router.post('/devices/:deviceId/disconnect', (req, res) => {
             success: true,
             message: `Device ${deviceId} disconnected and removed`
         });
-        console.log(`🗑️ Device ${deviceId} disconnected and removed`);
+        console.log(`️ Device ${deviceId} disconnected and removed`);
     } catch (error) {
-        console.error('❌ Error disconnecting device:', error);
+        console.error(' Error disconnecting device:', error);
         res.status(500).json({ error: 'Failed to disconnect device' });
     }
 });
@@ -998,7 +998,7 @@ router.get('/test-connection', (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error in connection test:', error);
+        console.error(' Error in connection test:', error);
         res.status(500).json({
             error: 'Connection test failed',
             details: error.message
@@ -1023,10 +1023,10 @@ router.post('/user/theme', (req, res) => {
             timestamp: new Date().toISOString()
         });
 
-        console.log(`🎨 Theme updated: ${isDarkMode ? 'dark' : 'light'} mode`);
+        console.log(` Theme updated: ${isDarkMode ? 'dark' : 'light'} mode`);
 
     } catch (error) {
-        console.error('❌ Error updating theme:', error);
+        console.error(' Error updating theme:', error);
         res.status(500).json({
             error: 'Failed to update theme',
             details: error.message
@@ -1068,10 +1068,10 @@ router.post('/devices/:deviceId/map/export-pgm', validateDevice, async (req, res
             timestamp: new Date().toISOString()
         });
 
-        console.log(`📁 Map exported for ${req.deviceId}: ${basePath}.{pgm,yaml}`);
+        console.log(` Map exported for ${req.deviceId}: ${basePath}.{pgm,yaml}`);
 
     } catch (error) {
-        console.error('❌ Error exporting map:', error);
+        console.error(' Error exporting map:', error);
         res.status(500).json({
             error: 'Failed to export map',
             details: error.message
@@ -1109,7 +1109,7 @@ router.post('/devices/:deviceId/map/upload-to-AMR', validateDevice, async (req, 
         console.log(`⬆️ Map uploaded to AMR for device ${req.deviceId}: ${mapData.name}`);
 
     } catch (error) {
-        console.error('❌ Error uploading map to AMR:', error);
+        console.error(' Error uploading map to AMR:', error);
         res.status(500).json({
             error: 'Failed to upload map to AMR',
             details: error.message
@@ -1125,7 +1125,7 @@ router.post('/devices/:deviceId/map/upload-to-AMR', validateDevice, async (req, 
 // Start robot control script
 router.post('/devices/:deviceId/scripts/start-robot', validateDevice, async (req, res) => {
     try {
-        console.log(`🤖 Starting robot control for device: ${req.deviceId}`);
+        console.log(` Starting robot control for device: ${req.deviceId}`);
         
         // Get ROS2 script manager instance
         const scriptManager = global.ros2ScriptManager || new (require('../ros/utils/ros2ScriptManager'))();
@@ -1150,7 +1150,7 @@ router.post('/devices/:deviceId/scripts/start-robot', validateDevice, async (req
         });
         
     } catch (error) {
-        console.error('❌ Error starting robot control:', error);
+        console.error(' Error starting robot control:', error);
         
         // Broadcast error status
         broadcastToSubscribers('script_status', {
@@ -1174,7 +1174,7 @@ router.post('/devices/:deviceId/scripts/start-robot', validateDevice, async (req
 router.post('/devices/:deviceId/scripts/start-slam', validateDevice, async (req, res) => {
     try {
         const { mapName, useSimTime } = req.body;
-        console.log(`🗺️ Starting SLAM for device: ${req.deviceId}`);
+        console.log(`️ Starting SLAM for device: ${req.deviceId}`);
         
         const scriptManager = global.ros2ScriptManager || new (require('../ros/utils/ros2ScriptManager'))();
         
@@ -1205,7 +1205,7 @@ router.post('/devices/:deviceId/scripts/start-slam', validateDevice, async (req,
         });
         
     } catch (error) {
-        console.error('❌ Error starting SLAM:', error);
+        console.error(' Error starting SLAM:', error);
         
         broadcastToSubscribers('script_status', {
             type: 'script_status_update',
@@ -1228,7 +1228,7 @@ router.post('/devices/:deviceId/scripts/start-slam', validateDevice, async (req,
 router.post('/devices/:deviceId/scripts/stop/:scriptType', validateDevice, async (req, res) => {
     try {
         const { scriptType } = req.params;
-        console.log(`🛑 Stopping ${scriptType} for device: ${req.deviceId}`);
+        console.log(` Stopping ${scriptType} for device: ${req.deviceId}`);
         
         const scriptManager = global.ros2ScriptManager || new (require('../ros/utils/ros2ScriptManager'))();
         
@@ -1257,7 +1257,7 @@ router.post('/devices/:deviceId/scripts/stop/:scriptType', validateDevice, async
         });
         
     } catch (error) {
-        console.error(`❌ Error stopping ${req.params.scriptType}:`, error);
+        console.error(` Error stopping ${req.params.scriptType}:`, error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -1280,7 +1280,7 @@ router.get('/devices/:deviceId/scripts/status', validateDevice, async (req, res)
         });
         
     } catch (error) {
-        console.error('❌ Error getting script status:', error);
+        console.error(' Error getting script status:', error);
         res.status(500).json({
             success: false,
             error: error.message,

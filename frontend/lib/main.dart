@@ -17,19 +17,28 @@ import 'services/api_service.dart';
 
 // Configuration constants - Update these for your setup
 class AppConfig {
-  // Your AMR backend server configuration
-  static const String DEFAULT_SERVER_IP =
-      '192.168.128.79'; // Updated to actual backend IP where backend is running
-  static const int DEFAULT_SERVER_PORT = 3000; // Backend port
-  static const int AMR_SSH_PORT = 22; // AMR SSH port (mentioned by user)
+  // CHANGE: Replace local IP with your live backend
+  static const String LIVE_BACKEND_URL =
+      'https://fleetos-backend-frp4.onrender.com';
 
-  // Constructed URLs
-  static String get serverUrl =>
-      'http://$DEFAULT_SERVER_IP:$DEFAULT_SERVER_PORT';
-  static String get websocketUrl =>
-      'ws://$DEFAULT_SERVER_IP:$DEFAULT_SERVER_PORT';
+  // CHANGE: Add mode switching
+  static const bool USE_LIVE_BACKEND = true; // Set to true for live backend
 
-  // Timeouts and retries
+  // Keep local for development (if needed)
+  static const String LOCAL_SERVER_IP = '192.168.128.79';
+  static const int LOCAL_SERVER_PORT = 3000;
+
+  // CHANGE: Dynamic URL based on mode
+  static String get serverUrl => USE_LIVE_BACKEND
+      ? LIVE_BACKEND_URL
+      : 'http://$LOCAL_SERVER_IP:$LOCAL_SERVER_PORT';
+
+  static String get websocketUrl => USE_LIVE_BACKEND
+      ? LIVE_BACKEND_URL.replaceAll('https://', 'wss://')
+      : 'ws://$LOCAL_SERVER_IP:$LOCAL_SERVER_PORT';
+
+  // Rest stays the same
+  static const int AMR_SSH_PORT = 22;
   static const Duration connectionTimeout = Duration(seconds: 15);
   static const Duration apiTimeout = Duration(seconds: 10);
   static const int maxRetryAttempts = 3;
@@ -38,31 +47,35 @@ class AppConfig {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  print('🚀 Starting AMR Fleet Management App...');
-  print('📡 Server: ${AppConfig.serverUrl}');
-  print('🔌 WebSocket: ${AppConfig.websocketUrl}');
-  print('🔧 AMR SSH Port: ${AppConfig.AMR_SSH_PORT}');
-  print('🌐 Backend health check: ${AppConfig.serverUrl}/health');
+  print(' Starting AMR Fleet Management App...');
+  print(' Server: ${AppConfig.serverUrl}');
+  print(' WebSocket: ${AppConfig.websocketUrl}');
+  print(
+      ' Mode: ${AppConfig.USE_LIVE_BACKEND ? "LIVE BACKEND" : "LOCAL BACKEND"}');
+  print(' Backend health check: ${AppConfig.serverUrl}/health');
 
   // Initialize theme service
   final themeService = ThemeService();
   await themeService.loadTheme();
 
-  // Initialize API service with configuration
-  print('🔧 Initializing API Service with URL: ${AppConfig.serverUrl}');
-  ApiService().initialize(AppConfig.serverUrl);
-
-  // Force WebSocket service to use correct URL
-  print(
-      '🔧 Initializing WebSocket Service with URL: ${AppConfig.websocketUrl}');
-
-  // Test backend connection
-  try {
-    final connectionTest = await ApiService().testConnection();
+  // CHANGE: Use the connectToLiveBackend method instead
+  if (AppConfig.USE_LIVE_BACKEND) {
+    print(' Connecting to live backend...');
+    final connected = await ApiService().connectToLiveBackend();
     print(
-        '🔗 Backend connection test: ${connectionTest ? "✅ SUCCESS" : "❌ FAILED"}');
-  } catch (e) {
-    print('❌ Backend connection error: $e');
+        ' Live backend connection: ${connected ? " SUCCESS" : " FAILED"}');
+  } else {
+    // Local backend initialization
+    print(' Initializing local API Service...');
+    ApiService().initialize(AppConfig.serverUrl);
+
+    try {
+      final connectionTest = await ApiService().testConnection();
+      print(
+          ' Local backend connection: ${connectionTest ? " SUCCESS" : " FAILED"}');
+    } catch (e) {
+      print(' Local backend connection error: $e');
+    }
   }
 
   runApp(
@@ -198,16 +211,16 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
         });
 
         print(
-            '🔧 Connection attempt $_retryAttempts/${AppConfig.maxRetryAttempts}');
+            ' Connection attempt $_retryAttempts/${AppConfig.maxRetryAttempts}');
 
         // Test API connection first
-        print('📡 Testing API connection to ${_apiService.baseUrl}...');
+        print(' Testing API connection to ${_apiService.baseUrl}...');
         final apiHealthy = await _apiService
             .testConnection()
             .timeout(AppConfig.connectionTimeout);
 
         if (apiHealthy) {
-          print('✅ API connection successful');
+          print(' API connection successful');
           setState(() {
             _isConnectedToServer = true;
             _connectionStatus = 'API connected, initializing WebSocket...';
@@ -215,7 +228,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
 
           // Initialize WebSocket connection
           print(
-              '🔌 Connecting WebSocket to ${_apiService.getWebSocketUrl()}...');
+              ' Connecting WebSocket to ${_apiService.getWebSocketUrl()}...');
           final wsConnected = await _webSocketService
               .connect(_apiService.getWebSocketUrl() ?? '');
 
@@ -227,11 +240,11 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
           });
 
           if (wsConnected) {
-            print('✅ WebSocket connected successfully');
+            print(' WebSocket connected successfully');
             _subscribeToConnectionState();
             _tryAutoConnectAMR();
           } else {
-            print('⚠️ WebSocket connection failed, but API is available');
+            print('️ WebSocket connection failed, but API is available');
             _showWebSocketWarning();
           }
 
@@ -240,7 +253,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
           throw Exception('API health check failed');
         }
       } catch (e) {
-        print('❌ Connection attempt $_retryAttempts failed: $e');
+        print(' Connection attempt $_retryAttempts failed: $e');
 
         if (_retryAttempts < AppConfig.maxRetryAttempts) {
           setState(() {
@@ -248,7 +261,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
           });
           await Future.delayed(Duration(seconds: 3));
         } else {
-          print('❌ All connection attempts failed');
+          print(' All connection attempts failed');
           setState(() {
             _isConnectedToServer = false;
             _isWebSocketConnected = false;
@@ -262,16 +275,23 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
   }
 
   void _tryAutoConnectAMR() async {
+    // CHANGE: Skip auto-connect for live backend
+    if (AppConfig.USE_LIVE_BACKEND) {
+      print(' Live backend mode - skipping local AMR auto-connect');
+      _showSuccessSnackBar('Connected to live backend');
+      return;
+    }
+
+    // Keep existing local logic
     try {
-      print('🤖 Attempting to auto-connect AMR...');
+      print(' Attempting to auto-connect AMR...');
       final result = await _apiService.autoConnectAMR();
       if (result['success'] == true) {
-        print('✅ AMR auto-connected: ${result['deviceId']}');
+        print(' AMR auto-connected: ${result['deviceId']}');
         _showSuccessSnackBar('AMR connected successfully');
       }
     } catch (e) {
-      print('⚠️ AMR auto-connect failed: $e');
-      // Don't show error - this is optional
+      print('️ AMR auto-connect failed: $e');
     }
   }
 
@@ -695,8 +715,8 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
               SizedBox(height: 16),
               Text('Current Configuration:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
-              Text('• AMR IP: ${AppConfig.DEFAULT_SERVER_IP}'),
-              Text('• Backend Port: ${AppConfig.DEFAULT_SERVER_PORT}'),
+              // Text('• AMR IP: ${AppConfig.DEFAULT_SERVER_IP}'),
+              // Text('• Backend Port: ${AppConfig.DEFAULT_SERVER_PORT}'),
               Text('• SSH Port: ${AppConfig.AMR_SSH_PORT}'),
               SizedBox(height: 16),
               Text('Quick Start:',
@@ -711,7 +731,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
                   style: TextStyle(fontWeight: FontWeight.bold)),
               Text('• Check AMR backend: curl ${AppConfig.serverUrl}/health'),
               Text('• Verify ROS2 topics: ros2 topic list'),
-              Text('• Test SSH: ssh user@${AppConfig.DEFAULT_SERVER_IP}'),
+              // Text('• Test SSH: ssh user@${AppConfig.DEFAULT_SERVER_IP}'),
               SizedBox(height: 16),
               Text('For technical support:',
                   style: TextStyle(fontWeight: FontWeight.bold)),

@@ -1,47 +1,47 @@
-# 🎨 PGM Map Editor - GIMP-like Map Editing Guide
+#  PGM Map Editor - GIMP-like Map Editing Guide
 
-## 📱 Overview
+##  Overview
 The PGM Map Editor provides a professional GIMP-like interface for visually editing ROS2 navigation maps. Edit maps with precision using familiar tools, then deploy directly to your Raspberry Pi robots.
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### 1. Access the Editor
 1. Open the AMR Fleet Management app
 2. Navigate to **Maps** tab
 3. Select **PGM Editor** tab (4th tab)
 4. You'll see the GIMP-like interface with:
-   - 🔧 **Toolbar** (top)
-   - 🎨 **Tool Panel** (left)
-   - 🖼️ **Canvas** (center)
-   - ⚙️ **Properties Panel** (right)
+   -  **Toolbar** (top)
+   -  **Tool Panel** (left)
+   - ️ **Canvas** (center)
+   - ️ **Properties Panel** (right)
 
 ### 2. Load a Map
 ```
-📂 Load Map → Select from:
+ Load Map → Select from:
 • Existing JSON maps (converts to PGM)
 • Previously saved PGM files
 • Create new blank map
 ```
 
-## 🛠️ Editing Tools
+## ️ Editing Tools
 
 ### Primary Tools
 | Tool | Icon | Function | Usage |
 |------|------|----------|-------|
-| **Brush** | 🖌️ | Paint free space | Click/drag to mark areas as navigable |
-| **Eraser** | 🧽 | Remove obstacles | Click/drag to clear obstacles |
-| **Line** | 📏 | Draw straight paths | Click start → drag → click end |
+| **Brush** | ️ | Paint free space | Click/drag to mark areas as navigable |
+| **Eraser** |  | Remove obstacles | Click/drag to clear obstacles |
+| **Line** |  | Draw straight paths | Click start → drag → click end |
 | **Rectangle** | ⬜ | Create room outlines | Click corner → drag → release |
-| **Flood Fill** | 🪣 | Fill enclosed areas | Click to fill connected region |
+| **Flood Fill** |  | Fill enclosed areas | Click to fill connected region |
 
 ### Advanced Tools
-- **Zoom** 🔍: Mouse wheel or toolbar buttons
-- **Pan** ✋: Right-click drag or middle mouse
+- **Zoom** : Mouse wheel or toolbar buttons
+- **Pan** : Right-click drag or middle mouse
 - **Undo/Redo** ↩️↪️: Ctrl+Z / Ctrl+Y
-- **Grid Toggle** 📐: Show/hide alignment grid
-- **Layers** 📄: Manage map layers
+- **Grid Toggle** : Show/hide alignment grid
+- **Layers** : Manage map layers
 
-## 🎯 Brush Settings
+##  Brush Settings
 
 ### Brush Size
 ```
@@ -55,21 +55,21 @@ Large:  ●●● (9-15 pixels) - Quick coverage
 - **Obstacles** (0): Black - walls, furniture, no-go zones
 - **Unknown** (128): Gray - unexplored areas
 
-## 🔄 Workflow Example
+##  Workflow Example
 
 ### Editing a Warehouse Map
 ```
-1. 📂 Load → Select "warehouse_scan.json"
-2. 🖌️ Brush → Paint clear pathways
-3. 🧽 Eraser → Remove false obstacles from doorways  
+1.  Load → Select "warehouse_scan.json"
+2. ️ Brush → Paint clear pathways
+3.  Eraser → Remove false obstacles from doorways  
 4. ⬜ Rectangle → Define no-go zones around equipment
-5. 📏 Line → Mark preferred robot routes
-6. 🪣 Flood Fill → Mark large open areas
-7. 💾 Save → "warehouse_edited.pgm"
-8. 🚀 Deploy → Send to Robot "AMR-001"
+5.  Line → Mark preferred robot routes
+6.  Flood Fill → Mark large open areas
+7.  Save → "warehouse_edited.pgm"
+8.  Deploy → Send to Robot "AMR-001"
 ```
 
-## 💾 Save & Deploy Options
+##  Save & Deploy Options
 
 ### Save Formats
 - **PGM + YAML**: Standard ROS2 navigation format
@@ -78,7 +78,7 @@ Large:  ●●● (9-15 pixels) - Quick coverage
 
 ### Deployment
 ```
-🤖 Deploy to Robot:
+ Deploy to Robot:
 1. Select target robot from dropdown
 2. Choose deployment options:
    • Replace current map
@@ -88,7 +88,7 @@ Large:  ●●● (9-15 pixels) - Quick coverage
 4. Monitor deployment status
 ```
 
-## ⚡ Keyboard Shortcuts
+##  Keyboard Shortcuts
 
 | Action | Shortcut | Description |
 |--------|----------|-------------|
@@ -105,7 +105,7 @@ Large:  ●●● (9-15 pixels) - Quick coverage
 | Save | `Ctrl+S` | Quick save |
 | Grid Toggle | `G` | Show/hide grid |
 
-## 🎨 Advanced Editing Tips
+##  Advanced Editing Tips
 
 ### Precision Editing
 - Use **Grid** for pixel-perfect alignment
@@ -121,15 +121,15 @@ Large:  ●●● (9-15 pixels) - Quick coverage
 
 ### Professional Workflow
 ```
-1. 🔍 Zoom out → Plan overall changes
-2. 🎯 Mark problem areas → Note what needs fixing
-3. 🖌️ Rough editing → Block out major changes
-4. 🔍 Zoom in → Refine details
-5. 👀 Quality check → Verify navigation paths
-6. 💾 Save versions → Keep backup copies
+1.  Zoom out → Plan overall changes
+2.  Mark problem areas → Note what needs fixing
+3. ️ Rough editing → Block out major changes
+4.  Zoom in → Refine details
+5.  Quality check → Verify navigation paths
+6.  Save versions → Keep backup copies
 ```
 
-## 🔧 Troubleshooting
+##  Troubleshooting
 
 ### Common Issues
 | Problem | Solution |
@@ -146,17 +146,17 @@ Large:  ●●● (9-15 pixels) - Quick coverage
 - **Use smaller brush** for better responsiveness
 - **Reduce zoom** if editing becomes laggy
 
-## 📊 Map Quality Guidelines
+##  Map Quality Guidelines
 
 ### Navigation Requirements
-✅ **Good Map Characteristics:**
+ **Good Map Characteristics:**
 - Clear pathways (white) between rooms
 - Accurate wall boundaries (black)
 - Consistent obstacle marking
 - Proper door representations
 - No isolated free spaces
 
-❌ **Avoid:**
+ **Avoid:**
 - Thin passages (< robot width)
 - Floating obstacles  
 - Inconsistent wall thickness
@@ -170,7 +170,7 @@ Large:  ●●● (9-15 pixels) - Quick coverage
 - [ ] Map resolution is appropriate for robot size
 - [ ] Origin point is correctly positioned
 
-## 🚀 Deployment Best Practices
+##  Deployment Best Practices
 
 ### Pre-Deployment
 1. **Test locally** with path planning
@@ -184,16 +184,16 @@ Large:  ●●● (9-15 pixels) - Quick coverage
 3. **Fine-tune** if needed based on performance
 4. **Document changes** for team reference
 
-## 📞 Support
+##  Support
 
 Need help? Check:
-- 📖 **Documentation**: Full API reference  
-- 🐛 **Issues**: Report bugs and feature requests
-- 💬 **Community**: Join our Discord for help
-- 📧 **Support**: team@AMR-fleet.com
+-  **Documentation**: Full API reference  
+-  **Issues**: Report bugs and feature requests
+-  **Community**: Join our Discord for help
+-  **Support**: team@AMR-fleet.com
 
 ---
 
-**Happy Mapping! 🗺️✨**
+**Happy Mapping! ️**
 
 *Transform your robot navigation with professional map editing tools.*

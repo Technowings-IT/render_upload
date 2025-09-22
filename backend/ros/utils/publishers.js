@@ -12,7 +12,7 @@ let currentMaxSpeeds = {
     angular: 2.0
 };
 
-// ✅ ADD: Active goal tracking at the top of the file
+//  ADD: Active goal tracking at the top of the file
 let activeGoals = new Map(); // goalId -> goal info
 let goalCounter = 0;
 
@@ -20,48 +20,48 @@ let goalCounter = 0;
 function initializePublishers(node) {
     rosNode = node;
     isInitialized = true;
-    console.log('✅ Publishers initialized with ROS node');
+    console.log(' Publishers initialized with ROS node');
     
     // Pre-create essential publishers for better performance
     createEssentialPublishers();
 }
 
-// ✅ NEW: Update max speeds from UI
+//  NEW: Update max speeds from UI
 function updateMaxSpeeds(maxLinearSpeed, maxAngularSpeed) {
     currentMaxSpeeds.linear = Math.max(0.1, Math.min(2.0, maxLinearSpeed));
     currentMaxSpeeds.angular = Math.max(0.1, Math.min(3.0, maxAngularSpeed));
     
-    console.log(`🎯 Updated max speeds: Linear=${currentMaxSpeeds.linear} m/s, Angular=${currentMaxSpeeds.angular} rad/s`);
+    console.log(` Updated max speeds: Linear=${currentMaxSpeeds.linear} m/s, Angular=${currentMaxSpeeds.angular} rad/s`);
     
     return currentMaxSpeeds;
 }
 
 
-// ✅ NEW: Get current max speeds
+//  NEW: Get current max speeds
 function getCurrentMaxSpeeds() {
     return { ...currentMaxSpeeds };
 }
 
-// ✅ FIXED: Pre-create publishers for immediate use
+//  FIXED: Pre-create publishers for immediate use
 function createEssentialPublishers() {
     try {
         // Create cmd_vel_joystick publisher immediately for joystick control
         getOrCreatePublisher('/cmd_vel_joystick', 'geometry_msgs/msg/Twist');
         
-        // ✅ CRITICAL: Create target_pose publisher for navigation orders
+        //  CRITICAL: Create target_pose publisher for navigation orders
         getOrCreatePublisher('/target_pose', 'geometry_msgs/msg/Twist');
         
-        // ✅ NEW: Create additional navigation publishers
+        //  NEW: Create additional navigation publishers
         getOrCreatePublisher('/move_base_simple/goal', 'geometry_msgs/msg/PoseStamped');
         getOrCreatePublisher('/navigate_to_pose/_action/send_goal', 'nav2_msgs/action/NavigateToPose');
         
-        // ✅ NEW: Create cancel goal publisher
+        //  NEW: Create cancel goal publisher
         getOrCreatePublisher('/navigate_to_pose/_action/cancel_goal', 'action_msgs/msg/CancelGoal');
         
-        console.log('✅ Essential publishers created including target_pose and navigation topics');
+        console.log(' Essential publishers created including target_pose and navigation topics');
         
     } catch (error) {
-        console.error('❌ Error creating essential publishers:', error);
+        console.error(' Error creating essential publishers:', error);
     }
 }
 
@@ -86,10 +86,10 @@ function getOrCreatePublisher(topicName, messageType) {
                 messageCount: 0
             };
             
-            console.log(`📤 Created publisher for topic: ${topicName} (${messageType})`);
+            console.log(` Created publisher for topic: ${topicName} (${messageType})`);
             
         } catch (error) {
-            console.error(`❌ Failed to create publisher for ${topicName}:`, error);
+            console.error(` Failed to create publisher for ${topicName}:`, error);
             throw error;
         }
     }
@@ -97,7 +97,7 @@ function getOrCreatePublisher(topicName, messageType) {
 }
 
 /**
- * ✅ FIXED: Enhanced velocity publishing with safety limits and validation
+ *  FIXED: Enhanced velocity publishing with safety limits and validation
  */
 function publishVelocity(linear = 0, angular = 0) {
     try {
@@ -140,7 +140,7 @@ function publishVelocity(linear = 0, angular = 0) {
         
         // Log every few messages to avoid spam
         if (publishers['/cmd_vel_joystick'].messageCount % 10 === 0 || Math.abs(clampedLinear) > 0.1 || Math.abs(clampedAngular) > 0.1) {
-            console.log(`🚗 Published velocity [${publishers['/cmd_vel_joystick'].messageCount}]: linear=${clampedLinear.toFixed(3)}, angular=${clampedAngular.toFixed(3)}`);
+            console.log(` Published velocity [${publishers['/cmd_vel_joystick'].messageCount}]: linear=${clampedLinear.toFixed(3)}, angular=${clampedAngular.toFixed(3)}`);
         }
         
         return {
@@ -155,7 +155,7 @@ function publishVelocity(linear = 0, angular = 0) {
         };
         
     } catch (error) {
-        console.error('❌ Failed to publish velocity:', error);
+        console.error(' Failed to publish velocity:', error);
         return {
             success: false,
             error: error.message,
@@ -165,7 +165,7 @@ function publishVelocity(linear = 0, angular = 0) {
 }
 
 /**
- * ✅ FIXED: Enhanced joystick publishing with proper normalized value handling
+ *  FIXED: Enhanced joystick publishing with proper normalized value handling
  */
 function publishJoystick(normalizedX, normalizedY, deadman = false, maxLinearSpeed = null, maxAngularSpeed = null) {
     try {
@@ -187,13 +187,13 @@ function publishJoystick(normalizedX, normalizedY, deadman = false, maxLinearSpe
         const processedX = Math.abs(normalizedX) < deadzone ? 0 : normalizedX;
         const processedY = Math.abs(normalizedY) < deadzone ? 0 : normalizedY;
 
-        // ✅ CRITICAL FIX: Convert normalized values to actual velocities
+        //  CRITICAL FIX: Convert normalized values to actual velocities
         // normalizedY comes as linear (forward/backward)
         // normalizedX comes as angular (left/right) 
         const actualLinear = processedY * maxLinear;
         const actualAngular = -processedX * maxAngular; // Negative for correct rotation direction
 
-        console.log(`🎮 Joystick: normalized(${normalizedX.toFixed(3)}, ${normalizedY.toFixed(3)}) → actual(${actualLinear.toFixed(3)}, ${actualAngular.toFixed(3)}) | max(${maxLinear}, ${maxAngular}) | deadman=${deadman}`);
+        console.log(` Joystick: normalized(${normalizedX.toFixed(3)}, ${normalizedY.toFixed(3)}) → actual(${actualLinear.toFixed(3)}, ${actualAngular.toFixed(3)}) | max(${maxLinear}, ${maxAngular}) | deadman=${deadman}`);
 
         const result = publishVelocity(actualLinear, actualAngular);
 
@@ -214,7 +214,7 @@ function publishJoystick(normalizedX, normalizedY, deadman = false, maxLinearSpe
         return result;
 
     } catch (error) {
-        console.error('❌ Failed to publish joystick command:', error);
+        console.error(' Failed to publish joystick command:', error);
         return {
             success: false,
             error: error.message,
@@ -224,7 +224,7 @@ function publishJoystick(normalizedX, normalizedY, deadman = false, maxLinearSpe
 }
 
 /**
- * ✅ ENHANCED: Goal publishing with Twist message for /target_pose
+ *  ENHANCED: Goal publishing with Twist message for /target_pose
  */
 function publishGoalWithId(x, y, orientation = 0, goalId = null) {
     try {
@@ -232,7 +232,7 @@ function publishGoalWithId(x, y, orientation = 0, goalId = null) {
             throw new Error('Publishers not initialized');
         }
         
-        // ✅ NEW: Validate coordinates
+        //  NEW: Validate coordinates
         if (!isFinite(x) || !isFinite(y) || !isFinite(orientation)) {
             throw new Error(`Invalid coordinates: x=${x}, y=${y}, orientation=${orientation}`);
         }
@@ -241,10 +241,10 @@ function publishGoalWithId(x, y, orientation = 0, goalId = null) {
         
         const now = new Date();
         
-        // ✅ ENHANCED: Generate goal ID with counter
+        //  ENHANCED: Generate goal ID with counter
         const finalGoalId = goalId || `goal_${Date.now()}_${++goalCounter}`;
         
-        // ✅ CUSTOM: Create Twist message with x, y, and angular velocity for target_pose
+        //  CUSTOM: Create Twist message with x, y, and angular velocity for target_pose
         // Since your ROS code expects Twist, we'll encode position in linear and orientation in angular
         const goalMsg = {
             linear: { 
@@ -265,7 +265,7 @@ function publishGoalWithId(x, y, orientation = 0, goalId = null) {
             publishers['/target_pose'].messageCount++;
         }
         
-        // ✅ NEW: Store active goal for tracking
+        //  NEW: Store active goal for tracking
         activeGoals.set(finalGoalId, {
             goalId: finalGoalId,
             x: parseFloat(x),
@@ -275,7 +275,7 @@ function publishGoalWithId(x, y, orientation = 0, goalId = null) {
             status: 'sent'
         });
         
-        console.log(`🎯 Published goal to /target_pose [${publishers['/target_pose']?.messageCount || 1}]:`);
+        console.log(` Published goal to /target_pose [${publishers['/target_pose']?.messageCount || 1}]:`);
         console.log(`   Goal ID: ${finalGoalId}`);
         console.log(`   Position: x=${x}m, y=${y}m, orientation=${orientation}rad (${(orientation * 180 / Math.PI).toFixed(1)}°)`);
         console.log(`   Message Type: geometry_msgs/msg/Twist`);
@@ -293,7 +293,7 @@ function publishGoalWithId(x, y, orientation = 0, goalId = null) {
         };
         
     } catch (error) {
-        console.error('❌ Failed to publish goal to target_pose:', error);
+        console.error(' Failed to publish goal to target_pose:', error);
         return { 
             success: false, 
             error: error.message,
@@ -304,7 +304,7 @@ function publishGoalWithId(x, y, orientation = 0, goalId = null) {
 }
 
 /**
- * ✅ NEW: Publish to move_base_simple/goal as alternative
+ *  NEW: Publish to move_base_simple/goal as alternative
  */
 function publishMoveBaseGoal(x, y, orientation = 0) {
     try {
@@ -348,7 +348,7 @@ function publishMoveBaseGoal(x, y, orientation = 0) {
             publishers['/move_base_simple/goal'].messageCount++;
         }
         
-        console.log(`🎯 Published goal to /move_base_simple/goal: (${x}, ${y}) @ ${orientation}rad`);
+        console.log(` Published goal to /move_base_simple/goal: (${x}, ${y}) @ ${orientation}rad`);
         
         return {
             success: true,
@@ -361,7 +361,7 @@ function publishMoveBaseGoal(x, y, orientation = 0) {
         };
         
     } catch (error) {
-        console.error('❌ Failed to publish move_base goal:', error);
+        console.error(' Failed to publish move_base goal:', error);
         return {
             success: false,
             error: error.message,
@@ -372,7 +372,7 @@ function publishMoveBaseGoal(x, y, orientation = 0) {
 }
 
 /**
- * ✅ ENHANCED: Updated cancelCurrentGoal with better error handling
+ *  ENHANCED: Updated cancelCurrentGoal with better error handling
  */
 function cancelCurrentGoal() {
     try {
@@ -400,10 +400,10 @@ function cancelCurrentGoal() {
             
             cancelPublisher.publish(cancelMsg);
             cancelResults.push({ method: 'action_cancel', success: true });
-            console.log('🛑 Published navigation goal cancellation to action topic');
+            console.log(' Published navigation goal cancellation to action topic');
             
         } catch (cancelError) {
-            console.warn('⚠️ Could not publish to cancel topic:', cancelError.message);
+            console.warn('️ Could not publish to cancel topic:', cancelError.message);
             cancelResults.push({ method: 'action_cancel', success: false, error: cancelError.message });
         }
         
@@ -415,20 +415,20 @@ function cancelCurrentGoal() {
             cancelResults.push({ method: 'emergency_stop', success: false, error: emergencyError.message });
         }
         
-        // ✅ NEW: Clear active goals
+        //  NEW: Clear active goals
         const clearedGoals = activeGoals.size;
         activeGoals.clear();
         
         return {
             success: true,
             message: 'Navigation goal cancellation attempted',
-            methods: cancelResults, // ✅ ENHANCED
-            clearedGoals: clearedGoals, // ✅ NEW
+            methods: cancelResults, //  ENHANCED
+            clearedGoals: clearedGoals, //  NEW
             timestamp: new Date().toISOString()
         };
         
     } catch (error) {
-        console.error('❌ Failed to cancel navigation goal:', error);
+        console.error(' Failed to cancel navigation goal:', error);
         return {
             success: false,
             error: error.message,
@@ -438,30 +438,30 @@ function cancelCurrentGoal() {
 }
 
 /**
- * ✅ ENHANCED: Updated getNavigationStatus with more details
+ *  ENHANCED: Updated getNavigationStatus with more details
  */
 function getNavigationStatus() {
     try {
         const stats = getPublisherStats();
         const targetPoseStats = stats.publishers['/target_pose'];
-        const moveBaseStats = stats.publishers['/move_base_simple/goal']; // ✅ NEW
+        const moveBaseStats = stats.publishers['/move_base_simple/goal']; //  NEW
         
         return {
             success: true,
             isInitialized: isInitialized,
-            publishers: { // ✅ ENHANCED
+            publishers: { //  ENHANCED
                 target_pose: {
                     available: !!targetPoseStats,
                     messageCount: targetPoseStats?.messageCount || 0,
                     createdAt: targetPoseStats?.createdAt
                 },
-                move_base: { // ✅ NEW
+                move_base: { //  NEW
                     available: !!moveBaseStats,
                     messageCount: moveBaseStats?.messageCount || 0,
                     createdAt: moveBaseStats?.createdAt
                 }
             },
-            activeGoals: { // ✅ NEW
+            activeGoals: { //  NEW
                 count: activeGoals.size,
                 goals: Array.from(activeGoals.values())
             },
@@ -469,7 +469,7 @@ function getNavigationStatus() {
         };
         
     } catch (error) {
-        console.error('❌ Error getting navigation status:', error);
+        console.error(' Error getting navigation status:', error);
         return {
             success: false,
             error: error.message,
@@ -479,14 +479,14 @@ function getNavigationStatus() {
 }
 
 /**
- * ✅ ENHANCED: Updated emergencyStop with additional safety measures
+ *  ENHANCED: Updated emergencyStop with additional safety measures
  */
 function emergencyStop() {
     try {
         const result = publishVelocity(0.0, 0.0);
-        console.log('🛑 EMERGENCY STOP ACTIVATED - All motion halted');
+        console.log(' EMERGENCY STOP ACTIVATED - All motion halted');
         
-        // ✅ NEW: Also try to publish to cmd_vel (standard topic)
+        //  NEW: Also try to publish to cmd_vel (standard topic)
         try {
             const cmdVelPublisher = getOrCreatePublisher('/cmd_vel', 'geometry_msgs/msg/Twist');
             const stopMsg = {
@@ -495,18 +495,18 @@ function emergencyStop() {
             };
             cmdVelPublisher.publish(stopMsg);
         } catch (cmdVelError) {
-            console.warn('⚠️ Could not publish to /cmd_vel:', cmdVelError.message);
+            console.warn('️ Could not publish to /cmd_vel:', cmdVelError.message);
         }
         
         return {
             ...result,
             type: 'emergency_stop',
             message: 'Emergency stop activated - all motion halted',
-            allTopics: ['/cmd_vel_joystick', '/cmd_vel'] // ✅ NEW
+            allTopics: ['/cmd_vel_joystick', '/cmd_vel'] //  NEW
         };
         
     } catch (error) {
-        console.error('❌ Emergency stop failed:', error);
+        console.error(' Emergency stop failed:', error);
         return {
             success: false,
             error: error.message,
@@ -516,14 +516,14 @@ function emergencyStop() {
 }
 
 /**
- * ✅ ENHANCED: Updated getPublisherStats with active goals info
+ *  ENHANCED: Updated getPublisherStats with active goals info
  */
 function getPublisherStats() {
     const stats = {
         totalPublishers: Object.keys(publishers).length,
         isInitialized: isInitialized,
         currentMaxSpeeds: getCurrentMaxSpeeds(),
-        activeGoals: activeGoals.size, // ✅ NEW
+        activeGoals: activeGoals.size, //  NEW
         publishers: {}
     };
     
@@ -539,7 +539,7 @@ function getPublisherStats() {
 }
 
 /**
- * ✅ ENHANCED: Updated testPublishing with target_pose test
+ *  ENHANCED: Updated testPublishing with target_pose test
  */
 function testPublishing() {
     try {
@@ -550,7 +550,7 @@ function testPublishing() {
         // Test cmd_vel_joystick publishing
         const velResult = publishVelocity(0.0, 0.0);
         
-        // ✅ NEW: Test target_pose publishing (origin)
+        //  NEW: Test target_pose publishing (origin)
         const goalResult = publishGoalWithId(0.0, 0.0, 0.0, `test_${Date.now()}`);
         
         return {
@@ -558,11 +558,11 @@ function testPublishing() {
             message: 'Publishing test completed',
             tests: {
                 velocity: velResult.success,
-                targetPose: goalResult.success, // ✅ NEW
+                targetPose: goalResult.success, //  NEW
                 publishersCreated: Object.keys(publishers).length,
                 availableTopics: Object.keys(publishers),
                 currentMaxSpeeds: getCurrentMaxSpeeds(),
-                activeGoals: activeGoals.size // ✅ NEW
+                activeGoals: activeGoals.size //  NEW
             },
             timestamp: new Date().toISOString()
         };
@@ -577,25 +577,25 @@ function testPublishing() {
 }
 
 /**
- * ✅ ENHANCED: Updated cleanup with active goals cleanup
+ *  ENHANCED: Updated cleanup with active goals cleanup
  */
 function cleanup() {
     Object.entries(publishers).forEach(([topicName, info]) => {
         try {
             info.publisher.destroy();
         } catch (e) {
-            console.warn(`⚠️ Error destroying publisher ${topicName}:`, e.message);
+            console.warn(`️ Error destroying publisher ${topicName}:`, e.message);
         }
     });
     publishers = {};
-    activeGoals.clear(); // ✅ NEW
+    activeGoals.clear(); //  NEW
     isInitialized = false;
-    goalCounter = 0; // ✅ NEW
-    console.log('🧹 Publishers cleaned up');
+    goalCounter = 0; //  NEW
+    console.log(' Publishers cleaned up');
 }
 
 /**
- * ✅ NEW: Goal management functions
+ *  NEW: Goal management functions
  */
 function getActiveGoals() {
     return Array.from(activeGoals.values());
@@ -608,22 +608,22 @@ function clearActiveGoals() {
 }
 
 /**
- * ✅ COMPATIBILITY: Legacy publishGoal function wrapper
+ *  COMPATIBILITY: Legacy publishGoal function wrapper
  */
 function publishGoal(x, y, orientation = 0) {
     return publishGoalWithId(x, y, orientation);
 }
 
-// ✅ ENHANCED: Updated module exports
+//  ENHANCED: Updated module exports
 module.exports = {
     initializePublishers,
     updateMaxSpeeds,      
     getCurrentMaxSpeeds,  
     publishVelocity,
     publishJoystick,
-    publishGoal,                    // ✅ FIXED: Legacy compatibility
-    publishGoalWithId,              // ✅ Main goal publishing function
-    publishMoveBaseGoal,            // ✅ NEW: Alternative goal publishing
+    publishGoal,                    //  FIXED: Legacy compatibility
+    publishGoalWithId,              //  Main goal publishing function
+    publishMoveBaseGoal,            //  NEW: Alternative goal publishing
     cancelCurrentGoal,      
     getNavigationStatus,     
     // startMapping,
@@ -633,7 +633,7 @@ module.exports = {
     testPublishing,
     cleanup,
     
-    // ✅ NEW: Goal management functions
+    //  NEW: Goal management functions
     getActiveGoals,
     clearActiveGoals
 };

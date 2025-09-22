@@ -33,12 +33,12 @@ enum MapLayer {
 
 // Location point types
 enum LocationPointType {
-  pickup('Pickup Point', '📦', Colors.green),
-  drop('Drop Point', '📍', Colors.blue),
-  home('Home Position', '🏠', Colors.orange),
-  charging('Charging Station', '🔋', Colors.yellow),
-  waypoint('Waypoint', '📌', Colors.purple),
-  obstacle('Obstacle', '🚫', Colors.red);
+  pickup('Pickup Point', '', Colors.green),
+  drop('Drop Point', '', Colors.blue),
+  home('Home Position', '', Colors.orange),
+  charging('Charging Station', '', Colors.yellow),
+  waypoint('Waypoint', '', Colors.purple),
+  obstacle('Obstacle', '', Colors.red);
 
   const LocationPointType(this.displayName, this.icon, this.color);
   final String displayName;
@@ -1855,7 +1855,7 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
 
     final size = renderBox.size;
     print(
-        '🗺️ Fitting map to screen. Canvas size: ${size.width}x${size.height}');
+        '️ Fitting map to screen. Canvas size: ${size.width}x${size.height}');
 
     // Add some padding to prevent the map from touching the edges
     final padding = 40.0;
@@ -1878,7 +1878,7 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
       _panOffset = Offset(centerX, centerY);
 
       print(
-          '🎯 Map centered at offset: (${centerX.toStringAsFixed(1)}, ${centerY.toStringAsFixed(1)}) with scale: ${_scale.toStringAsFixed(2)}');
+          ' Map centered at offset: (${centerX.toStringAsFixed(1)}, ${centerY.toStringAsFixed(1)}) with scale: ${_scale.toStringAsFixed(2)}');
     });
   }
 
@@ -1889,7 +1889,7 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
     if (renderBox == null) return;
 
     final size = renderBox.size;
-    print('🎯 Centering map. Canvas size: ${size.width}x${size.height}');
+    print(' Centering map. Canvas size: ${size.width}x${size.height}');
 
     setState(() {
       // Center the map in the viewport without changing scale
@@ -1902,7 +1902,7 @@ class _EnhancedPGMMapEditorState extends State<EnhancedPGMMapEditor> {
       _panOffset = Offset(centerX, centerY);
 
       print(
-          '📍 Map recentered at offset: (${centerX.toStringAsFixed(1)}, ${centerY.toStringAsFixed(1)})');
+          ' Map recentered at offset: (${centerX.toStringAsFixed(1)}, ${centerY.toStringAsFixed(1)})');
     });
   }
 

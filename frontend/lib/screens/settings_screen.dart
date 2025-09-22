@@ -958,7 +958,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(
-            28), // ✅ Fixed: Use rounded rectangle instead of circle
+            28), //  Fixed: Use rounded rectangle instead of circle
         gradient: theme.primaryGradient,
         boxShadow: theme.neonGlow,
       ),

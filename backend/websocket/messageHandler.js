@@ -22,7 +22,7 @@ class EnhancedMessageHandler {
     // Initialize ROS2 manager on demand
     initializeROS2Manager() {
         if (!this.ros2Manager) {
-            console.log('🔧 Initializing ROS2 Script Manager...');
+            console.log(' Initializing ROS2 Script Manager...');
             this.ros2Manager = new ROS2ScriptManager();
             this.setupROS2EventHandlers();
         }
@@ -113,8 +113,8 @@ class EnhancedMessageHandler {
             const commandId = this.generateCommandId();
             
             // Debug logging
-            console.log(`📨 Received message type: "${parsedMessage.type}"`);
-            console.log(`📋 Message details:`, {
+            console.log(` Received message type: "${parsedMessage.type}"`);
+            console.log(` Message details:`, {
                 type: parsedMessage.type,
                 deviceId: parsedMessage.deviceId,
                 command: parsedMessage.command,
@@ -250,8 +250,8 @@ class EnhancedMessageHandler {
                     break;
                     
                 default:
-                    console.log(`❓ Unknown message type: "${parsedMessage.type}"`);
-                    console.log('📋 Available handlers:', [
+                    console.log(` Unknown message type: "${parsedMessage.type}"`);
+                    console.log(' Available handlers:', [
                         'script_command', 'get_script_status', 'start_slam', 'start_navigation',
                         'stop_ros2_process', 'emergency_stop', 'get_ros2_status', 'restart_ros2_process',
                         'upload_map', 'convert_map', 'deploy_map', 'create_order', 'get_orders',
@@ -263,8 +263,8 @@ class EnhancedMessageHandler {
             }
             
         } catch (error) {
-            console.error('❌ Message handling error:', error);
-            console.error('📋 Error stack:', error.stack);
+            console.error(' Message handling error:', error);
+            console.error(' Error stack:', error.stack);
             this.sendErrorResponse(ws, error.message, commandId);
         }
     }
@@ -274,7 +274,7 @@ class EnhancedMessageHandler {
     // ==========================================
     async handleScriptCommand(ws, message, commandId) {
         try {
-            console.log(`🤖 Processing script command:`, {
+            console.log(` Processing script command:`, {
                 commandId,
                 type: message.type,
                 deviceId: message.deviceId,
@@ -325,7 +325,7 @@ class EnhancedMessageHandler {
                             this.broadcastScriptStatus(deviceId, scriptType, 'stopped', `${scriptType} stopped`);
                         });
                         break;
-                    // ✅ NEW: Handle execute_script command status broadcasts
+                    //  NEW: Handle execute_script command status broadcasts
                     case 'execute_script':
                         const scriptName = options.script_name;
                         if (scriptName === 'nav2.sh') {
@@ -342,7 +342,7 @@ class EnhancedMessageHandler {
                 }
                 
             } catch (error) {
-                console.error('❌ Script command failed:', error);
+                console.error(' Script command failed:', error);
                 throw error;
             }
             
@@ -364,16 +364,16 @@ class EnhancedMessageHandler {
             
             // Log completion with details
             if (result.warnings && result.warnings.length > 0) {
-                console.log(`⚠️ Script command ${command} completed with warnings:`, result.warnings);
+                console.log(`️ Script command ${command} completed with warnings:`, result.warnings);
                 console.log(`ℹ️ Script status: ${result.message}`);
             } else {
-                console.log(`✅ Script command ${command} completed successfully`);
+                console.log(` Script command ${command} completed successfully`);
             }
             
         } catch (error) {
             this.setCommandFailed(commandId, error);
-            console.error('❌ Error executing script command:', error);
-            console.error('📋 Error details:', {
+            console.error(' Error executing script command:', error);
+            console.error(' Error details:', {
                 message: error.message,
                 stack: error.stack,
                 command: message.command,
@@ -413,7 +413,7 @@ class EnhancedMessageHandler {
             }));
             
         } catch (error) {
-            console.error('❌ Error getting script status:', error);
+            console.error(' Error getting script status:', error);
             
             ws.send(JSON.stringify({
                 type: 'script_status_response',
@@ -428,7 +428,7 @@ class EnhancedMessageHandler {
 
     broadcastScriptStatus(deviceId, scriptType, status, message) {
         try {
-            console.log(`📡 Broadcasting script status: ${scriptType} - ${status}`);
+            console.log(` Broadcasting script status: ${scriptType} - ${status}`);
             
             const statusMessage = {
                 type: 'broadcast',
@@ -446,7 +446,7 @@ class EnhancedMessageHandler {
             this.broadcastToClients(statusMessage);
             
         } catch (error) {
-            console.error('❌ Error broadcasting script status:', error);
+            console.error(' Error broadcasting script status:', error);
         }
     }
 
@@ -456,7 +456,7 @@ class EnhancedMessageHandler {
 
     async handleStartSLAM(ws, data, commandId) {
         try {
-            console.log(`🗺️ Starting SLAM mode - Command ID: ${commandId}`);
+            console.log(`️ Starting SLAM mode - Command ID: ${commandId}`);
             
             this.setCommandActive(commandId, 'start_slam');
             
@@ -484,7 +484,7 @@ class EnhancedMessageHandler {
             
         } catch (error) {
             this.setCommandFailed(commandId, error);
-            console.error('❌ Error starting SLAM:', error);
+            console.error(' Error starting SLAM:', error);
             
             ws.send(JSON.stringify({
                 type: 'slam_command_response',
@@ -498,7 +498,7 @@ class EnhancedMessageHandler {
 
     async handleStartNavigation(ws, data, commandId) {
         try {
-            console.log(`🚀 Starting Navigation mode - Command ID: ${commandId}`);
+            console.log(` Starting Navigation mode - Command ID: ${commandId}`);
             
             this.setCommandActive(commandId, 'start_navigation');
             
@@ -532,7 +532,7 @@ class EnhancedMessageHandler {
             
         } catch (error) {
             this.setCommandFailed(commandId, error);
-            console.error('❌ Error starting Navigation:', error);
+            console.error(' Error starting Navigation:', error);
             
             ws.send(JSON.stringify({
                 type: 'navigation_command_response',
@@ -547,7 +547,7 @@ class EnhancedMessageHandler {
     async handleStopProcess(ws, data, commandId) {
         try {
             const { processName } = data;
-            console.log(`🛑 Stopping ROS2 process: ${processName} - Command ID: ${commandId}`);
+            console.log(` Stopping ROS2 process: ${processName} - Command ID: ${commandId}`);
             
             this.setCommandActive(commandId, 'stop_process');
             
@@ -581,7 +581,7 @@ class EnhancedMessageHandler {
             
         } catch (error) {
             this.setCommandFailed(commandId, error);
-            console.error('❌ Error stopping process:', error);
+            console.error(' Error stopping process:', error);
             
             ws.send(JSON.stringify({
                 type: 'stop_process_response',
@@ -595,7 +595,7 @@ class EnhancedMessageHandler {
 
     async handleEmergencyStop(ws, commandId) {
         try {
-            console.log(`🚨 EMERGENCY STOP activated - Command ID: ${commandId}`);
+            console.log(` EMERGENCY STOP activated - Command ID: ${commandId}`);
             
             this.setCommandActive(commandId, 'emergency_stop');
             
@@ -624,7 +624,7 @@ class EnhancedMessageHandler {
             
         } catch (error) {
             this.setCommandFailed(commandId, error);
-            console.error('❌ Error during emergency stop:', error);
+            console.error(' Error during emergency stop:', error);
             
             ws.send(JSON.stringify({
                 type: 'emergency_stop_response',
@@ -650,7 +650,7 @@ class EnhancedMessageHandler {
             }));
             
         } catch (error) {
-            console.error('❌ Error getting ROS2 status:', error);
+            console.error(' Error getting ROS2 status:', error);
             
             ws.send(JSON.stringify({
                 type: 'ros2_status_response',
@@ -664,11 +664,11 @@ class EnhancedMessageHandler {
 
     async handlePiDiagnostics(ws, commandId) {
         try {
-            console.log('🔍 Running Pi diagnostics...');
+            console.log(' Running Pi diagnostics...');
             const ros2Manager = this.initializeROS2Manager();
             const diagnostics = await ros2Manager.checkPiStatus();
             
-            console.log('📋 Pi diagnostics completed:', diagnostics);
+            console.log(' Pi diagnostics completed:', diagnostics);
             
             ws.send(JSON.stringify({
                 type: 'pi_diagnostics_response',
@@ -679,7 +679,7 @@ class EnhancedMessageHandler {
             }));
             
         } catch (error) {
-            console.error('❌ Error running Pi diagnostics:', error);
+            console.error(' Error running Pi diagnostics:', error);
             
             ws.send(JSON.stringify({
                 type: 'pi_diagnostics_response',
@@ -693,7 +693,7 @@ class EnhancedMessageHandler {
 
     async handleUpdatePiConfig(ws, data, commandId) {
         try {
-            console.log('🔧 Updating Pi configuration...', data);
+            console.log(' Updating Pi configuration...', data);
             const ros2Manager = this.initializeROS2Manager();
             const updatedConfig = ros2Manager.updatePiConfig(data);
             
@@ -713,7 +713,7 @@ class EnhancedMessageHandler {
             }));
             
         } catch (error) {
-            console.error('❌ Error updating Pi configuration:', error);
+            console.error(' Error updating Pi configuration:', error);
             
             ws.send(JSON.stringify({
                 type: 'pi_config_update_response',
@@ -728,7 +728,7 @@ class EnhancedMessageHandler {
     async handleRestartProcess(ws, data, commandId) {
         try {
             const { processName, options = {} } = data;
-            console.log(`🔄 Restarting ROS2 process: ${processName} - Command ID: ${commandId}`);
+            console.log(` Restarting ROS2 process: ${processName} - Command ID: ${commandId}`);
             
             this.setCommandActive(commandId, 'restart_process');
             
@@ -751,7 +751,7 @@ class EnhancedMessageHandler {
             
         } catch (error) {
             this.setCommandFailed(commandId, error);
-            console.error('❌ Error restarting process:', error);
+            console.error(' Error restarting process:', error);
             
             ws.send(JSON.stringify({
                 type: 'restart_process_response',
@@ -769,7 +769,7 @@ class EnhancedMessageHandler {
 
     async handleMapUpload(ws, data, commandId) {
         try {
-            console.log(`📂 Processing map upload - Command ID: ${commandId}`);
+            console.log(` Processing map upload - Command ID: ${commandId}`);
             
             this.setCommandActive(commandId, 'map_upload');
             
@@ -806,7 +806,7 @@ class EnhancedMessageHandler {
             
         } catch (error) {
             this.setCommandFailed(commandId, error);
-            console.error('❌ Error uploading map:', error);
+            console.error(' Error uploading map:', error);
             
             ws.send(JSON.stringify({
                 type: 'map_upload_response',
@@ -820,7 +820,7 @@ class EnhancedMessageHandler {
 
     async handleMapConversion(ws, data, commandId) {
         try {
-            console.log(`🔄 Converting map - Command ID: ${commandId}`);
+            console.log(` Converting map - Command ID: ${commandId}`);
             
             this.setCommandActive(commandId, 'map_conversion');
             
@@ -845,7 +845,7 @@ class EnhancedMessageHandler {
             
         } catch (error) {
             this.setCommandFailed(commandId, error);
-            console.error('❌ Error converting map:', error);
+            console.error(' Error converting map:', error);
             
             ws.send(JSON.stringify({
                 type: 'map_conversion_response',
@@ -859,7 +859,7 @@ class EnhancedMessageHandler {
 
     async handleMapDeployment(ws, data, commandId) {
         try {
-            console.log(`🚀 Deploying map to Pi - Command ID: ${commandId}`);
+            console.log(` Deploying map to Pi - Command ID: ${commandId}`);
             
             this.setCommandActive(commandId, 'map_deployment');
             
@@ -884,7 +884,7 @@ class EnhancedMessageHandler {
             
         } catch (error) {
             this.setCommandFailed(commandId, error);
-            console.error('❌ Error deploying map:', error);
+            console.error(' Error deploying map:', error);
             
             ws.send(JSON.stringify({
                 type: 'map_deployment_response',
@@ -902,7 +902,7 @@ class EnhancedMessageHandler {
 
     async handleCreateOrder(ws, data, commandId) {
         try {
-            console.log(`📋 Creating order - Command ID: ${commandId}`);
+            console.log(` Creating order - Command ID: ${commandId}`);
             
             const ordersPath = path.join(__dirname, '../storage/orders.json');
             let orders = [];
@@ -943,7 +943,7 @@ class EnhancedMessageHandler {
             });
             
         } catch (error) {
-            console.error('❌ Error creating order:', error);
+            console.error(' Error creating order:', error);
             
             ws.send(JSON.stringify({
                 type: 'create_order_response',
@@ -977,7 +977,7 @@ class EnhancedMessageHandler {
             }));
             
         } catch (error) {
-            console.error('❌ Error getting orders:', error);
+            console.error(' Error getting orders:', error);
             
             ws.send(JSON.stringify({
                 type: 'orders_response',
@@ -992,7 +992,7 @@ class EnhancedMessageHandler {
     async handleUpdateOrderStatus(ws, data, commandId) {
         try {
             const { orderId, status, details } = data;
-            console.log(`📝 Updating order ${orderId} status to ${status} - Command ID: ${commandId}`);
+            console.log(` Updating order ${orderId} status to ${status} - Command ID: ${commandId}`);
             
             const ordersPath = path.join(__dirname, '../storage/orders.json');
             let orders = [];
@@ -1034,7 +1034,7 @@ class EnhancedMessageHandler {
             });
             
         } catch (error) {
-            console.error('❌ Error updating order status:', error);
+            console.error(' Error updating order status:', error);
             
             ws.send(JSON.stringify({
                 type: 'update_order_response',
@@ -1057,7 +1057,7 @@ class EnhancedMessageHandler {
             return this.sendError(ws, 'Device ID is required for control commands');
         }
         
-        console.log(`🎮 Control command: ${command} for device ${deviceId}`);
+        console.log(` Control command: ${command} for device ${deviceId}`);
         
         let result;
         
@@ -1179,7 +1179,7 @@ class EnhancedMessageHandler {
     }
 
     handlePong(ws, message) {
-        console.log('🏓 Received pong from client');
+        console.log(' Received pong from client');
     }
 
     // ==========================================
@@ -1205,7 +1205,7 @@ class EnhancedMessageHandler {
             this.commandHistory.shift();
         }
         
-        console.log(`📝 Command logged: ${commandId} - ${message.type}`);
+        console.log(` Command logged: ${commandId} - ${message.type}`);
     }
 
     setCommandActive(commandId, type) {
@@ -1241,7 +1241,7 @@ class EnhancedMessageHandler {
     broadcastROS2Status() {
         try {
             if (!this.ros2Manager) {
-                console.warn('⚠️ ROS2 manager not initialized, cannot broadcast status');
+                console.warn('️ ROS2 manager not initialized, cannot broadcast status');
                 return;
             }
             
@@ -1254,7 +1254,7 @@ class EnhancedMessageHandler {
                 timestamp: new Date().toISOString()
             });
         } catch (error) {
-            console.error('❌ Error broadcasting ROS2 status:', error);
+            console.error(' Error broadcasting ROS2 status:', error);
         }
     }
 
@@ -1272,14 +1272,14 @@ class EnhancedMessageHandler {
                             client.send(JSON.stringify(message));
                         }
                     } catch (error) {
-                        console.error('❌ Error sending to client:', error);
+                        console.error(' Error sending to client:', error);
                     }
                 });
             } else if (global.webSocketInstance && global.webSocketInstance.broadcastToSubscribers) {
                 global.webSocketInstance.broadcastToSubscribers(message);
             }
         } catch (error) {
-            console.error('❌ Error in broadcastToClients:', error);
+            console.error(' Error in broadcastToClients:', error);
         }
     }
 
@@ -1288,7 +1288,7 @@ class EnhancedMessageHandler {
     // ==========================================
 
     handleMappingCommand(ws, message) {
-        console.log('🗺️ Mapping command received:', message);
+        console.log('️ Mapping command received:', message);
         ws.send(JSON.stringify({
             type: 'mapping_response',
             success: true,
@@ -1298,7 +1298,7 @@ class EnhancedMessageHandler {
     }
 
     handleMapEdit(ws, message) {
-        console.log('✏️ Map edit command received:', message);
+        console.log('️ Map edit command received:', message);
         ws.send(JSON.stringify({
             type: 'map_edit_response',
             success: true,
@@ -1308,7 +1308,7 @@ class EnhancedMessageHandler {
     }
 
     handleOrderCommand(ws, message) {
-        console.log('📋 Order command received:', message);
+        console.log(' Order command received:', message);
         ws.send(JSON.stringify({
             type: 'order_response',
             success: true,
@@ -1318,7 +1318,7 @@ class EnhancedMessageHandler {
     }
 
     handleDeviceCommand(ws, message) {
-        console.log('📱 Device command received:', message);
+        console.log(' Device command received:', message);
         ws.send(JSON.stringify({
             type: 'device_response',
             success: true,
@@ -1328,7 +1328,7 @@ class EnhancedMessageHandler {
     }
 
     handleSubscription(ws, message) {
-        console.log('📡 Subscription request:', message);
+        console.log(' Subscription request:', message);
         ws.send(JSON.stringify({
             type: 'subscription_response',
             success: true,
@@ -1338,7 +1338,7 @@ class EnhancedMessageHandler {
     }
 
     handleUnsubscription(ws, message) {
-        console.log('📡 Unsubscription request:', message);
+        console.log(' Unsubscription request:', message);
         ws.send(JSON.stringify({
             type: 'unsubscription_response',
             success: true,
@@ -1348,7 +1348,7 @@ class EnhancedMessageHandler {
     }
 
     handleDataRequest(ws, message) {
-        console.log('📊 Data request:', message);
+        console.log(' Data request:', message);
         ws.send(JSON.stringify({
             type: 'data_response',
             success: true,
@@ -1358,7 +1358,7 @@ class EnhancedMessageHandler {
     }
 
     async handleOtherMessages(ws, message) {
-        console.log('❓ Unknown message type:', message.type);
+        console.log(' Unknown message type:', message.type);
         this.sendError(ws, `Unknown message type: ${message.type}`);
     }
 
@@ -1367,7 +1367,7 @@ class EnhancedMessageHandler {
     // ==========================================
 
     async cleanup() {
-        console.log('🧹 Cleaning up Enhanced Message Handler...');
+        console.log(' Cleaning up Enhanced Message Handler...');
         
         // Stop ROS2 manager
         if (this.ros2Manager) {
@@ -1379,7 +1379,7 @@ class EnhancedMessageHandler {
         this.activeCommands.clear();
         this.commandHistory = [];
         
-        console.log('✅ Enhanced Message Handler cleanup completed');
+        console.log(' Enhanced Message Handler cleanup completed');
     }
 }
 

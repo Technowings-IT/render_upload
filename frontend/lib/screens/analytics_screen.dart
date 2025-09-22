@@ -186,7 +186,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   Map<String, Map<String, dynamic>> _currentNavigationStatus = {};
   Map<String, double> _navigationMetrics = {};
 
-  // ✅ NEW: Enhanced Alert System
+  //  NEW: Enhanced Alert System
   List<Map<String, dynamic>> _activeAlerts = [];
   String _selectedAlertType = 'all';
   String _selectedAlertSeverity = 'all';
@@ -476,7 +476,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
         _connectedDevices = devices;
       });
     } catch (e) {
-      print('❌ Error loading devices: $e');
+      print(' Error loading devices: $e');
       setState(() {
         _connectedDevices = [];
       });
@@ -499,16 +499,16 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
 
       _updateDeviceStatsWithCrossData();
 
-      // ✅ NEW: Generate active alerts after loading data
+      //  NEW: Generate active alerts after loading data
       _generateActiveAlerts();
 
       _chartAnimationController.forward();
       _dataAnimationController.forward();
     } catch (e) {
-      print('❌ Error loading analytics data: $e');
+      print(' Error loading analytics data: $e');
       _generateMockData();
 
-      // ✅ NEW: Generate alerts even with mock data
+      //  NEW: Generate alerts even with mock data
       _generateActiveAlerts();
     }
 
@@ -2294,19 +2294,19 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ✅ Enhanced Events Header with Alert Statistics
+          //  Enhanced Events Header with Alert Statistics
           _buildEnhancedEventsHeader(screenWidth),
           SizedBox(height: gridSpacing),
 
-          // ✅ Alert Filter Controls
+          //  Alert Filter Controls
           _buildAlertFilterControls(screenWidth),
           SizedBox(height: gridSpacing),
 
-          // ✅ Active Alerts Section
+          //  Active Alerts Section
           _buildActiveAlertsSection(screenWidth),
           SizedBox(height: gridSpacing),
 
-          // ✅ System Events Section
+          //  System Events Section
           _buildSystemEventsSection(screenWidth),
         ],
       ),
@@ -2648,7 +2648,7 @@ class _EnhancedAnalyticsScreenState extends State<EnhancedAnalyticsScreen>
   }
 
   // ============================================================================
-  // ✅ ENHANCED ALERTS SYSTEM METHODS
+  //  ENHANCED ALERTS SYSTEM METHODS
   // ============================================================================
 
   Widget _buildEnhancedEventsHeader(double screenWidth) {

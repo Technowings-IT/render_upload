@@ -11,7 +11,7 @@ import 'map_page.dart'; // Your existing map page
 import 'control_page.dart';
 import '../widgets/simple_coordinates_order_creator.dart';
 
-// ✅ ADD this extension for string capitalization
+//  ADD this extension for string capitalization
 extension StringCapitalization on String {
   String capitalize() {
     if (isEmpty) return this;
@@ -50,11 +50,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   Timer? _refreshTimer;
   String? _selectedDeviceFilter;
 
-  // ✅ Enhanced map management variables
+  //  Enhanced map management variables
   Map<String, List<Map<String, dynamic>>> _savedMapsCache = {};
   bool _isLoadingMaps = false;
 
-  // ✅ Order deletion tracking
+  //  Order deletion tracking
   Set<String> _deletingOrders = {};
 
   // Stream subscriptions
@@ -97,7 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       // Finally load orders
       await _loadOrdersForAllDevices();
     } catch (e) {
-      print('❌ Error initializing dashboard: $e');
+      print(' Error initializing dashboard: $e');
       _showErrorSnackBar('Failed to load dashboard data: $e');
     } finally {
       setState(() {
@@ -130,7 +130,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           try {
             _latestOdometry[deviceId] = OdometryData.fromJson(data['data']);
           } catch (e) {
-            print('❌ Error parsing odometry data: $e');
+            print(' Error parsing odometry data: $e');
           }
           break;
         case 'battery_update':
@@ -157,9 +157,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       case 'order_created':
       case 'order_status_changed':
       case 'order_completed':
-      case 'coordinate_order_failure': // ✅ NEW: Handle coordinate order failures
+      case 'coordinate_order_failure': //  NEW: Handle coordinate order failures
         _loadOrdersForAllDevices();
-        // ✅ NEW: Show restart popup for coordinate order failures
+        //  NEW: Show restart popup for coordinate order failures
         if (event['type'] == 'coordinate_order_failure' &&
             event['showRestartPopup'] == true) {
           _showCoordinateOrderRestartDialog(event);
@@ -185,28 +185,28 @@ class _DashboardScreenState extends State<DashboardScreen>
         _connectedDevices = devices;
       });
     } catch (e) {
-      print('❌ Error loading devices: $e');
+      print(' Error loading devices: $e');
     }
   }
 
   Future<void> _loadMapsForAllDevices() async {
     try {
-      print('🔍 Loading maps for all devices...');
-      print('🔗 API Service initialized: ${_apiService.toString()}');
-      print('🔗 Connected devices count: ${_connectedDevices.length}');
+      print(' Loading maps for all devices...');
+      print(' API Service initialized: ${_apiService.toString()}');
+      print(' Connected devices count: ${_connectedDevices.length}');
 
       for (final device in _connectedDevices) {
         try {
           print(
-              '🗺️ Attempting to load map for device: ${device['name']}(${device['id']})');
+              '️ Attempting to load map for device: ${device['name']}(${device['id']})');
 
           // First try to get live map data
           final response = await _apiService.getMapData(device['id']);
-          print('📥 API Response success: ${response['success']}');
-          print('📥 API Response keys: ${response.keys.join(', ')}');
+          print(' API Response success: ${response['success']}');
+          print(' API Response keys: ${response.keys.join(', ')}');
 
           if (response['success'] == true && response['mapData'] != null) {
-            print('✅ Creating MapData object from response...');
+            print(' Creating MapData object from response...');
             final mapData = MapData.fromJson(response['mapData']);
             setState(() {
               _availableMaps[device['id']] = mapData;
@@ -216,24 +216,24 @@ class _DashboardScreenState extends State<DashboardScreen>
               }
             });
             print(
-                '✅ Live map loaded and stored for: ${device['id']} and ${device['name']}');
+                ' Live map loaded and stored for: ${device['id']} and ${device['name']}');
           } else {
             print(
-                '⚠️ No live map data found for ${device['id']}, checking saved maps...');
+                '️ No live map data found for ${device['id']}, checking saved maps...');
             // If no live map, try to create from saved maps
             await _loadMapFromSavedMaps(device);
           }
         } catch (e, stackTrace) {
-          print('❌ Error loading map for ${device['id']}: $e');
-          print('📍 Stack trace: $stackTrace');
+          print(' Error loading map for ${device['id']}: $e');
+          print(' Stack trace: $stackTrace');
           // Try fallback to saved maps
           await _loadMapFromSavedMaps(device);
         }
       }
-      print('🔍 Final available maps: ${_availableMaps.keys.join(', ')}');
+      print(' Final available maps: ${_availableMaps.keys.join(', ')}');
     } catch (e, stackTrace) {
-      print('❌ FATAL Error in _loadMapsForAllDevices: $e');
-      print('📍 FATAL Stack trace: $stackTrace');
+      print(' FATAL Error in _loadMapsForAllDevices: $e');
+      print(' FATAL Stack trace: $stackTrace');
     }
   }
 
@@ -241,7 +241,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<void> _loadMapFromSavedMaps(Map<String, dynamic> device) async {
     try {
       final deviceId = device['id'];
-      print('🔄 Attempting to load from saved maps for: $deviceId');
+      print(' Attempting to load from saved maps for: $deviceId');
 
       // Try to get saved maps for this device
       final savedMaps = await _apiService.getSavedMaps(
@@ -252,7 +252,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       );
 
       if (savedMaps.isNotEmpty) {
-        print('📋 Found ${savedMaps.length} saved maps for $deviceId');
+        print(' Found ${savedMaps.length} saved maps for $deviceId');
 
         // Use the most recent saved map to create a MapData object
         final mostRecentMap = savedMaps.first;
@@ -288,16 +288,16 @@ class _DashboardScreenState extends State<DashboardScreen>
         });
 
         print(
-            '✅ Saved map converted to MapData for: $deviceId and ${device['name']}');
+            ' Saved map converted to MapData for: $deviceId and ${device['name']}');
         print(
-            '📊 Map contains ${savedMaps.length} saved maps, using: ${mostRecentMap['name']}');
+            ' Map contains ${savedMaps.length} saved maps, using: ${mostRecentMap['name']}');
       } else {
-        print('⚠️ No saved maps found for device: $deviceId');
+        print('️ No saved maps found for device: $deviceId');
         // Create minimal fallback map
         await _createFallbackMapData(device);
       }
     } catch (e) {
-      print('❌ Error loading from saved maps for ${device['id']}: $e');
+      print(' Error loading from saved maps for ${device['id']}: $e');
       await _createFallbackMapData(device);
     }
   }
@@ -306,7 +306,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<void> _createFallbackMapData(Map<String, dynamic> device) async {
     try {
       final deviceId = device['id'];
-      print('🔧 Creating fallback map data for: $deviceId');
+      print(' Creating fallback map data for: $deviceId');
 
       final fallbackMapData = {
         'deviceId': deviceId,
@@ -335,9 +335,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         }
       });
 
-      print('✅ Fallback map created for: $deviceId');
+      print(' Fallback map created for: $deviceId');
     } catch (e) {
-      print('❌ Error creating fallback map for ${device['id']}: $e');
+      print(' Error creating fallback map for ${device['id']}: $e');
     }
   }
 
@@ -347,7 +347,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         // Load regular orders
         final orders = await _apiService.getOrders(device['id']);
 
-        // ✅ ENHANCED: Also load simple coordinate orders
+        //  ENHANCED: Also load simple coordinate orders
         List<Map<String, dynamic>> allOrders = List.from(orders);
 
         try {
@@ -383,11 +383,11 @@ class _DashboardScreenState extends State<DashboardScreen>
             }
 
             print(
-                '✅ Loaded ${simpleOrders.length} simple coordinate orders for ${device['id']}');
+                ' Loaded ${simpleOrders.length} simple coordinate orders for ${device['id']}');
           }
         } catch (simpleOrderError) {
           print(
-              '⚠️ Simple orders not available for ${device['id']}: $simpleOrderError');
+              '️ Simple orders not available for ${device['id']}: $simpleOrderError');
           // Continue with regular orders only
         }
 
@@ -395,15 +395,15 @@ class _DashboardScreenState extends State<DashboardScreen>
           _deviceOrders[device['id']] = allOrders;
         });
 
-        print('✅ Total orders loaded for ${device['id']}: ${allOrders.length}');
+        print(' Total orders loaded for ${device['id']}: ${allOrders.length}');
       } catch (e) {
-        print('❌ Error loading orders for ${device['id']}: $e');
+        print(' Error loading orders for ${device['id']}: $e');
 
         // Enhanced error handling - check if it's a network issue
         if (e.toString().contains('Network error') ||
             e.toString().contains('Connection failed')) {
           print(
-              '🔄 Network error detected, attempting backend connection test...');
+              ' Network error detected, attempting backend connection test...');
 
           // Test backend connectivity
           try {
@@ -415,7 +415,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                        '⚠️ Backend connection lost. Orders may not be up to date.'),
+                        '️ Backend connection lost. Orders may not be up to date.'),
                     backgroundColor: Colors.orange,
                     duration: Duration(seconds: 5),
                   ),
@@ -423,7 +423,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               }
             }
           } catch (connectivityError) {
-            print('❌ Backend connectivity test failed: $connectivityError');
+            print(' Backend connectivity test failed: $connectivityError');
           }
         }
 
@@ -448,7 +448,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
       for (final device in _connectedDevices) {
         try {
-          // ✅ Use getSavedMaps if available, otherwise fallback to empty list
+          //  Use getSavedMaps if available, otherwise fallback to empty list
           List<Map<String, dynamic>> savedMaps = [];
           try {
             savedMaps = await _apiService.getSavedMaps(
@@ -459,7 +459,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             );
           } catch (apiError) {
             print(
-                '⚠️ getSavedMaps not available for ${device['id']}, using empty list');
+                '️ getSavedMaps not available for ${device['id']}, using empty list');
             savedMaps = [];
           }
 
@@ -467,14 +467,14 @@ class _DashboardScreenState extends State<DashboardScreen>
             _savedMapsCache[device['id']] = savedMaps;
           });
 
-          print('✅ Loaded ${savedMaps.length} saved maps for ${device['id']}');
+          print(' Loaded ${savedMaps.length} saved maps for ${device['id']}');
         } catch (e) {
-          print('❌ Error loading saved maps for ${device['id']}: $e');
+          print(' Error loading saved maps for ${device['id']}: $e');
           // Continue with other devices even if one fails
         }
       }
     } catch (e) {
-      print('❌ Error loading all saved maps: $e');
+      print(' Error loading all saved maps: $e');
     } finally {
       setState(() {
         _isLoadingMaps = false;
@@ -482,7 +482,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  // ✅ FIXED: Proper navigation methods
+  //  FIXED: Proper navigation methods
   void _navigateToControl(Map<String, dynamic> device) {
     Navigator.push(
       context,
@@ -512,18 +512,18 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ✅ FIXED: Complete fleet management navigation
-  // ✅ SIMPLIFIED: Simple coordinate order creation only
+  //  FIXED: Complete fleet management navigation
+  //  SIMPLIFIED: Simple coordinate order creation only
   void _showSimpleCoordinateOrderCreator() {
     if (_connectedDevices.isEmpty) {
       _showErrorSnackBar('No devices available. Connect a device first.');
       return;
     }
 
-    print('🎯 Opening simple coordinate order creator...');
+    print(' Opening simple coordinate order creator...');
     print(
-        '🔗 Available devices: ${_connectedDevices.map((d) => '${d['name']}(${d['id']})').join(', ')}');
-    print('🗺️ Available maps: ${_availableMaps.keys.join(', ')}');
+        ' Available devices: ${_connectedDevices.map((d) => '${d['name']}(${d['id']})').join(', ')}');
+    print('️ Available maps: ${_availableMaps.keys.join(', ')}');
 
     // Find first device with map for pre-selection
     String? selectedDeviceId;
@@ -539,14 +539,14 @@ class _DashboardScreenState extends State<DashboardScreen>
       return;
     }
 
-    // ✅ SIMPLIFIED: Show only the simple coordinate order creator
+    //  SIMPLIFIED: Show only the simple coordinate order creator
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => SimpleCoordinateOrderCreator(
           deviceId: selectedDeviceId!,
           mapData: _availableMaps[selectedDeviceId]!,
           onOrderCreated: (orderData) {
-            print('✅ Simple coordinate order created: ${orderData['name']}');
+            print(' Simple coordinate order created: ${orderData['name']}');
             _handleSimpleOrderCreated(orderData);
           },
         ),
@@ -554,21 +554,21 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ✅ NEW: Handle simple coordinate order creation
+  //  NEW: Handle simple coordinate order creation
   Future<void> _handleSimpleOrderCreated(Map<String, dynamic> orderData) async {
     try {
-      print('📝 Processing simple coordinate order: ${orderData['name']}');
+      print(' Processing simple coordinate order: ${orderData['name']}');
 
       // The order is already created by the SimpleCoordinateOrderCreator
       // Just refresh our data and show success message
 
       _showSuccessSnackBar(
-          '✅ Coordinate order "${orderData['name']}" created successfully with ${(orderData['coordinates'] as List).length} coordinates!');
+          ' Coordinate order "${orderData['name']}" created successfully with ${(orderData['coordinates'] as List).length} coordinates!');
 
       // Refresh orders
       await _loadOrdersForAllDevices();
     } catch (e) {
-      _showErrorSnackBar('❌ Error processing coordinate order: $e');
+      _showErrorSnackBar(' Error processing coordinate order: $e');
     }
   }
 
@@ -585,9 +585,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
 
     print(
-        '📱 Creating coordinate order for device: ${device['name']} ($deviceId)');
+        ' Creating coordinate order for device: ${device['name']} ($deviceId)');
 
-    // ✅ SIMPLIFIED: Direct to coordinate order creator
+    //  SIMPLIFIED: Direct to coordinate order creator
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => SimpleCoordinateOrderCreator(
@@ -595,7 +595,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           mapData: _availableMaps[deviceId]!,
           onOrderCreated: (orderData) {
             print(
-                '✅ Coordinate order created for device $deviceId: ${orderData['name']}');
+                ' Coordinate order created for device $deviceId: ${orderData['name']}');
             _handleSimpleOrderCreated(orderData);
           },
         ),
@@ -603,13 +603,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ✅ NEW: Show restart dialog for coordinate order failures
+  //  NEW: Show restart dialog for coordinate order failures
   void _showCoordinateOrderRestartDialog(Map<String, dynamic> event) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text('❌ Order Execution Failed'),
+        title: Text(' Order Execution Failed'),
         content: Text(
           'Navigation to coordinate ${event['failedCoordinate']} failed:\n\n${event['error']}\n\nWould you like to restart the order from the beginning?',
         ),
@@ -631,7 +631,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ✅ NEW: Show delete order confirmation dialog
+  //  NEW: Show delete order confirmation dialog
   void _showDeleteOrderDialog(Map<String, dynamic> order) {
     final orderName = order['name'] ?? 'Unnamed Order';
     final orderType = (order['coordinates'] as List?)?.isNotEmpty == true
@@ -679,7 +679,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             SizedBox(height: 12),
             Text(
-              '⚠️ This action cannot be undone!',
+              '️ This action cannot be undone!',
               style: TextStyle(
                 color: Colors.red,
                 fontWeight: FontWeight.bold,
@@ -708,7 +708,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ✅ NEW: Delete order
+  //  NEW: Delete order
   Future<void> _deleteOrder(Map<String, dynamic> order) async {
     final orderId = order['id']?.toString();
     if (orderId == null) {
@@ -716,7 +716,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       return;
     }
 
-    // ✅ Add to deletion tracking for loading state
+    //  Add to deletion tracking for loading state
     setState(() {
       _deletingOrders.add(orderId);
     });
@@ -732,9 +732,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
 
       print(
-          '🗑️ Deleting ${isCoordinateOrder ? 'coordinate' : 'regular'} order: $orderId from device: $deviceId');
+          '️ Deleting ${isCoordinateOrder ? 'coordinate' : 'regular'} order: $orderId from device: $deviceId');
 
-      // ✅ ENHANCED: Store original order for potential rollback
+      //  ENHANCED: Store original order for potential rollback
       Map<String, dynamic>? originalOrder;
       if (_deviceOrders.containsKey(deviceId)) {
         originalOrder = _deviceOrders[deviceId]!.firstWhere(
@@ -743,17 +743,17 @@ class _DashboardScreenState extends State<DashboardScreen>
         );
       }
 
-      // ✅ ENHANCED: Remove from UI immediately for instant response
+      //  ENHANCED: Remove from UI immediately for instant response
       setState(() {
         if (_deviceOrders.containsKey(deviceId)) {
           _deviceOrders[deviceId]!.removeWhere((o) => o['id'] == orderId);
           print(
-              '🔄 Immediately removed order from UI: ${_deviceOrders[deviceId]!.length} orders remaining');
+              ' Immediately removed order from UI: ${_deviceOrders[deviceId]!.length} orders remaining');
         }
       });
 
       // Show immediate feedback
-      _showSuccessSnackBar('🗑️ Deleting order "${order['name']}"...');
+      _showSuccessSnackBar('️ Deleting order "${order['name']}"...');
 
       // Now attempt backend deletion
       Map<String, dynamic> response;
@@ -767,20 +767,20 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
 
       if (response['success'] == true) {
-        print('✅ Order deleted successfully from backend');
+        print(' Order deleted successfully from backend');
 
         // Show success confirmation
         _showSuccessSnackBar(
-            '✅ Order "${order['name']}" deleted successfully!');
+            ' Order "${order['name']}" deleted successfully!');
 
-        // ✅ ENHANCED: Refresh data from backend to ensure consistency (in background)
+        //  ENHANCED: Refresh data from backend to ensure consistency (in background)
         _loadOrdersForAllDevices().catchError((refreshError) {
-          print('⚠️ Error refreshing data after deletion: $refreshError');
+          print('️ Error refreshing data after deletion: $refreshError');
           // UI is already updated, so this is not critical
         });
       } else {
-        // ✅ ENHANCED: Rollback UI changes if backend deletion failed
-        print('❌ Backend deletion failed, rolling back UI changes');
+        //  ENHANCED: Rollback UI changes if backend deletion failed
+        print(' Backend deletion failed, rolling back UI changes');
         if (originalOrder != null && originalOrder.isNotEmpty) {
           setState(() {
             if (_deviceOrders.containsKey(deviceId)) {
@@ -796,43 +796,43 @@ class _DashboardScreenState extends State<DashboardScreen>
             }
           });
         }
-        _showErrorSnackBar('❌ Failed to delete order: ${response['error']}');
+        _showErrorSnackBar(' Failed to delete order: ${response['error']}');
       }
     } catch (e) {
-      print('❌ Error deleting order: $e');
+      print(' Error deleting order: $e');
 
-      // ✅ ENHANCED: Refresh orders to restore correct state after error
+      //  ENHANCED: Refresh orders to restore correct state after error
       _loadOrdersForAllDevices().catchError((refreshError) {
         print(
-            '⚠️ Error restoring orders after deletion failure: $refreshError');
+            '️ Error restoring orders after deletion failure: $refreshError');
       });
 
-      _showErrorSnackBar('❌ Error deleting order: $e');
+      _showErrorSnackBar(' Error deleting order: $e');
     } finally {
-      // ✅ Remove from deletion tracking
+      //  Remove from deletion tracking
       setState(() {
         _deletingOrders.remove(orderId);
       });
     }
   }
 
-  // ✅ NEW: Restart coordinate order
+  //  NEW: Restart coordinate order
   Future<void> _restartCoordinateOrder(String orderId) async {
     try {
       final response = await _apiService.restartOrder(orderId: orderId);
 
       if (response['success'] == true) {
-        _showSuccessSnackBar('✅ Order restarted successfully!');
+        _showSuccessSnackBar(' Order restarted successfully!');
         await _loadOrdersForAllDevices();
       } else {
-        _showErrorSnackBar('❌ Failed to restart order: ${response['error']}');
+        _showErrorSnackBar(' Failed to restart order: ${response['error']}');
       }
     } catch (e) {
-      _showErrorSnackBar('❌ Error restarting order: $e');
+      _showErrorSnackBar(' Error restarting order: $e');
     }
   }
 
-  // ✅ NEW: Start coordinate order execution
+  //  NEW: Start coordinate order execution
   Future<void> _startCoordinateOrder(Map<String, dynamic> order) async {
     try {
       final orderId = order['id'];
@@ -841,38 +841,38 @@ class _DashboardScreenState extends State<DashboardScreen>
         return;
       }
 
-      print('🚀 Starting coordinate order: $orderId');
+      print(' Starting coordinate order: $orderId');
 
       final response = await _apiService.startOrderExecution(orderId: orderId);
 
       if (response['success'] == true) {
-        _showSuccessSnackBar('✅ Coordinate order started successfully!');
+        _showSuccessSnackBar(' Coordinate order started successfully!');
         await _loadOrdersForAllDevices();
       } else {
-        _showErrorSnackBar('❌ Failed to start order: ${response['error']}');
+        _showErrorSnackBar(' Failed to start order: ${response['error']}');
       }
     } catch (e) {
-      print('❌ Error starting coordinate order: $e');
-      _showErrorSnackBar('❌ Error starting order: $e');
+      print(' Error starting coordinate order: $e');
+      _showErrorSnackBar(' Error starting order: $e');
     }
   }
 
-  // ✅ NEW: Stop coordinate order execution
+  //  NEW: Stop coordinate order execution
   Future<void> _stopCoordinateOrderExecution(Map<String, dynamic> order) async {
     try {
-      print('🛑 Stopping coordinate order execution');
+      print(' Stopping coordinate order execution');
 
       final response = await _apiService.stopOrderExecution();
 
       if (response['success'] == true) {
-        _showSuccessSnackBar('✅ Order execution stopped');
+        _showSuccessSnackBar(' Order execution stopped');
         await _loadOrdersForAllDevices();
       } else {
-        _showErrorSnackBar('❌ Failed to stop execution: ${response['error']}');
+        _showErrorSnackBar(' Failed to stop execution: ${response['error']}');
       }
     } catch (e) {
-      print('❌ Error stopping execution: $e');
-      _showErrorSnackBar('❌ Error stopping execution: $e');
+      print(' Error stopping execution: $e');
+      _showErrorSnackBar(' Error stopping execution: $e');
     }
   }
 
@@ -928,7 +928,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               SizedBox(height: 8),
               Text('Priority: ${order['priority'] ?? 0}'),
               SizedBox(height: 8),
-              // ✅ UPDATED: Show coordinates instead of waypoints
+              //  UPDATED: Show coordinates instead of waypoints
               if (order['coordinates'] != null) ...[
                 Text('Coordinates: ${(order['coordinates'] as List).length}'),
                 SizedBox(height: 16),
@@ -1081,17 +1081,17 @@ class _DashboardScreenState extends State<DashboardScreen>
     try {
       await _loadOrdersForAllDevices();
     } catch (e) {
-      print('❌ Background refresh failed: $e');
+      print(' Background refresh failed: $e');
     }
   }
 
-  // ✅ FIXED: Helper methods for colors and icons
+  //  FIXED: Helper methods for colors and icons
   Color _getOrderStatusColor(String status) {
     switch (status) {
       case 'pending':
         return Colors.orange;
       case 'active':
-      case 'executing': // ✅ NEW: Add executing status
+      case 'executing': //  NEW: Add executing status
         return Colors.blue;
       case 'completed':
         return Colors.green;
@@ -1111,7 +1111,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       case 'pending':
         return Icons.pending;
       case 'active':
-      case 'executing': // ✅ NEW: Add executing status
+      case 'executing': //  NEW: Add executing status
         return Icons.play_circle;
       case 'completed':
         return Icons.check_circle;
@@ -1272,7 +1272,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     switch (_currentTabIndex) {
       // case 2: // Orders tab
       //   return FloatingActionButton.extended(
-      //     onPressed: () => _showSimpleCoordinateOrderCreator(), // ✅ SIMPLIFIED
+      //     onPressed: () => _showSimpleCoordinateOrderCreator(), //  SIMPLIFIED
       //     icon: Icon(Icons.add),
       //     label: Text('Create Order'),
       //     backgroundColor: Colors.green,
@@ -1376,7 +1376,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ✅ SIMPLIFIED: Orders tab with coordinate order creation
+  //  SIMPLIFIED: Orders tab with coordinate order creation
   Widget _buildOrdersTab() {
     return Column(
       children: [
@@ -1422,7 +1422,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     children: [
                       ElevatedButton.icon(
                         onPressed:
-                            _showSimpleCoordinateOrderCreator, // ✅ SIMPLIFIED
+                            _showSimpleCoordinateOrderCreator, //  SIMPLIFIED
                         icon: Icon(Icons.touch_app, size: 18),
                         label: Text('Create Order'),
                         style: ElevatedButton.styleFrom(
@@ -1461,7 +1461,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildMapsTab() {
     return Column(
       children: [
-        // 📱 Mobile-optimized maps header
+        //  Mobile-optimized maps header
         Container(
           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
           decoration: BoxDecoration(
@@ -1472,10 +1472,10 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           child: Column(
             children: [
-              // 📱 6.7-inch screen optimized header layout
+              //  6.7-inch screen optimized header layout
               LayoutBuilder(
                 builder: (context, constraints) {
-                  // 📱 Optimized for 6.7-inch screens (390-430px typical width)
+                  //  Optimized for 6.7-inch screens (390-430px typical width)
                   final isPhone67Inch = constraints.maxWidth >= 380 &&
                       constraints.maxWidth <= 440;
                   final isNarrowScreen = constraints.maxWidth < 380;
@@ -1555,7 +1555,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ],
                     );
                   } else if (isPhone67Inch) {
-                    // 📱 Optimized layout for 6.7-inch phones
+                    //  Optimized layout for 6.7-inch phones
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1598,7 +1598,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ],
                         ),
                         SizedBox(height: 14),
-                        // 📱 6.7-inch optimized button row
+                        //  6.7-inch optimized button row
                         Row(
                           children: [
                             Expanded(
@@ -1728,7 +1728,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final onlineDevices =
         _connectedDevices.where((d) => d['status'] == 'connected').length;
 
-    // ✅ UPDATED: Calculate order statistics from loaded orders in real-time
+    //  UPDATED: Calculate order statistics from loaded orders in real-time
     final allOrders = <Map<String, dynamic>>[];
     _deviceOrders.forEach((deviceId, orders) {
       allOrders.addAll(orders);
@@ -1911,7 +1911,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ✅ SIMPLIFIED: Quick actions for coordinate orders only
+  //  SIMPLIFIED: Quick actions for coordinate orders only
   Widget _buildQuickActions() {
     return Card(
       child: Padding(
@@ -1932,7 +1932,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   'Create Order',
                   Icons.touch_app,
                   Colors.green,
-                  _showSimpleCoordinateOrderCreator, // ✅ SIMPLIFIED
+                  _showSimpleCoordinateOrderCreator, //  SIMPLIFIED
                 ),
                 // _buildQuickActionButton(
                 //   'Fleet Management',
@@ -1969,7 +1969,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildOrderStatsRow() {
-    // ✅ UPDATED: Calculate stats from actual loaded orders for real-time accuracy
+    //  UPDATED: Calculate stats from actual loaded orders for real-time accuracy
     final allOrders = <Map<String, dynamic>>[];
     _deviceOrders.forEach((deviceId, orders) {
       allOrders.addAll(orders);
@@ -2066,7 +2066,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // 📱 Optimized for 6.7-inch screens (390-430px typical width)
+          //  Optimized for 6.7-inch screens (390-430px typical width)
           final isPhone67Inch =
               constraints.maxWidth >= 380 && constraints.maxWidth <= 440;
           final isNarrowScreen = constraints.maxWidth < 380;
@@ -2101,7 +2101,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             );
           } else if (isPhone67Inch) {
-            // 📱 Optimized layout for 6.7-inch phones with better spacing
+            //  Optimized layout for 6.7-inch phones with better spacing
             return Column(
               children: [
                 Row(
@@ -2159,7 +2159,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // 📱 New compact stat item for very small screens
+  //  New compact stat item for very small screens
   Widget _buildCompactStatItem(String label, int count, Color color) {
     return Container(
       padding: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
@@ -2186,7 +2186,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // 📱 New stat item optimized for 6.7-inch screens
+  //  New stat item optimized for 6.7-inch screens
   Widget _build67InchStatItem(
       String label, int count, Color color, IconData icon) {
     return Container(
@@ -2420,8 +2420,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () => _showCreateOrderForDevice(deviceId),
-                      icon: Icon(Icons.touch_app, size: 16), // ✅ UPDATED icon
-                      label: Text('Create Order'), // ✅ UPDATED label
+                      icon: Icon(Icons.touch_app, size: 16), //  UPDATED icon
+                      label: Text('Create Order'), //  UPDATED label
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
@@ -2512,7 +2512,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.touch_app,
-                size: 64, color: Colors.grey), // ✅ UPDATED icon
+                size: 64, color: Colors.grey), //  UPDATED icon
             SizedBox(height: 16),
             Text(
               'No Coordinate Orders Created Yet',
@@ -2520,10 +2520,10 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             SizedBox(height: 8),
             Text(
-                'Create your first coordinate order by tapping on the map'), // ✅ UPDATED text
+                'Create your first coordinate order by tapping on the map'), //  UPDATED text
             SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: _showSimpleCoordinateOrderCreator, // ✅ SIMPLIFIED
+              onPressed: _showSimpleCoordinateOrderCreator, //  SIMPLIFIED
               icon: Icon(Icons.touch_app),
               label: Text('Create Order'),
               style: ElevatedButton.styleFrom(
@@ -2550,7 +2550,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final status = order['status'] ?? 'pending';
     final statusColor = _getOrderStatusColor(status);
 
-    // ✅ UPDATED: Handle both coordinates and waypoints
+    //  UPDATED: Handle both coordinates and waypoints
     final coordinates = order['coordinates'] as List? ?? [];
     final waypoints = order['waypoints'] as List? ?? [];
     final totalPoints =
@@ -2649,7 +2649,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ✅ NEW: Build coordinate sequence item
+  //  NEW: Build coordinate sequence item
   Widget _buildCoordinateSequenceItem(
       int step, Map<String, dynamic> coordinate, bool isCompleted) {
     final name = coordinate['name'] ?? 'Coordinate $step';
@@ -2906,7 +2906,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // ✅ NEW: Single action button for order card trailing
+  //  NEW: Single action button for order card trailing
   Widget _buildOrderActionButton(Map<String, dynamic> order) {
     final status = order['status'] ?? 'pending';
     final statusColor = _getOrderStatusColor(status);
@@ -3060,7 +3060,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 📱 Mobile-optimized padding and spacing
+        //  Mobile-optimized padding and spacing
         final padding = constraints.maxWidth < 350
             ? EdgeInsets.symmetric(horizontal: 8, vertical: 12)
             : EdgeInsets.all(16);
@@ -3094,7 +3094,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       elevation: 2,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // 📱 Optimized for 6.7-inch screens (390-430px typical width)
+          //  Optimized for 6.7-inch screens (390-430px typical width)
           final isPhone67Inch =
               constraints.maxWidth >= 380 && constraints.maxWidth <= 440;
           final isNarrowScreen = constraints.maxWidth < 380;
@@ -3180,7 +3180,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             );
           } else if (isPhone67Inch) {
-            // 📱 Perfect layout for 6.7-inch phones
+            //  Perfect layout for 6.7-inch phones
             return Padding(
               padding: EdgeInsets.all(14),
               child: Column(

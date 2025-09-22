@@ -124,7 +124,7 @@ class _AdvancedMapControlsState extends State<AdvancedMapControls>
         }
       });
     } catch (e) {
-      print('❌ Failed to load available maps: $e');
+      print(' Failed to load available maps: $e');
     }
   }
 

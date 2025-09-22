@@ -13,64 +13,64 @@ const SSH_CONFIG = {
     password: process.env.RASPBERRY_PI_PASSWORD || 'piros',
 };
 
-console.log('🔧 Using SSH Config:');
-console.log(`📡 Host: ${SSH_CONFIG.host}:${SSH_CONFIG.port}`);
-console.log(`👤 User: ${SSH_CONFIG.username}`);
-console.log('🔐 Password: [CONFIGURED]');
+console.log(' Using SSH Config:');
+console.log(` Host: ${SSH_CONFIG.host}:${SSH_CONFIG.port}`);
+console.log(` User: ${SSH_CONFIG.username}`);
+console.log(' Password: [CONFIGURED]');
 
 async function setupRaspberryPi() {
-    console.log('🚀 Setting up Raspberry Pi for AMR Map Deployment...');
-    console.log('🔧 Testing SSH connection to Raspberry Pi...');
+    console.log(' Setting up Raspberry Pi for AMR Map Deployment...');
+    console.log(' Testing SSH connection to Raspberry Pi...');
     
     const conn = new Client();
     
     return new Promise((resolve, reject) => {
         conn.on('ready', async () => {
-            console.log('✅ SSH Connected to Raspberry Pi');
+            console.log(' SSH Connected to Raspberry Pi');
             
             try {
                 const homeDir = SSH_CONFIG.username === 'piros' ? '/home/piros' : '/home/' + SSH_CONFIG.username;
                 
                 // Step 1: Create necessary directories (no sudo needed for user home)
-                console.log('📁 Creating directories...');
+                console.log(' Creating directories...');
                 await executeCommand(conn, `mkdir -p ${homeDir}/ros2_ws/src/nav2_bringup/maps`);
                 await executeCommand(conn, `mkdir -p ${homeDir}/ros2_ws/logs`);
                 await executeCommand(conn, `mkdir -p ${homeDir}/.AMR-fleet`);
                 
                 // Step 2: Update package lists and install packages (with proper sudo)
-                console.log('📦 Installing required packages...');
-                console.log('🔐 Note: This may require sudo password authentication...');
+                console.log(' Installing required packages...');
+                console.log(' Note: This may require sudo password authentication...');
                 
                 try {
                     // Try to update packages first
                     await executeCommandWithSudo(conn, 'apt update', SSH_CONFIG.password);
                     await executeCommandWithSudo(conn, 'apt install -y inotify-tools jq python3-yaml', SSH_CONFIG.password);
                 } catch (sudoError) {
-                    console.log('⚠️ Package installation failed, continuing without system packages...');
+                    console.log('️ Package installation failed, continuing without system packages...');
                     console.log('   You may need to manually install: inotify-tools, jq, python3-yaml');
                 }
                 
                 // Step 3: Copy map loading script
-                console.log('📋 Installing map loading script...');
+                console.log(' Installing map loading script...');
                 const scriptPath = `${homeDir}/ros2_ws/load_map.sh`;
                 
                 // Create a basic map loading script
-                console.log('⚠️ Using built-in map loading script...');
+                console.log('️ Using built-in map loading script...');
                 const scriptContent = createDefaultMapScript(homeDir);
                 
                 await writeRemoteFile(conn, scriptPath, scriptContent);
                 await executeCommand(conn, `chmod +x ${scriptPath}`);
                 
                 // Step 4: Create systemd service (optional, skip if sudo fails)
-                console.log('⚙️ Attempting to create systemd service...');
+                console.log('️ Attempting to create systemd service...');
                 try {
                     await executeCommandWithSudo(conn, `${scriptPath} install-service`, SSH_CONFIG.password);
                 } catch (serviceError) {
-                    console.log('⚠️ Service installation failed, continuing without systemd service...');
+                    console.log('️ Service installation failed, continuing without systemd service...');
                 }
                 
                 // Step 5: Create configuration file
-                console.log('🔧 Creating configuration...');
+                console.log(' Creating configuration...');
                 const config = {
                     version: '1.0.0',
                     setupDate: new Date().toISOString(),
@@ -92,27 +92,27 @@ async function setupRaspberryPi() {
                 );
                 
                 // Step 6: Test ROS environment
-                console.log('🧪 Testing ROS environment...');
+                console.log(' Testing ROS environment...');
                 try {
                     await executeCommand(conn, `source ${homeDir}/ros2_ws/install/setup.bash && ros2 --version`);
-                    console.log('✅ ROS2 environment OK');
+                    console.log(' ROS2 environment OK');
                 } catch (error) {
-                    console.log('⚠️ ROS2 environment not fully configured (this is normal for fresh installs)');
+                    console.log('️ ROS2 environment not fully configured (this is normal for fresh installs)');
                 }
                 
                 // Step 7: Try to start the service (optional)
-                console.log('🔄 Attempting to start AMR map loader service...');
+                console.log(' Attempting to start AMR map loader service...');
                 try {
                     await executeCommandWithSudo(conn, 'systemctl start AMR-map-loader.service', SSH_CONFIG.password);
                     await executeCommand(conn, 'systemctl status AMR-map-loader.service --no-pager --user || true');
                 } catch (serviceError) {
-                    console.log('⚠️ Service start failed, maps can still be loaded manually');
+                    console.log('️ Service start failed, maps can still be loaded manually');
                 }
                 
                 conn.end();
                 
-                console.log('🎉 Raspberry Pi setup completed successfully!');
-                console.log('📋 Summary:');
+                console.log(' Raspberry Pi setup completed successfully!');
+                console.log(' Summary:');
                 console.log(`   • Map directory: ${config.mapDirectory}`);
                 console.log(`   • Script location: ${homeDir}/ros2_ws/load_map.sh`);
                 console.log('   • Service: AMR-map-loader.service (may require manual setup)');
@@ -142,7 +142,7 @@ async function setupRaspberryPi() {
 
 function executeCommand(conn, command) {
     return new Promise((resolve, reject) => {
-        console.log(`🔧 Executing: ${command}`);
+        console.log(` Executing: ${command}`);
         
         conn.exec(command, (err, stream) => {
             if (err) {
@@ -183,7 +183,7 @@ function executeCommand(conn, command) {
 function executeCommandWithSudo(conn, command, password) {
     return new Promise((resolve, reject) => {
         const sudoCommand = `echo '${password}' | sudo -S ${command}`;
-        console.log(`🔧 Executing with sudo: ${command}`);
+        console.log(` Executing with sudo: ${command}`);
         
         conn.exec(sudoCommand, (err, stream) => {
             if (err) {
@@ -233,7 +233,7 @@ function writeRemoteFile(conn, remotePath, content) {
             const stream = sftp.createWriteStream(remotePath);
             
             stream.on('close', () => {
-                console.log(`📝 Written file: ${remotePath}`);
+                console.log(` Written file: ${remotePath}`);
                 resolve();
             });
             
@@ -352,11 +352,11 @@ esac
 if (require.main === module) {
     setupRaspberryPi()
         .then((result) => {
-            console.log('✅ Setup completed:', result.message);
+            console.log(' Setup completed:', result.message);
             process.exit(0);
         })
         .catch((error) => {
-            console.error('❌ Setup failed:', error.message);
+            console.error(' Setup failed:', error.message);
             process.exit(1);
         });
 }

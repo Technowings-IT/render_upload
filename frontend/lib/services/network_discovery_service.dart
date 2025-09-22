@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
-import 'dart:math';
+// import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:multicast_dns/multicast_dns.dart';
 
@@ -65,24 +65,24 @@ class NetworkDiscoveryService {
     bool useKnownIPs = true,
   }) async {
     if (_isDiscovering) {
-      print('🔄 Discovery already in progress...');
+      print(' Discovery already in progress...');
       return _devices;
     }
 
     _isDiscovering = true;
     _devices.clear();
 
-    print('🔍 Starting AMR device discovery...');
+    print(' Starting AMR device discovery...');
 
     try {
       // Get network info
       final networkInfo = await _getNetworkInfo();
       if (networkInfo == null) {
-        print('❌ Could not determine network information');
+        print(' Could not determine network information');
         return [];
       }
 
-      print('📡 Scanning subnet: ${networkInfo['subnet']}');
+      print(' Scanning subnet: ${networkInfo['subnet']}');
 
       final List<Future<List<AMRDevice>>> discoveryMethods = [];
 
@@ -118,12 +118,12 @@ class NetworkDiscoveryService {
 
       _devices = _removeDuplicateDevices(allDevices);
 
-      print('✅ Discovery complete. Found ${_devices.length} devices');
+      print(' Discovery complete. Found ${_devices.length} devices');
       _discoveredDevicesController.add(_devices);
 
       return _devices;
     } catch (e) {
-      print('❌ Discovery error: $e');
+      print(' Discovery error: $e');
       return [];
     } finally {
       _isDiscovering = false;
@@ -132,7 +132,7 @@ class NetworkDiscoveryService {
 
   // Method 1: Check known AMR IPs
   Future<List<AMRDevice>> _discoverKnownIPs(List<int> ports) async {
-    print('🎯 Checking known AMR IPs...');
+    print(' Checking known AMR IPs...');
 
     // Add your known AMR IPs here
     final knownIPs = [
@@ -151,7 +151,7 @@ class NetworkDiscoveryService {
             final device = await _identifyAMRDevice(ip, port, 'known_ip');
             if (device != null) {
               devices.add(device);
-              print('✅ Found known AMR: ${device.name} at $ip:$port');
+              print(' Found known AMR: ${device.name} at $ip:$port');
             }
           }
         } catch (e) {
@@ -165,7 +165,7 @@ class NetworkDiscoveryService {
 
   // Method 2: mDNS Discovery (Fixed)
   Future<List<AMRDevice>> _discoverViaMDNS(Duration timeout) async {
-    print('🔍 Starting mDNS discovery...');
+    print(' Starting mDNS discovery...');
 
     final devices = <AMRDevice>[];
 
@@ -189,9 +189,9 @@ class NetworkDiscoveryService {
       );
 
       client.stop();
-      print('✅ mDNS discovery completed. Found ${devices.length} devices');
+      print(' mDNS discovery completed. Found ${devices.length} devices');
     } catch (e) {
-      print('❌ mDNS discovery failed: $e');
+      print(' mDNS discovery failed: $e');
     }
 
     return devices;
@@ -222,7 +222,7 @@ class NetworkDiscoveryService {
               if (device != null &&
                   !devices.any((d) => d.ipAddress == device.ipAddress)) {
                 devices.add(device);
-                print('✅ Found mDNS AMR: ${device.name}');
+                print(' Found mDNS AMR: ${device.name}');
               }
             } catch (e) {
               // Skip invalid devices
@@ -231,14 +231,14 @@ class NetworkDiscoveryService {
         }
       }
     } catch (e) {
-      print('❌ Error looking up mDNS service $service: $e');
+      print(' Error looking up mDNS service $service: $e');
     }
   }
 
   // Method 3: Enhanced Network Scan
   Future<List<AMRDevice>> _discoverViaNetworkScan(
       String subnet, List<int> ports, Duration timeout) async {
-    print('🔍 Starting network scan on $subnet.x...');
+    print(' Starting network scan on $subnet.x...');
 
     final devices = <AMRDevice>[];
     final baseIP = subnet.split('.').take(3).join('.');
@@ -274,7 +274,7 @@ class NetworkDiscoveryService {
       await Future.wait(scanTasks, eagerError: false);
     }
 
-    print('✅ Network scan completed. Found ${devices.length} devices');
+    print(' Network scan completed. Found ${devices.length} devices');
     return devices;
   }
 
@@ -287,7 +287,7 @@ class NetworkDiscoveryService {
           if (device != null &&
               !devices.any((d) => d.ipAddress == device.ipAddress)) {
             devices.add(device);
-            print('✅ Found network AMR: ${device.name} at $ip:$port');
+            print(' Found network AMR: ${device.name} at $ip:$port');
           }
         }
       } catch (e) {
@@ -298,7 +298,7 @@ class NetworkDiscoveryService {
 
   // Method 4: UDP Broadcast Discovery
   Future<List<AMRDevice>> _discoverViaBroadcast(Duration timeout) async {
-    print('🔍 Starting UDP broadcast discovery...');
+    print(' Starting UDP broadcast discovery...');
 
     final devices = <AMRDevice>[];
 
@@ -345,7 +345,7 @@ class NetworkDiscoveryService {
 
                 if (!devices.any((d) => d.ipAddress == device.ipAddress)) {
                   devices.add(device);
-                  print('✅ Found broadcast AMR: ${device.name}');
+                  print(' Found broadcast AMR: ${device.name}');
                 }
               }
             } catch (e) {
@@ -366,10 +366,10 @@ class NetworkDiscoveryService {
       subscription.cancel();
       socket.close();
     } catch (e) {
-      print('❌ UDP broadcast discovery failed: $e');
+      print(' UDP broadcast discovery failed: $e');
     }
 
-    print('✅ Broadcast discovery completed. Found ${devices.length} devices');
+    print(' Broadcast discovery completed. Found ${devices.length} devices');
     return devices;
   }
 
@@ -469,7 +469,7 @@ class NetworkDiscoveryService {
         }
       }
     } catch (e) {
-      print('❌ Error getting network info: $e');
+      print(' Error getting network info: $e');
     }
     return null;
   }

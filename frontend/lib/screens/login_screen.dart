@@ -31,7 +31,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
 
   bool _isLoading = false;
   bool _rememberMe = false;
-  bool _isDarkMode = false; // ✅ Follows system theme only
+  bool _isDarkMode = false; //  Follows system theme only
 
   @override
   void initState() {
@@ -42,14 +42,14 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
   }
 
   void _detectSystemTheme() {
-    // ✅ Automatically follow system theme preference only
+    //  Automatically follow system theme preference only
     final brightness =
         WidgetsBinding.instance.platformDispatcher.platformBrightness;
     setState(() {
       _isDarkMode = brightness == Brightness.dark;
     });
 
-    // ✅ Listen for system theme changes
+    //  Listen for system theme changes
     WidgetsBinding.instance.platformDispatcher.onPlatformBrightnessChanged =
         () {
       final newBrightness =
@@ -620,7 +620,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
     final screenHeight = MediaQuery.of(context).size.height;
     final isVerySmallScreen = screenWidth < 340 || screenHeight < 500;
 
-    // ✅ Select logo based on theme
+    //  Select logo based on theme
     // Dark mode: uses 'assets/TW_WHITE.png' (white TW logo)
     // Light mode: uses 'assets/login_logo.png' (standard logo)
     final logoAsset =
@@ -638,7 +638,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
                     (dimensions.cardPadding / 2).clamp(12.0, 24.0)),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(
-                      20.0), // ✅ Use rounded rectangle instead of circle
+                      20.0), //  Use rounded rectangle instead of circle
                   gradient: RadialGradient(
                     colors: [
                       colors.primary.withOpacity(0.12),
@@ -657,13 +657,13 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
                 child: Container(
                   padding: EdgeInsets.all(8.0), // Add some internal padding
                   child: Image.asset(
-                    logoAsset, // ✅ Use theme-appropriate logo
+                    logoAsset, //  Use theme-appropriate logo
                     width: dimensions.logoSize.clamp(120.0, 400.0),
                     height: dimensions.logoHeight.clamp(50.0, 180.0),
                     fit: BoxFit
                         .contain, // This ensures the logo scales properly without cutting
                     errorBuilder: (context, error, stackTrace) {
-                      // ✅ Fallback logo with theme-appropriate styling
+                      //  Fallback logo with theme-appropriate styling
                       return Container(
                         width: dimensions.logoSize.clamp(120.0, 400.0),
                         height: dimensions.logoHeight.clamp(50.0, 180.0),
@@ -817,7 +817,7 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
         color: colors.inputBackground,
         border: Border.all(
           color: colors.inputBorder,
-          width: 2.0, // ✅ Enhanced border width for better visibility
+          width: 2.0, //  Enhanced border width for better visibility
         ),
         boxShadow: [
           BoxShadow(
@@ -832,24 +832,24 @@ class _EnhancedLoginScreenState extends State<EnhancedLoginScreen>
         obscureText: obscureText,
         style: TextStyle(
           color:
-              Colors.black87, // ✅ Force dark black text for better readability
+              Colors.black87, //  Force dark black text for better readability
           fontSize: dimensions.subtitleSize.clamp(12.0, 20.0),
           fontWeight:
-              FontWeight.w600, // ✅ Enhanced font weight for better readability
+              FontWeight.w600, //  Enhanced font weight for better readability
         ),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: TextStyle(
             color: Colors
-                .black54, // ✅ Dark grey for hint text - visible but distinguishable
+                .black54, //  Dark grey for hint text - visible but distinguishable
             fontSize: dimensions.subtitleSize.clamp(12.0, 20.0),
-            fontWeight: FontWeight.w500, // ✅ Enhanced hint font weight
+            fontWeight: FontWeight.w500, //  Enhanced hint font weight
           ),
           prefixIcon: Container(
             margin: EdgeInsets.all((dimensions.spacing / 4).clamp(4.0, 12.0)),
             decoration: BoxDecoration(
               color: colors.primary
-                  .withOpacity(0.15), // ✅ Enhanced icon background opacity
+                  .withOpacity(0.15), //  Enhanced icon background opacity
               borderRadius: BorderRadius.circular(dimensions.borderRadius / 2),
             ),
             child: Icon(
@@ -1495,9 +1495,9 @@ class ThemeColors {
       textSecondary: const Color(0xFF7F8C8D),
       border: const Color(0xFFE1E8ED),
       inputBackground: Colors
-          .transparent, // ✅ FIXED: Transparent background for better text visibility
+          .transparent, //  FIXED: Transparent background for better text visibility
       inputBorder: const Color(
-          0xFFBDC3C7), // ✅ Enhanced border color for better definition
+          0xFFBDC3C7), //  Enhanced border color for better definition
       buttonGradient: const [
         Color(0xFFFF4757),
         Color(0xFFFF6B7A),

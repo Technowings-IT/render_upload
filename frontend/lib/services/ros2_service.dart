@@ -59,7 +59,7 @@ class EnhancedROS2Service {
       // Remove from active commands
       _activeCommands.remove(commandId);
 
-      print('✅ Command completed: $commandId - ${command.type}');
+      print(' Command completed: $commandId - ${command.type}');
     }
   }
 
@@ -102,7 +102,7 @@ class EnhancedROS2Service {
     _activeCommands[commandId] = command;
 
     try {
-      print('🗺️ Starting SLAM - Command ID: $commandId');
+      print('️ Starting SLAM - Command ID: $commandId');
 
       // Send command via WebSocket for real-time response
       _webSocketService.sendMessage({
@@ -150,7 +150,7 @@ class EnhancedROS2Service {
         throw Exception('Either mapPath or mapName must be provided');
       }
 
-      print('🚀 Starting Navigation - Command ID: $commandId');
+      print(' Starting Navigation - Command ID: $commandId');
 
       // Send command via WebSocket for real-time response
       _webSocketService.sendMessage({
@@ -194,7 +194,7 @@ class EnhancedROS2Service {
             'Invalid process name. Valid options: ${validProcesses.join(', ')}');
       }
 
-      print('🛑 Stopping process: $processName - Command ID: $commandId');
+      print(' Stopping process: $processName - Command ID: $commandId');
 
       // Send command via WebSocket for real-time response
       _webSocketService.sendMessage({
@@ -228,7 +228,7 @@ class EnhancedROS2Service {
     _activeCommands[commandId] = command;
 
     try {
-      print('🚨 EMERGENCY STOP - Command ID: $commandId');
+      print(' EMERGENCY STOP - Command ID: $commandId');
 
       // Send emergency stop command
       _webSocketService.sendMessage(
@@ -262,7 +262,7 @@ class EnhancedROS2Service {
     _activeCommands[commandId] = command;
 
     try {
-      print('🔄 Restarting process: $processName - Command ID: $commandId');
+      print(' Restarting process: $processName - Command ID: $commandId');
 
       // Send command via WebSocket
       _webSocketService.sendMessage({
@@ -332,7 +332,7 @@ class EnhancedROS2Service {
 
     try {
       print(
-          '📂 Uploading and converting map: $mapName - Command ID: $commandId');
+          ' Uploading and converting map: $mapName - Command ID: $commandId');
 
       // Send via WebSocket for progress tracking
       _webSocketService.sendMessage({
@@ -369,7 +369,7 @@ class EnhancedROS2Service {
     _activeCommands[commandId] = command;
 
     try {
-      print('🔄 Converting map: $mapName - Command ID: $commandId');
+      print(' Converting map: $mapName - Command ID: $commandId');
 
       _webSocketService.sendMessage({
         'type': 'convert_map',
@@ -407,7 +407,7 @@ class EnhancedROS2Service {
     _activeCommands[commandId] = command;
 
     try {
-      print('🚀 Deploying map to Pi: $mapName - Command ID: $commandId');
+      print(' Deploying map to Pi: $mapName - Command ID: $commandId');
 
       _webSocketService.sendMessage({
         'type': 'deploy_map',
@@ -514,7 +514,7 @@ class EnhancedROS2Service {
       // Remove from active commands
       _activeCommands.remove(commandId);
 
-      print('❌ Command failed: $commandId - $error');
+      print(' Command failed: $commandId - $error');
     }
   }
 
@@ -615,7 +615,7 @@ class EnhancedROS2Service {
       // Remove from active commands
       _activeCommands.remove(commandId);
 
-      print('🚫 Command cancelled: $commandId');
+      print(' Command cancelled: $commandId');
       return true;
     }
     return false;

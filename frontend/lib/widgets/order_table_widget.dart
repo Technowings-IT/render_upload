@@ -50,7 +50,7 @@ class _OrdersTableWidgetState extends State<OrdersTableWidget> {
           ? await _apiService.getOrders(widget.deviceId!)
           : await _apiService.getAllOrders();
 
-      // ✅ FIXED: Handle both response types properly
+      //  FIXED: Handle both response types properly
       Map<String, dynamic> responseMap;
       if (response is List) {
         // For getOrders() which returns List<Map<String, dynamic>> directly
@@ -65,10 +65,10 @@ class _OrdersTableWidgetState extends State<OrdersTableWidget> {
         throw Exception('Unexpected response type: ${response.runtimeType}');
       }
 
-      print('📋 Orders response type: ${response.runtimeType}');
-      print('📋 Response map success: ${responseMap['success']}');
+      print(' Orders response type: ${response.runtimeType}');
+      print(' Response map success: ${responseMap['success']}');
       print(
-          '📋 Orders count: ${(responseMap['orders'] as List?)?.length ?? 0}');
+          ' Orders count: ${(responseMap['orders'] as List?)?.length ?? 0}');
 
       if (responseMap['success'] == true) {
         final ordersData = responseMap['orders'];
@@ -78,7 +78,7 @@ class _OrdersTableWidgetState extends State<OrdersTableWidget> {
             _orders = List<Map<String, dynamic>>.from(ordersData);
             _applySorting();
           });
-          print('✅ Loaded ${_orders.length} orders successfully');
+          print(' Loaded ${_orders.length} orders successfully');
         } else {
           throw Exception(
               'Orders data is not a list: ${ordersData.runtimeType}');
@@ -87,7 +87,7 @@ class _OrdersTableWidgetState extends State<OrdersTableWidget> {
         throw Exception(responseMap['error'] ?? 'Failed to load orders');
       }
     } catch (e) {
-      print('❌ Error loading orders in table widget: $e');
+      print(' Error loading orders in table widget: $e');
       setState(() {
         _error = e.toString();
       });

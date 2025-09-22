@@ -47,13 +47,13 @@ class _ROS2SavedMapsScreenState extends State<ROS2SavedMapsScreen> {
         _isLoading = false;
       });
 
-      print('✅ Loaded ${maps.length} ROS2 saved maps');
+      print(' Loaded ${maps.length} ROS2 saved maps');
     } catch (e) {
       setState(() {
         _error = 'Failed to load ROS2 saved maps: $e';
         _isLoading = false;
       });
-      print('❌ Error loading ROS2 saved maps: $e');
+      print(' Error loading ROS2 saved maps: $e');
     }
   }
 

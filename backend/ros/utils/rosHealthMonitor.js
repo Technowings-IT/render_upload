@@ -13,12 +13,12 @@ let lastRecoveryAttempt = 0;
 function initializeMonitor(rosConnectionModule) {
     rosConnection = rosConnectionModule;
     startMonitoring();
-    console.log('🔍 ROS health monitor initialized');
+    console.log(' ROS health monitor initialized');
 }
 
 function startMonitoring() {
     if (isMonitoring) {
-        console.log('⚠️ ROS monitor already running');
+        console.log('️ ROS monitor already running');
         return;
     }
     
@@ -28,7 +28,7 @@ function startMonitoring() {
         await checkROSHealth();
     }, MONITOR_INTERVAL_MS);
     
-    console.log(`✅ ROS health monitoring started (interval: ${MONITOR_INTERVAL_MS}ms)`);
+    console.log(` ROS health monitoring started (interval: ${MONITOR_INTERVAL_MS}ms)`);
 }
 
 function stopMonitoring() {
@@ -37,13 +37,13 @@ function stopMonitoring() {
         monitorInterval = null;
     }
     isMonitoring = false;
-    console.log('🛑 ROS health monitoring stopped');
+    console.log(' ROS health monitoring stopped');
 }
 
 async function checkROSHealth() {
     try {
         if (!rosConnection) {
-            console.warn('⚠️ ROS connection module not available for health check');
+            console.warn('️ ROS connection module not available for health check');
             return;
         }
         
@@ -54,18 +54,18 @@ async function checkROSHealth() {
         if (isHealthy) {
             // Reset failure count on success
             if (consecutiveFailures > 0) {
-                console.log(`✅ ROS health restored after ${consecutiveFailures} failures`);
+                console.log(` ROS health restored after ${consecutiveFailures} failures`);
                 consecutiveFailures = 0;
             }
             
             // Occasionally log health status
             if (Date.now() % (MONITOR_INTERVAL_MS * 4) < MONITOR_INTERVAL_MS) {
-                console.log(`💚 ROS health check: HEALTHY (${status.publishersCount} publishers active)`);
+                console.log(` ROS health check: HEALTHY (${status.publishersCount} publishers active)`);
             }
             
         } else {
             consecutiveFailures++;
-            console.warn(`💔 ROS health check: UNHEALTHY (failure ${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES})`);
+            console.warn(` ROS health check: UNHEALTHY (failure ${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES})`);
             console.warn(`   - Connected: ${status.isConnected}`);
             console.warn(`   - Initialized: ${status.isInitialized}`);
             console.warn(`   - Shutdown: ${status.isShutdown}`);
@@ -82,7 +82,7 @@ async function checkROSHealth() {
         
     } catch (error) {
         consecutiveFailures++;
-        console.error(`❌ ROS health check error (failure ${consecutiveFailures}):`, error.message);
+        console.error(` ROS health check error (failure ${consecutiveFailures}):`, error.message);
         
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
             await attemptRecovery();
@@ -102,7 +102,7 @@ async function attemptRecovery() {
         }
         
         lastRecoveryAttempt = now;
-        console.log('🚑 Attempting automatic ROS recovery...');
+        console.log(' Attempting automatic ROS recovery...');
         
         // Broadcast recovery attempt
         broadcastRecoveryAttempt();
@@ -111,28 +111,28 @@ async function attemptRecovery() {
         const recovered = await rosConnection.recoverConnection();
         
         if (recovered) {
-            console.log('✅ Automatic ROS recovery successful!');
+            console.log(' Automatic ROS recovery successful!');
             consecutiveFailures = 0;
             
             // Test the connection
             setTimeout(() => {
                 const testResult = rosConnection.testConnection();
                 if (testResult.success) {
-                    console.log('✅ ROS connection test passed after recovery');
+                    console.log(' ROS connection test passed after recovery');
                     broadcastRecoverySuccess();
                 } else {
-                    console.warn('⚠️ ROS connection test failed after recovery');
+                    console.warn('️ ROS connection test failed after recovery');
                     broadcastRecoveryPartial();
                 }
             }, 2000);
             
         } else {
-            console.error('❌ Automatic ROS recovery failed');
+            console.error(' Automatic ROS recovery failed');
             broadcastRecoveryFailed();
         }
         
     } catch (error) {
-        console.error('❌ Error during automatic recovery:', error);
+        console.error(' Error during automatic recovery:', error);
         broadcastRecoveryFailed();
     }
 }
@@ -227,7 +227,7 @@ function getMonitorStatus() {
 
 function resetFailureCount() {
     consecutiveFailures = 0;
-    console.log('🔄 ROS monitor failure count reset');
+    console.log(' ROS monitor failure count reset');
 }
 
 function cleanup() {
@@ -235,7 +235,7 @@ function cleanup() {
     rosConnection = null;
     consecutiveFailures = 0;
     lastRecoveryAttempt = 0;
-    console.log('🧹 ROS health monitor cleaned up');
+    console.log(' ROS health monitor cleaned up');
 }
 
 module.exports = {

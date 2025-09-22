@@ -12,7 +12,7 @@ class UtilityServices {
   // Network utilities
   async discoverAMRsOnNetwork() {
     try {
-      console.log('🔍 Discovering AMRs on network...');
+      console.log(' Discovering AMRs on network...');
       
       const interfaces = await this.getNetworkInterfaces();
       const discoveries = [];
@@ -25,11 +25,11 @@ class UtilityServices {
         }
       }
       
-      console.log(`✅ Discovery complete. Found ${discoveries.length} potential AMRs`);
+      console.log(` Discovery complete. Found ${discoveries.length} potential AMRs`);
       return discoveries;
       
     } catch (error) {
-      console.error('❌ Error during AMR discovery:', error);
+      console.error(' Error during AMR discovery:', error);
       return [];
     }
   }
@@ -62,7 +62,7 @@ class UtilityServices {
 
   async scanSubnetForAMRs(subnet) {
     try {
-      console.log(`📡 Scanning subnet ${subnet} for AMRs...`);
+      console.log(` Scanning subnet ${subnet} for AMRs...`);
       const baseIp = subnet.split('/')[0].split('.').slice(0, 3).join('.');
       const AMRs = [];
       
@@ -139,7 +139,7 @@ class UtilityServices {
   // ROS utilities
   async checkROSEnvironment() {
     try {
-      console.log('🔍 Checking ROS2 environment...');
+      console.log(' Checking ROS2 environment...');
       
       const checks = {
         rosDistro: await this.checkROSDistro(),
@@ -149,10 +149,10 @@ class UtilityServices {
         nodeROS: await this.checkNodeROSPackages()
       };
       
-      console.log('✅ ROS2 environment check complete');
+      console.log(' ROS2 environment check complete');
       return checks;
     } catch (error) {
-      console.error('❌ Error checking ROS environment:', error);
+      console.error(' Error checking ROS environment:', error);
       return null;
     }
   }
@@ -352,7 +352,7 @@ class UtilityServices {
       data
     };
     
-    console.log(`📝 AMR Event: ${JSON.stringify(logEntry)}`);
+    console.log(` AMR Event: ${JSON.stringify(logEntry)}`);
     return logEntry;
   }
 
@@ -364,7 +364,7 @@ class UtilityServices {
       data
     };
     
-    console.log(`📝 System Event: ${JSON.stringify(logEntry)}`);
+    console.log(` System Event: ${JSON.stringify(logEntry)}`);
     return logEntry;
   }
 }

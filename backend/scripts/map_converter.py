@@ -499,27 +499,27 @@ def main():
     )
     
     if result['success']:
-        print("✅ Conversion completed successfully!")
+        print(" Conversion completed successfully!")
         print(f"PGM file: {result['pgm_path']}")
         print(f"YAML file: {result['yaml_path']}")
         
         if args.validate:
-            print("\n🔍 Validating files...")
+            print("\n Validating files...")
             validation = converter.validate_map_files(result['pgm_path'], result['yaml_path'])
             
             if validation['valid']:
-                print("✅ Validation passed!")
+                print(" Validation passed!")
                 print(f"PGM size: {validation['file_sizes'].get('pgm', 0)} bytes")
                 print(f"YAML size: {validation['file_sizes'].get('yaml', 0)} bytes")
             else:
-                print("❌ Validation failed!")
+                print(" Validation failed!")
                 for error in validation['errors']:
                     print(f"  - {error}")
                 sys.exit(1)
         
         sys.exit(0)
     else:
-        print(f"❌ Conversion failed: {result['error']}", file=sys.stderr)
+        print(f" Conversion failed: {result['error']}", file=sys.stderr)
         sys.exit(1)
 
 # For use as a module from Node.js

@@ -61,7 +61,7 @@ class _SimpleCoordinateOrderCreatorState
         'Order ${DateTime.now().millisecondsSinceEpoch}';
 
     // Initialize with YAML origin values
-    print('🚀 Initializing with YAML origin values: (-2.02, -5.21)');
+    print(' Initializing with YAML origin values: (-2.02, -5.21)');
 
     _selectedMapData = MapData(
       deviceId: widget.deviceId,
@@ -302,10 +302,10 @@ class _SimpleCoordinateOrderCreatorState
         ],
       ),
       child: SingleChildScrollView(
-        // ✅ Made scrollable to prevent overflow
+        //  Made scrollable to prevent overflow
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min, // ✅ Use minimum space needed
+          mainAxisSize: MainAxisSize.min, //  Use minimum space needed
           children: [
             // Order Name
             _buildEnhancedTextField(
@@ -338,9 +338,9 @@ class _SimpleCoordinateOrderCreatorState
 
             SizedBox(height: responsive.cardPadding * 0.5),
 
-            // Coordinate List - ✅ Fixed height container instead of Expanded
+            // Coordinate List -  Fixed height container instead of Expanded
             Container(
-              height: 200, // ✅ Fixed height to prevent overflow
+              height: 200, //  Fixed height to prevent overflow
               child: _buildCoordinateList(responsive),
             ),
 
@@ -1393,7 +1393,7 @@ class _SimpleCoordinateOrderCreatorState
           ),
           SizedBox(height: 8),
           Text(
-            '✅ "${_lastSavedOrder!['name']}" with ${(_lastSavedOrder!['coordinates'] as List).length} waypoints',
+            ' "${_lastSavedOrder!['name']}" with ${(_lastSavedOrder!['coordinates'] as List).length} waypoints',
             style: TextStyle(
                 fontSize: responsive.fontSize - 1,
                 color: Colors.green.shade600),
@@ -1548,7 +1548,7 @@ class _SimpleCoordinateOrderCreatorState
     setState(() => _isLoadingMaps = true);
 
     try {
-      print('🔍 Loading maps for device: ${widget.deviceId}');
+      print(' Loading maps for device: ${widget.deviceId}');
       final maps = await _apiService.getSavedMapsEnhanced(widget.deviceId);
 
       setState(() {
@@ -1831,9 +1831,9 @@ class _SimpleCoordinateOrderCreatorState
     final mapPhysicalHeight = mapHeight * resolution;
 
     final minX = originX;
-    // final maxX = originX + mapPhysicalWidth; // ✅ Removed unused variable
+    // final maxX = originX + mapPhysicalWidth; //  Removed unused variable
     final minY = originY;
-    // final maxY = originY + mapPhysicalHeight; // ✅ Removed unused variable
+    // final maxY = originY + mapPhysicalHeight; //  Removed unused variable
 
     final canvasWidth = _canvasSize.width / _mapScale;
     final canvasHeight = _canvasSize.height / _mapScale;
@@ -1874,7 +1874,7 @@ class _SimpleCoordinateOrderCreatorState
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('❌ Save failed: $e'), backgroundColor: Colors.red),
+            content: Text(' Save failed: $e'), backgroundColor: Colors.red),
       );
     } finally {
       setState(() => _isCreatingOrder = false);
@@ -1947,7 +1947,7 @@ class _SimpleCoordinateOrderCreatorState
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('❌ Execution Failed'),
+        title: Text(' Execution Failed'),
         content: Text('$error\n\nWould you like to restart the order?'),
         actions: [
           TextButton(
@@ -1977,7 +1977,7 @@ class _SimpleCoordinateOrderCreatorState
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('✅ Order Completed'),
+        title: Text(' Order Completed'),
         content: Text('All coordinates have been executed successfully!'),
         actions: [
           ElevatedButton(
@@ -2007,7 +2007,7 @@ class _SimpleCoordinateOrderCreatorState
           children: [
             Icon(Icons.check_circle, color: Colors.green, size: 28),
             SizedBox(width: 8),
-            Text('✅ Order Saved!'),
+            Text(' Order Saved!'),
           ],
         ),
         content: Container(
@@ -2100,7 +2100,7 @@ class _SimpleCoordinateOrderCreatorState
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                          '💡 Your order "${orderData['name']}" is now visible in the Orders section below!'),
+                          ' Your order "${orderData['name']}" is now visible in the Orders section below!'),
                       backgroundColor: Colors.blue,
                       duration: Duration(seconds: 4),
                       action: SnackBarAction(
@@ -2137,7 +2137,7 @@ class _SimpleCoordinateOrderCreatorState
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('✨ Ready to create a new order!'),
+        content: Text(' Ready to create a new order!'),
         backgroundColor: Colors.blue,
         duration: Duration(seconds: 2),
       ),
@@ -2373,7 +2373,7 @@ class EnhancedMapPainter extends CustomPainter {
         }
       }
     } catch (e) {
-      print('❌ Error drawing fitted map: $e');
+      print(' Error drawing fitted map: $e');
     }
   }
 
@@ -2636,7 +2636,7 @@ class EnhancedMapPainter extends CustomPainter {
   }
 
   void _drawSavedOrderLabel(Canvas canvas, Size size, String orderName) {
-    final labelText = '✅ Saved: $orderName';
+    final labelText = ' Saved: $orderName';
     final textPainter = TextPainter(
       text: TextSpan(
         text: labelText,

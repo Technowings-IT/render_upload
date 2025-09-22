@@ -66,18 +66,18 @@ class ApiService {
   void initialize(String baseUrl) {
     _baseUrl = baseUrl.replaceAll('/api', '');
     _isInitialized = true;
-    print('🔗 API Service initialized with base URL: $_baseUrl');
+    print(' API Service initialized with base URL: $_baseUrl');
   }
 
   void setBaseUrl(String baseUrl) {
     _baseUrl = baseUrl.replaceAll('/api', '');
     _isInitialized = true;
-    print('🔗 API Service base URL updated: $_baseUrl');
+    print(' API Service base URL updated: $_baseUrl');
   }
 
   Future<bool> autoInitialize() async {
     try {
-      print('🔍 Auto-discovering AMR backend...');
+      print(' Auto-discovering AMR backend...');
 
       final backendUrl = await _discoverBackend();
       if (backendUrl != null) {
@@ -87,9 +87,28 @@ class ApiService {
 
       return false;
     } catch (e) {
-      print('❌ Auto-initialization failed: $e');
+      print(' Auto-initialization failed: $e');
       return false;
     }
+  }
+
+  // Add this method to ApiService class
+  Future<bool> connectToLiveBackend() async {
+    final liveBackendUrl = 'https://fleetos-backend-frp4.onrender.com';
+
+    initialize(liveBackendUrl);
+
+    print(' Connecting to live backend: $liveBackendUrl');
+
+    return await testConnectionWithRetry(maxRetries: 3);
+  }
+
+// Update getWebSocketUrl method to handle HTTPS
+  String? getWebSocketUrl() {
+    if (_baseUrl == null) return null;
+    return _baseUrl!
+        .replaceAll('http://', 'ws://')
+        .replaceAll('https://', 'wss://'); // Add this line
   }
 
   Future<String?> _discoverBackend() async {
@@ -98,7 +117,7 @@ class ApiService {
       if (networkInfo == null) return null;
 
       final subnet = networkInfo['subnet']!;
-      print('📡 Scanning subnet: $subnet.x for AMR backends');
+      print(' Scanning subnet: $subnet.x for AMR backends');
 
       final commonIPs = [
         '$subnet.63', // Current working backend IP
@@ -112,7 +131,7 @@ class ApiService {
       for (final ip in commonIPs) {
         final url = await _testBackendAtIP(ip);
         if (url != null) {
-          print('✅ Found AMR backend at: $url');
+          print(' Found AMR backend at: $url');
           return url;
         }
       }
@@ -121,15 +140,15 @@ class ApiService {
         final ip = '$subnet.$i';
         final url = await _testBackendAtIP(ip);
         if (url != null) {
-          print('✅ Found AMR backend at: $url');
+          print(' Found AMR backend at: $url');
           return url;
         }
       }
 
-      print('❌ No AMR backend found on network');
+      print(' No AMR backend found on network');
       return null;
     } catch (e) {
-      print('❌ Backend discovery failed: $e');
+      print(' Backend discovery failed: $e');
       return null;
     }
   }
@@ -185,12 +204,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map exported to PGM: ${response['files']}');
+        print(' Map exported to PGM: ${response['files']}');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error exporting map to PGM: $e');
+      print(' Error exporting map to PGM: $e');
       throw ApiException('Failed to export map to PGM: $e');
     }
   }
@@ -212,12 +231,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map converted to PGM: ${response['outputMapName']}');
+        print(' Map converted to PGM: ${response['outputMapName']}');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error converting map to PGM: $e');
+      print(' Error converting map to PGM: $e');
       throw ApiException('Failed to convert map to PGM: $e');
     }
   }
@@ -239,12 +258,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ PGM map edited: $mapName with ${locations.length} locations');
+        print(' PGM map edited: $mapName with ${locations.length} locations');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error editing PGM map: $e');
+      print(' Error editing PGM map: $e');
       throw ApiException('Failed to edit PGM map: $e');
     }
   }
@@ -268,12 +287,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map renamed for deployment: $sourceMapName -> $targetMapName');
+        print(' Map renamed for deployment: $sourceMapName -> $targetMapName');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error renaming map for deployment: $e');
+      print(' Error renaming map for deployment: $e');
       throw ApiException('Failed to rename map for deployment: $e');
     }
   }
@@ -294,12 +313,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map uploaded to AMR: $mapName');
+        print(' Map uploaded to AMR: $mapName');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error uploading map to AMR: $e');
+      print(' Error uploading map to AMR: $e');
       throw ApiException('Failed to upload map to AMR: $e');
     }
   }
@@ -320,7 +339,7 @@ class ApiService {
 
       return [];
     } catch (e) {
-      print('❌ Error getting available maps: $e');
+      print(' Error getting available maps: $e');
       throw ApiException('Failed to get available maps: $e');
     }
   }
@@ -347,12 +366,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map deployed to Raspberry Pi: $mapName');
+        print(' Map deployed to Raspberry Pi: $mapName');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error deploying map to Raspberry Pi: $e');
+      print(' Error deploying map to Raspberry Pi: $e');
       throw ApiException('Failed to deploy map to Raspberry Pi: $e');
     }
   }
@@ -373,7 +392,7 @@ class ApiService {
 
       return [];
     } catch (e) {
-      print('❌ Error getting Pi maps: $e');
+      print(' Error getting Pi maps: $e');
       throw ApiException('Failed to get Pi maps: $e');
     }
   }
@@ -392,12 +411,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Active Pi map set: $mapName');
+        print(' Active Pi map set: $mapName');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error setting active Pi map: $e');
+      print(' Error setting active Pi map: $e');
       throw ApiException('Failed to set active Pi map: $e');
     }
   }
@@ -415,7 +434,7 @@ class ApiService {
 
       throw ApiException('Failed to get Pi status: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting Pi status: $e');
+      print(' Error getting Pi status: $e');
       throw ApiException('Failed to get Pi status: $e');
     }
   }
@@ -434,12 +453,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Pi connection test successful');
+        print(' Pi connection test successful');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error testing Pi connection: $e');
+      print(' Error testing Pi connection: $e');
       throw ApiException('Failed to test Pi connection: $e');
     }
   }
@@ -457,7 +476,7 @@ class ApiService {
 
       throw ApiException('Failed to get Pi logs: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting Pi logs: $e');
+      print(' Error getting Pi logs: $e');
       throw ApiException('Failed to get Pi logs: $e');
     }
   }
@@ -473,7 +492,7 @@ class ApiService {
       final response = await _get('/api/maps/$deviceId/download/$fileName');
       return response;
     } catch (e) {
-      print('❌ Error downloading PGM file: $e');
+      print(' Error downloading PGM file: $e');
       throw ApiException('Failed to download PGM file: $e');
     }
   }
@@ -496,12 +515,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map converted from $sourceFormat to $targetFormat');
+        print(' Map converted from $sourceFormat to $targetFormat');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error converting map format: $e');
+      print(' Error converting map format: $e');
       throw ApiException('Failed to convert map format: $e');
     }
   }
@@ -523,7 +542,7 @@ class ApiService {
 
       throw ApiException('Failed to get costmap data: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting costmap data: $e');
+      print(' Error getting costmap data: $e');
       throw ApiException('Failed to get costmap data: $e');
     }
   }
@@ -551,12 +570,12 @@ class ApiService {
       final response = await _put('/api/maps/$deviceId/metadata', updateData);
 
       if (response['success'] == true) {
-        print('✅ Map metadata updated: $mapName');
+        print(' Map metadata updated: $mapName');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error updating map metadata: $e');
+      print(' Error updating map metadata: $e');
       throw ApiException('Failed to update map metadata: $e');
     }
   }
@@ -580,12 +599,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map processed with operation: $operation');
+        print(' Map processed with operation: $operation');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error processing map: $e');
+      print(' Error processing map: $e');
       throw ApiException('Failed to process map: $e');
     }
   }
@@ -609,12 +628,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Maps merged into: $outputMapName');
+        print(' Maps merged into: $outputMapName');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error merging maps: $e');
+      print(' Error merging maps: $e');
       throw ApiException('Failed to merge maps: $e');
     }
   }
@@ -632,12 +651,12 @@ class ApiService {
           '/api/maps/$deviceId/$mapName?deleteAllFormats=$deleteAllFormats');
 
       if (response['success'] == true) {
-        print('✅ Map deleted: $mapName');
+        print(' Map deleted: $mapName');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error deleting map: $e');
+      print(' Error deleting map: $e');
       throw ApiException('Failed to delete map: $e');
     }
   }
@@ -654,7 +673,7 @@ class ApiService {
           await _get('/api/maps/$deviceId/conversions/$conversionId/status');
       return response;
     } catch (e) {
-      print('❌ Error getting conversion status: $e');
+      print(' Error getting conversion status: $e');
       throw ApiException('Failed to get conversion status: $e');
     }
   }
@@ -673,12 +692,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Active map set to: $mapName');
+        print(' Active map set to: $mapName');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error setting active map: $e');
+      print(' Error setting active map: $e');
       throw ApiException('Failed to set active map: $e');
     }
   }
@@ -699,7 +718,7 @@ class ApiService {
 
       throw ApiException('Failed to get map statistics: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting map statistics: $e');
+      print(' Error getting map statistics: $e');
       throw ApiException('Failed to get map statistics: $e');
     }
   }
@@ -721,12 +740,12 @@ class ApiService {
     _ensureInitialized();
 
     try {
-      print('🚀 Starting complete map deployment workflow...');
+      print(' Starting complete map deployment workflow...');
 
       final workflowResults = <String, dynamic>{};
 
       // Step 1: Convert to PGM
-      print('📋 Step 1: Converting to PGM format...');
+      print(' Step 1: Converting to PGM format...');
       final convertResult = await convertMapToPGM(
         deviceId: deviceId,
         sourceMapName: sourceMapName,
@@ -741,7 +760,7 @@ class ApiService {
       final tempMapName = convertResult['outputMapName'];
 
       // Step 2: Edit map with locations
-      print('📋 Step 2: Adding location markers...');
+      print(' Step 2: Adding location markers...');
       final editResult = await editPGMMap(
         deviceId: deviceId,
         mapName: tempMapName,
@@ -755,7 +774,7 @@ class ApiService {
       workflowResults['editing'] = editResult;
 
       // Step 3: Rename for deployment
-      print('📋 Step 3: Renaming for deployment...');
+      print(' Step 3: Renaming for deployment...');
       final renameResult = await renameMapForDeployment(
         deviceId: deviceId,
         sourceMapName: tempMapName,
@@ -770,7 +789,7 @@ class ApiService {
       workflowResults['renaming'] = renameResult;
 
       // Step 4: Deploy to Raspberry Pi
-      print('📋 Step 4: Deploying to Raspberry Pi...');
+      print(' Step 4: Deploying to Raspberry Pi...');
       final deployResult = await deployMapToRaspberryPi(
         deviceId: deviceId,
         mapName: finalMapName,
@@ -784,7 +803,7 @@ class ApiService {
 
       workflowResults['deployment'] = deployResult;
 
-      print('✅ Complete map deployment workflow finished successfully!');
+      print(' Complete map deployment workflow finished successfully!');
 
       return {
         'success': true,
@@ -797,7 +816,7 @@ class ApiService {
         'workflowResults': workflowResults,
       };
     } catch (e) {
-      print('❌ Map deployment workflow failed: $e');
+      print(' Map deployment workflow failed: $e');
       throw ApiException('Map deployment workflow failed: $e');
     }
   }
@@ -831,12 +850,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Advanced PGM conversion completed');
+        print(' Advanced PGM conversion completed');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error in advanced PGM conversion: $e');
+      print(' Error in advanced PGM conversion: $e');
       throw ApiException('Advanced PGM conversion failed: $e');
     }
   }
@@ -858,12 +877,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Location points saved: ${locationPoints.length} points');
+        print(' Location points saved: ${locationPoints.length} points');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error saving location points: $e');
+      print(' Error saving location points: $e');
       throw ApiException('Failed to save location points: $e');
     }
   }
@@ -897,12 +916,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map edits applied successfully');
+        print(' Map edits applied successfully');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error applying map edits: $e');
+      print(' Error applying map edits: $e');
       throw ApiException('Failed to apply map edits: $e');
     }
   }
@@ -935,12 +954,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map deployed with validation');
+        print(' Map deployed with validation');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error in validated deployment: $e');
+      print(' Error in validated deployment: $e');
       throw ApiException('Validated deployment failed: $e');
     }
   }
@@ -961,12 +980,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map backup created');
+        print(' Map backup created');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error creating backup: $e');
+      print(' Error creating backup: $e');
       throw ApiException('Backup creation failed: $e');
     }
   }
@@ -987,12 +1006,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map restored from backup');
+        print(' Map restored from backup');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error restoring backup: $e');
+      print(' Error restoring backup: $e');
       throw ApiException('Backup restoration failed: $e');
     }
   }
@@ -1021,12 +1040,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Advanced export completed: $format');
+        print(' Advanced export completed: $format');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error in advanced export: $e');
+      print(' Error in advanced export: $e');
       throw ApiException('Advanced export failed: $e');
     }
   }
@@ -1053,12 +1072,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map analysis completed');
+        print(' Map analysis completed');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error analyzing map: $e');
+      print(' Error analyzing map: $e');
       throw ApiException('Map analysis failed: $e');
     }
   }
@@ -1085,12 +1104,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map validation completed');
+        print(' Map validation completed');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error validating map: $e');
+      print(' Error validating map: $e');
       throw ApiException('Map validation failed: $e');
     }
   }
@@ -1119,12 +1138,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Path planning test completed');
+        print(' Path planning test completed');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error testing path planning: $e');
+      print(' Error testing path planning: $e');
       throw ApiException('Path planning test failed: $e');
     }
   }
@@ -1145,12 +1164,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Batch operations completed: ${operations.length} operations');
+        print(' Batch operations completed: ${operations.length} operations');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error in batch operations: $e');
+      print(' Error in batch operations: $e');
       throw ApiException('Batch operations failed: $e');
     }
   }
@@ -1232,7 +1251,7 @@ class ApiService {
         'retrievedAt': DateTime.now().toIso8601String(),
       };
     } catch (e) {
-      print('❌ Error getting navigation map options: $e');
+      print(' Error getting navigation map options: $e');
       throw ApiException('Failed to get navigation map options: $e');
     }
   }
@@ -1247,7 +1266,7 @@ class ApiService {
     _ensureInitialized();
 
     try {
-      print('🧭 Starting navigation with map: $mapName from $mapSource');
+      print(' Starting navigation with map: $mapName from $mapSource');
 
       // If using Pi map, set it as active first
       if (mapSource == 'pi' && setAsActive) {
@@ -1264,12 +1283,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Navigation started with map: $mapName');
+        print(' Navigation started with map: $mapName');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error starting navigation with map: $e');
+      print(' Error starting navigation with map: $e');
       throw ApiException('Failed to start navigation with map: $e');
     }
   }
@@ -1294,12 +1313,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Costmap polling started for: $costmapTypes');
+        print(' Costmap polling started for: $costmapTypes');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error starting costmap polling: $e');
+      print(' Error starting costmap polling: $e');
       throw ApiException('Failed to start costmap polling: $e');
     }
   }
@@ -1316,12 +1335,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Costmap polling stopped');
+        print(' Costmap polling stopped');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error stopping costmap polling: $e');
+      print(' Error stopping costmap polling: $e');
       throw ApiException('Failed to stop costmap polling: $e');
     }
   }
@@ -1342,12 +1361,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ $costmapType costmap configured');
+        print(' $costmapType costmap configured');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error configuring costmap: $e');
+      print(' Error configuring costmap: $e');
       throw ApiException('Failed to configure costmap: $e');
     }
   }
@@ -1366,12 +1385,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ $costmapType costmap cleared');
+        print(' $costmapType costmap cleared');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error clearing costmap: $e');
+      print(' Error clearing costmap: $e');
       throw ApiException('Failed to clear costmap: $e');
     }
   }
@@ -1396,12 +1415,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ $costmapType costmap exported as $format');
+        print(' $costmapType costmap exported as $format');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error exporting costmap as image: $e');
+      print(' Error exporting costmap as image: $e');
       throw ApiException('Failed to export costmap as image: $e');
     }
   }
@@ -1427,12 +1446,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Batch export completed for ${deviceIds.length} devices');
+        print(' Batch export completed for ${deviceIds.length} devices');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error in batch export: $e');
+      print(' Error in batch export: $e');
       throw ApiException('Failed to batch export maps: $e');
     }
   }
@@ -1457,12 +1476,12 @@ class ApiService {
 
       if (response['success'] == true) {
         print(
-            '✅ Map synced from $sourceDeviceId to ${targetDeviceIds.length} devices');
+            ' Map synced from $sourceDeviceId to ${targetDeviceIds.length} devices');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error syncing maps: $e');
+      print(' Error syncing maps: $e');
       throw ApiException('Failed to sync maps between devices: $e');
     }
   }
@@ -1499,7 +1518,7 @@ class ApiService {
         }
       }
     } catch (e) {
-      print('❌ Error getting network info: $e');
+      print(' Error getting network info: $e');
     }
     return null;
   }
@@ -1513,19 +1532,12 @@ class ApiService {
   bool get isInitialized => _isInitialized && _baseUrl != null;
 
   void printConnectionInfo() {
-    print('📊 API Service Connection Info:');
+    print(' API Service Connection Info:');
     print('   Initialized: $isInitialized');
     print('   Base URL: ${baseUrl ?? 'Not set'}');
     print('   API URL: ${apiBaseUrl ?? 'Not set'}');
     print('   WebSocket URL: ${getWebSocketUrl() ?? 'Not set'}');
     print('   Timeout: ${_timeout.inSeconds}s');
-  }
-
-  String? getWebSocketUrl() {
-    if (_baseUrl == null) return null;
-    return _baseUrl!
-        .replaceAll('http://', 'ws://')
-        .replaceAll('https://', 'wss://');
   }
 
   Future<Map<String, dynamic>> getConnectionInfo() async {
@@ -1568,17 +1580,17 @@ class ApiService {
 
   Future<bool> testConnection() async {
     if (!isInitialized) {
-      print('❌ API service not initialized');
+      print(' API service not initialized');
       return false;
     }
 
     try {
-      print('🔧 Testing API connection to: $baseUrl/health');
+      print(' Testing API connection to: $baseUrl/health');
       final response = await _get('/health');
-      print('✅ API connection test successful');
+      print(' API connection test successful');
       return response['status'] != null || response['success'] != null;
     } catch (e) {
-      print('❌ API connection test failed: $e');
+      print(' API connection test failed: $e');
       return false;
     }
   }
@@ -1586,14 +1598,14 @@ class ApiService {
   /// Enhanced connection test with retry logic
   Future<bool> testConnectionWithRetry({int maxRetries = 3}) async {
     if (!isInitialized) {
-      print('❌ API service not initialized');
+      print(' API service not initialized');
       return false;
     }
 
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         print(
-            '🔧 Testing API connection (attempt $attempt/$maxRetries) to: $baseUrl');
+            ' Testing API connection (attempt $attempt/$maxRetries) to: $baseUrl');
 
         // Try multiple endpoints to check backend health
         final endpoints = ['/health', '/api/health', '/api/status'];
@@ -1608,11 +1620,11 @@ class ApiService {
                 .timeout(Duration(seconds: 5));
 
             if (response.statusCode >= 200 && response.statusCode < 300) {
-              print('✅ Backend responding on $endpoint');
+              print(' Backend responding on $endpoint');
               return true;
             }
           } catch (endpointError) {
-            print('⚠️ Endpoint $endpoint failed: $endpointError');
+            print('️ Endpoint $endpoint failed: $endpointError');
             continue;
           }
         }
@@ -1623,7 +1635,7 @@ class ApiService {
           await Future.delayed(Duration(seconds: 2));
         }
       } catch (e) {
-        print('❌ Connection test attempt $attempt failed: $e');
+        print(' Connection test attempt $attempt failed: $e');
         if (attempt == maxRetries) {
           return false;
         }
@@ -1673,12 +1685,12 @@ class ApiService {
       final response = await _post('/api/devices/auto-connect', {});
 
       if (response['success'] == true) {
-        print('✅ AMR auto-connected: ${response['deviceId']}');
+        print(' AMR auto-connected: ${response['deviceId']}');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error auto-connecting AMR: $e');
+      print(' Error auto-connecting AMR: $e');
       throw ApiException('Failed to auto-connect AMR: $e');
     }
   }
@@ -1701,12 +1713,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Device connected: $deviceId');
+        print(' Device connected: $deviceId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error connecting device: $e');
+      print(' Error connecting device: $e');
       throw ApiException('Failed to connect device: $e');
     }
   }
@@ -1726,7 +1738,7 @@ class ApiService {
 
       return [];
     } catch (e) {
-      print('❌ Error getting devices: $e');
+      print(' Error getting devices: $e');
       throw ApiException('Failed to get devices: $e');
     }
   }
@@ -1743,7 +1755,7 @@ class ApiService {
 
       throw ApiException('Failed to get device status: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting device status: $e');
+      print(' Error getting device status: $e');
       throw ApiException('Failed to get device status: $e');
     }
   }
@@ -1757,12 +1769,12 @@ class ApiService {
           await _post('/api/control/devices/$deviceId/disconnect', {});
 
       if (response['success'] == true) {
-        print('✅ Device disconnected: $deviceId');
+        print(' Device disconnected: $deviceId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error disconnecting device: $e');
+      print(' Error disconnecting device: $e');
       throw ApiException('Failed to disconnect device: $e');
     }
   }
@@ -1805,18 +1817,18 @@ class ApiService {
 
       return [];
     } catch (e) {
-      print('❌ Error getting orders for $deviceId: $e');
+      print(' Error getting orders for $deviceId: $e');
 
       // Enhanced error handling for orders
       if (e is ApiException) {
         if (e.message.contains('Network error') ||
             e.message.contains('Connection failed')) {
-          print('🔄 Network connectivity issue detected for orders');
+          print(' Network connectivity issue detected for orders');
           // Try to recover by testing connection
           try {
             final isHealthy = await testConnectionWithRetry(maxRetries: 2);
             if (isHealthy) {
-              print('🔄 Backend is healthy, retrying order fetch...');
+              print(' Backend is healthy, retrying order fetch...');
               // Rebuild query parameters for retry
               final retryParams = <String, String>{
                 'limit': limit.toString(),
@@ -1835,13 +1847,13 @@ class ApiService {
               if (retryResponse['success'] == true) {
                 final orders = retryResponse['orders'] as List?;
                 if (orders != null) {
-                  print('✅ Retry successful, got ${orders.length} orders');
+                  print(' Retry successful, got ${orders.length} orders');
                   return orders.cast<Map<String, dynamic>>();
                 }
               }
             }
           } catch (retryError) {
-            print('❌ Retry failed: $retryError');
+            print(' Retry failed: $retryError');
           }
         }
       }
@@ -1880,7 +1892,7 @@ class ApiService {
       throw ApiException(
           'Failed to get order statistics: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting order statistics: $e');
+      print(' Error getting order statistics: $e');
       throw ApiException('Failed to get order statistics: $e');
     }
   }
@@ -1901,12 +1913,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Order execution started: $orderId');
+        print(' Order execution started: $orderId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error executing order: $e');
+      print(' Error executing order: $e');
       throw ApiException('Failed to execute order: $e');
     }
   }
@@ -1925,12 +1937,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Order cancelled: $orderId');
+        print(' Order cancelled: $orderId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error cancelling order: $e');
+      print(' Error cancelling order: $e');
       throw ApiException('Failed to cancel order: $e');
     }
   }
@@ -1945,12 +1957,12 @@ class ApiService {
       final response = await _post('/api/orders/$deviceId/emergency_stop', {});
 
       if (response['success'] == true) {
-        print('🚨 Emergency stop activated for: $deviceId');
+        print(' Emergency stop activated for: $deviceId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error in emergency stop: $e');
+      print(' Error in emergency stop: $e');
       throw ApiException('Failed to emergency stop: $e');
     }
   }
@@ -1973,7 +1985,7 @@ class ApiService {
       throw ApiException(
           'Failed to get execution status: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting execution status: $e');
+      print(' Error getting execution status: $e');
       throw ApiException('Failed to get execution status: $e');
     }
   }
@@ -1991,12 +2003,12 @@ class ApiService {
           '/api/orders/$deviceId/$orderId/waypoint/$waypointIndex', {});
 
       if (response['success'] == true) {
-        print('✅ Waypoint published: $waypointIndex');
+        print(' Waypoint published: $waypointIndex');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error publishing waypoint: $e');
+      print(' Error publishing waypoint: $e');
       throw ApiException('Failed to publish waypoint: $e');
     }
   }
@@ -2018,12 +2030,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Batch execution started for ${orderIds.length} orders');
+        print(' Batch execution started for ${orderIds.length} orders');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error in batch execution: $e');
+      print(' Error in batch execution: $e');
       throw ApiException('Failed to batch execute orders: $e');
     }
   }
@@ -2073,14 +2085,14 @@ class ApiService {
       if (response['error']?.toString().contains('404') == true ||
           response['error']?.toString().contains('Endpoint not found') ==
               true) {
-        print('⚠️ Analytics endpoint not available, using mock data');
+        print('️ Analytics endpoint not available, using mock data');
         return _generateMockAnalyticsData(deviceId, dataType, timeRange);
       }
 
       throw ApiException('Failed to get analytics data: ${response['error']}');
     } catch (e) {
       // Fallback to mock data for development
-      print('⚠️ Analytics API unavailable, using mock data: $e');
+      print('️ Analytics API unavailable, using mock data: $e');
       return _generateMockAnalyticsData(deviceId, dataType, timeRange);
     }
   }
@@ -2219,7 +2231,7 @@ class ApiService {
 
       return response;
     } catch (e) {
-      print('❌ Error sending joystick command: $e');
+      print(' Error sending joystick command: $e');
       throw ApiException('Failed to send joystick command: $e');
     }
   }
@@ -2239,7 +2251,7 @@ class ApiService {
 
       return response;
     } catch (e) {
-      print('❌ Error sending velocity command: $e');
+      print(' Error sending velocity command: $e');
       throw ApiException('Failed to send velocity command: $e');
     }
   }
@@ -2260,12 +2272,12 @@ class ApiService {
           await _post('/api/control/devices/$deviceId/emergency-stop', {});
 
       if (response['success'] == true) {
-        print('🛑 Emergency stop sent for device: $deviceId');
+        print(' Emergency stop sent for device: $deviceId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error sending emergency stop: $e');
+      print(' Error sending emergency stop: $e');
       throw ApiException('Failed to send emergency stop: $e');
     }
   }
@@ -2286,12 +2298,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('🎯 Goal set for device $deviceId: ($x, $y)');
+        print(' Goal set for device $deviceId: ($x, $y)');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error setting goal: $e');
+      print(' Error setting goal: $e');
       throw ApiException('Failed to set goal: $e');
     }
   }
@@ -2308,12 +2320,12 @@ class ApiService {
           await _post('/api/control/devices/$deviceId/mapping/start', {});
 
       if (response['success'] == true) {
-        print('🗺️ Mapping started for device: $deviceId');
+        print('️ Mapping started for device: $deviceId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error starting mapping: $e');
+      print(' Error starting mapping: $e');
       throw ApiException('Failed to start mapping: $e');
     }
   }
@@ -2326,12 +2338,12 @@ class ApiService {
           await _post('/api/control/devices/$deviceId/mapping/stop', {});
 
       if (response['success'] == true) {
-        print('🛑 Mapping stopped for device: $deviceId');
+        print(' Mapping stopped for device: $deviceId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error stopping mapping: $e');
+      print(' Error stopping mapping: $e');
       throw ApiException('Failed to stop mapping: $e');
     }
   }
@@ -2349,7 +2361,7 @@ class ApiService {
 
       throw ApiException('Failed to get mapping status: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting mapping status: $e');
+      print(' Error getting mapping status: $e');
       throw ApiException('Failed to get mapping status: $e');
     }
   }
@@ -2367,12 +2379,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('💾 Map saved for device: $deviceId');
+        print(' Map saved for device: $deviceId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error saving map: $e');
+      print(' Error saving map: $e');
       throw ApiException('Failed to save map: $e');
     }
   }
@@ -2389,12 +2401,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('💾 Map data saved for device: $deviceId');
+        print(' Map data saved for device: $deviceId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error saving map data: $e');
+      print(' Error saving map data: $e');
       throw ApiException('Failed to save map data: $e');
     }
   }
@@ -2410,7 +2422,7 @@ class ApiService {
     _ensureInitialized();
 
     try {
-      print('🚀 Saving map via ROS2 for device: $deviceId');
+      print(' Saving map via ROS2 for device: $deviceId');
 
       final response = await _post('/api/maps/$deviceId/save-via-ros2', {
         'mapName': mapName,
@@ -2421,12 +2433,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map saved via ROS2: $mapName');
+        print(' Map saved via ROS2: $mapName');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error saving map via ROS2: $e');
+      print(' Error saving map via ROS2: $e');
       throw ApiException('Failed to save map via ROS2: $e');
     }
   }
@@ -2439,7 +2451,7 @@ class ApiService {
     _ensureInitialized();
 
     try {
-      print('📋 Getting ROS2 saved maps for device: $deviceId');
+      print(' Getting ROS2 saved maps for device: $deviceId');
 
       final queryParams = <String, String>{};
       if (directory != null) queryParams['directory'] = directory;
@@ -2455,14 +2467,14 @@ class ApiService {
       if (response['success'] == true) {
         final maps = response['maps'] as List?;
         if (maps != null) {
-          print('✅ Found ${maps.length} ROS2 saved maps');
+          print(' Found ${maps.length} ROS2 saved maps');
           return maps.cast<Map<String, dynamic>>();
         }
       }
 
       return [];
     } catch (e) {
-      print('❌ Error getting ROS2 saved maps: $e');
+      print(' Error getting ROS2 saved maps: $e');
       return [];
     }
   }
@@ -2476,7 +2488,7 @@ class ApiService {
     _ensureInitialized();
 
     try {
-      print('📂 Loading ROS2 saved map: $mapName for device: $deviceId');
+      print(' Loading ROS2 saved map: $mapName for device: $deviceId');
 
       final response = await _post('/api/maps/$deviceId/load-ros2-saved', {
         'mapName': mapName,
@@ -2485,12 +2497,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ ROS2 saved map loaded: $mapName');
+        print(' ROS2 saved map loaded: $mapName');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error loading ROS2 saved map: $e');
+      print(' Error loading ROS2 saved map: $e');
       throw ApiException('Failed to load ROS2 saved map: $e');
     }
   }
@@ -2500,8 +2512,8 @@ class ApiService {
     _ensureInitialized();
 
     try {
-      print('🗺️ Loading map data for device: $deviceId');
-      print('🔗 Base URL: $_baseUrl');
+      print('️ Loading map data for device: $deviceId');
+      print(' Base URL: $_baseUrl');
 
       // Try multiple endpoints to get map data
       Map<String, dynamic> response;
@@ -2509,44 +2521,44 @@ class ApiService {
       // Method 1: Try getting saved maps first (most reliable)
       try {
         final savedMapsUrl = '/api/maps/$deviceId/saved';
-        print('🔗 Trying saved maps: $_baseUrl$savedMapsUrl');
+        print(' Trying saved maps: $_baseUrl$savedMapsUrl');
 
         response = await _get(savedMapsUrl, useCache: false);
         print(
-            '📥 Saved maps response: ${response.toString().substring(0, 200)}...');
+            ' Saved maps response: ${response.toString().substring(0, 200)}...');
 
         if (response['success'] == true &&
             response['maps'] != null &&
             response['maps'].isNotEmpty) {
           print(
-              '✅ Found ${response['maps'].length} saved maps for device: $deviceId');
+              ' Found ${response['maps'].length} saved maps for device: $deviceId');
 
           // Use the most recent map
           final maps = response['maps'] as List;
           if (maps.isNotEmpty) {
             final latestMap = maps.first; // Maps should be sorted by date
-            print('✅ Using latest map: ${latestMap['name'] ?? 'unnamed'}');
+            print(' Using latest map: ${latestMap['name'] ?? 'unnamed'}');
 
             // Load the actual map file content
             try {
               final mapName = latestMap['name'];
               final loadCompleteUrl =
                   '/api/maps/$deviceId/load-complete?mapName=$mapName';
-              print('🔗 Loading complete map: $_baseUrl$loadCompleteUrl');
+              print(' Loading complete map: $_baseUrl$loadCompleteUrl');
 
               final mapContentResponse =
                   await _get(loadCompleteUrl, useCache: false);
               if (mapContentResponse['success'] == true &&
                   mapContentResponse['mapData'] != null) {
-                print('✅ Loaded complete map data for: ${latestMap['name']}');
+                print(' Loaded complete map data for: ${latestMap['name']}');
                 return _normalizeMapResponse(mapContentResponse);
               }
             } catch (loadError) {
-              print('⚠️ Failed to load complete map data: $loadError');
+              print('️ Failed to load complete map data: $loadError');
             }
 
             // Fallback: Create minimal map data from saved map metadata
-            print('🔄 Creating fallback map data from metadata');
+            print(' Creating fallback map data from metadata');
             final mapData = {
               'success': true,
               'mapData': {
@@ -2574,10 +2586,10 @@ class ApiService {
             return _normalizeMapResponse(mapData);
           }
         } else {
-          print('⚠️ No saved maps found or invalid response structure');
+          print('️ No saved maps found or invalid response structure');
         }
       } catch (e) {
-        print('❌ Saved maps endpoint failed: $e');
+        print(' Saved maps endpoint failed: $e');
       }
 
       // Method 2: Try the control endpoint (your existing API)
@@ -2585,11 +2597,11 @@ class ApiService {
         response =
             await _get('/api/control/devices/$deviceId/maps', useCache: false);
         if (response['success'] == true && response['mapData'] != null) {
-          print('✅ Map data loaded from control endpoint');
+          print(' Map data loaded from control endpoint');
           return _normalizeMapResponse(response);
         }
       } catch (e) {
-        print('⚠️ Control endpoint failed: $e');
+        print('️ Control endpoint failed: $e');
       }
 
       // Method 2: Try the enhanced map endpoint
@@ -2597,11 +2609,11 @@ class ApiService {
         response =
             await _get('/api/maps/$deviceId/load-complete', useCache: false);
         if (response['success'] == true && response['mapData'] != null) {
-          print('✅ Map data loaded from enhanced endpoint');
+          print(' Map data loaded from enhanced endpoint');
           return _normalizeMapResponse(response);
         }
       } catch (e) {
-        print('⚠️ Enhanced endpoint failed: $e');
+        print('️ Enhanced endpoint failed: $e');
       }
 
       // Method 3: Try to get the latest saved map
@@ -2614,19 +2626,19 @@ class ApiService {
             mapName: latestMap['name'],
           );
           if (response['success'] == true && response['mapData'] != null) {
-            print('✅ Map data loaded from saved maps');
+            print(' Map data loaded from saved maps');
             return _normalizeMapResponse(response);
           }
         }
       } catch (e) {
-        print('⚠️ Saved maps endpoint failed: $e');
+        print('️ Saved maps endpoint failed: $e');
       }
 
       // Method 4: Create empty map if nothing found
-      print('⚠️ No map data found, creating empty map');
+      print('️ No map data found, creating empty map');
       return _createEmptyMapResponse(deviceId);
     } catch (e) {
-      print('❌ Error getting map data: $e');
+      print(' Error getting map data: $e');
       throw ApiException('Failed to get map data: $e');
     }
   }
@@ -2714,7 +2726,7 @@ class ApiService {
     _ensureInitialized();
 
     try {
-      print('📋 Getting saved maps for device: $deviceId');
+      print(' Getting saved maps for device: $deviceId');
 
       final params = {
         'includePreview': includePreview.toString(),
@@ -2731,15 +2743,15 @@ class ApiService {
       if (response['success'] == true) {
         final maps = response['maps'] as List?;
         if (maps != null) {
-          print('✅ Found ${maps.length} saved maps');
+          print(' Found ${maps.length} saved maps');
           return maps.cast<Map<String, dynamic>>();
         }
       }
 
-      print('⚠️ No saved maps found');
+      print('️ No saved maps found');
       return [];
     } catch (e) {
-      print('❌ Error getting saved maps: $e');
+      print(' Error getting saved maps: $e');
       // Return empty list instead of throwing to handle gracefully
       return [];
     }
@@ -2756,7 +2768,7 @@ class ApiService {
 
     try {
       print(
-          '📂 Loading map data: ${mapName ?? 'current'} for device: $deviceId');
+          ' Loading map data: ${mapName ?? 'current'} for device: $deviceId');
 
       final params = <String, String>{
         'includeShapes': includeShapes.toString(),
@@ -2775,13 +2787,13 @@ class ApiService {
           await _get('/api/maps/$deviceId/load-complete?$queryString');
 
       if (response['success'] == true) {
-        print('✅ Map loaded successfully: ${mapName ?? 'current'}');
+        print(' Map loaded successfully: ${mapName ?? 'current'}');
         return _normalizeMapResponse(response);
       }
 
       throw ApiException('Failed to load map: ${response['error']}');
     } catch (e) {
-      print('❌ Error loading map data: $e');
+      print(' Error loading map data: $e');
       throw ApiException('Failed to load map data: $e');
     }
   }
@@ -2793,7 +2805,7 @@ class ApiService {
       final response = await _get('/api/control/devices/$deviceId/map');
       return response;
     } catch (e) {
-      print('❌ Error getting map data: $e');
+      print(' Error getting map data: $e');
       throw ApiException('Failed to get map data: $e');
     }
   }
@@ -2823,12 +2835,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('➕ Shape added to map for device: $deviceId');
+        print(' Shape added to map for device: $deviceId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error adding map shape: $e');
+      print(' Error adding map shape: $e');
       throw ApiException('Failed to add map shape: $e');
     }
   }
@@ -2845,12 +2857,12 @@ class ApiService {
           '/api/control/devices/$deviceId/map/shapes/$shapeId', updates ?? {});
 
       if (response['success'] == true) {
-        print('✏️ Shape updated for device: $deviceId');
+        print('️ Shape updated for device: $deviceId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error updating map shape: $e');
+      print(' Error updating map shape: $e');
       throw ApiException('Failed to update map shape: $e');
     }
   }
@@ -2866,12 +2878,12 @@ class ApiService {
           await _delete('/api/control/devices/$deviceId/map/shapes/$shapeId');
 
       if (response['success'] == true) {
-        print('🗑️ Shape deleted from map for device: $deviceId');
+        print('️ Shape deleted from map for device: $deviceId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error deleting map shape: $e');
+      print(' Error deleting map shape: $e');
       throw ApiException('Failed to delete map shape: $e');
     }
   }
@@ -2890,12 +2902,12 @@ class ApiService {
       }
       return [];
     } catch (e) {
-      print('❌ Error getting orders for $deviceId: $e');
+      print(' Error getting orders for $deviceId: $e');
 
       // Enhanced error handling for better user experience
       if (e is ApiException && e.message.contains('Network error')) {
         print(
-            '🔄 Network error detected, attempting backend connection recovery...');
+            ' Network error detected, attempting backend connection recovery...');
 
         // Try to reconnect to backend
         try {
@@ -2911,7 +2923,7 @@ class ApiService {
       }
 
       // Return empty list for graceful degradation instead of throwing
-      print('⚠️ Returning empty orders list for graceful degradation');
+      print('️ Returning empty orders list for graceful degradation');
       return [];
     }
   }
@@ -2940,7 +2952,7 @@ class ApiService {
       }
       throw ApiException('Failed to get all orders: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting all orders: $e');
+      print(' Error getting all orders: $e');
       throw ApiException('Failed to get all orders: $e');
     }
   }
@@ -2963,16 +2975,16 @@ class ApiService {
       });
       if (response['success'] == true) {
         print(
-            '✅ Order created: ${response['order']['id']} for device: $deviceId');
+            ' Order created: ${response['order']['id']} for device: $deviceId');
       }
       return response;
     } catch (e) {
-      print('❌ Error creating order: $e');
+      print(' Error creating order: $e');
       throw ApiException('Failed to create order: $e');
     }
   }
 
-  /// ✅ NEW: Execute order with enhanced target_pose integration
+  ///  NEW: Execute order with enhanced target_pose integration
   Future<Map<String, dynamic>> executeOrderEnhanced({
     required String deviceId,
     required String orderId,
@@ -2988,16 +3000,16 @@ class ApiService {
       });
       if (response['success'] == true) {
         print(
-            '✅ Enhanced order execution started: $orderId for device: $deviceId');
+            ' Enhanced order execution started: $orderId for device: $deviceId');
       }
       return response;
     } catch (e) {
-      print('❌ Error executing enhanced order: $e');
+      print(' Error executing enhanced order: $e');
       throw ApiException('Failed to execute enhanced order: $e');
     }
   }
 
-  /// ✅ NEW: Pause order execution
+  ///  NEW: Pause order execution
   Future<Map<String, dynamic>> pauseOrderExecution({
     required String deviceId,
     required String orderId,
@@ -3007,16 +3019,16 @@ class ApiService {
       final response = await _post(
           '/api/enhanced-orders/devices/$deviceId/orders/$orderId/pause', {});
       if (response['success'] == true) {
-        print('✅ Order execution paused: $orderId');
+        print(' Order execution paused: $orderId');
       }
       return response;
     } catch (e) {
-      print('❌ Error pausing order execution: $e');
+      print(' Error pausing order execution: $e');
       throw ApiException('Failed to pause order execution: $e');
     }
   }
 
-  /// ✅ NEW: Resume order execution
+  ///  NEW: Resume order execution
   Future<Map<String, dynamic>> resumeOrderExecution({
     required String deviceId,
     required String orderId,
@@ -3026,16 +3038,16 @@ class ApiService {
       final response = await _post(
           '/api/enhanced-orders/devices/$deviceId/orders/$orderId/resume', {});
       if (response['success'] == true) {
-        print('✅ Order execution resumed: $orderId');
+        print(' Order execution resumed: $orderId');
       }
       return response;
     } catch (e) {
-      print('❌ Error resuming order execution: $e');
+      print(' Error resuming order execution: $e');
       throw ApiException('Failed to resume order execution: $e');
     }
   }
 
-  /// ✅ NEW: Cancel order execution
+  ///  NEW: Cancel order execution
   Future<Map<String, dynamic>> cancelOrderExecution({
     required String deviceId,
     required String orderId,
@@ -3048,16 +3060,16 @@ class ApiService {
         'reason': reason ?? 'User cancelled',
       });
       if (response['success'] == true) {
-        print('✅ Order execution cancelled: $orderId');
+        print(' Order execution cancelled: $orderId');
       }
       return response;
     } catch (e) {
-      print('❌ Error cancelling order execution: $e');
+      print(' Error cancelling order execution: $e');
       throw ApiException('Failed to cancel order execution: $e');
     }
   }
 
-  /// ✅ NEW: Get enhanced execution status
+  ///  NEW: Get enhanced execution status
   Future<Map<String, dynamic>> getEnhancedOrderExecutionStatus({
     required String deviceId,
     required String orderId,
@@ -3072,12 +3084,12 @@ class ApiService {
       throw ApiException(
           'Failed to get execution status: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting execution status: $e');
+      print(' Error getting execution status: $e');
       throw ApiException('Failed to get execution status: $e');
     }
   }
 
-  /// ✅ NEW: Get active executions
+  ///  NEW: Get active executions
   Future<Map<String, dynamic>> getActiveOrderExecutions(
       {String? deviceId}) async {
     _ensureInitialized();
@@ -3093,12 +3105,12 @@ class ApiService {
       throw ApiException(
           'Failed to get active executions: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting active executions: $e');
+      print(' Error getting active executions: $e');
       throw ApiException('Failed to get active executions: $e');
     }
   }
 
-  /// ✅ NEW: Get execution history
+  ///  NEW: Get execution history
   Future<Map<String, dynamic>> getOrderExecutionHistory({
     String? deviceId,
     int limit = 50,
@@ -3126,7 +3138,7 @@ class ApiService {
       throw ApiException(
           'Failed to get execution history: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting execution history: $e');
+      print(' Error getting execution history: $e');
       throw ApiException('Failed to get execution history: $e');
     }
   }
@@ -3141,7 +3153,7 @@ class ApiService {
       }
       throw ApiException('Failed to get order: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting order: $e');
+      print(' Error getting order: $e');
       throw ApiException('Failed to get order: $e');
     }
   }
@@ -3163,11 +3175,11 @@ class ApiService {
       final response =
           await _put('/api/orders/$deviceId/$orderId/status', body);
       if (response['success'] == true) {
-        print('✅ Order status updated: $orderId -> $status');
+        print(' Order status updated: $orderId -> $status');
       }
       return response;
     } catch (e) {
-      print('❌ Error updating order status: $e');
+      print(' Error updating order status: $e');
       throw ApiException('Failed to update order status: $e');
     }
   }
@@ -3180,11 +3192,11 @@ class ApiService {
       final response =
           await _post('/api/orders/$deviceId/$orderId/execute', {});
       if (response['success'] == true) {
-        print('✅ Order execution started: $orderId');
+        print(' Order execution started: $orderId');
       }
       return response;
     } catch (e) {
-      print('❌ Error executing order: $e');
+      print(' Error executing order: $e');
       throw ApiException('Failed to execute order: $e');
     }
   }
@@ -3196,11 +3208,11 @@ class ApiService {
     try {
       final response = await _post('/api/orders/$deviceId/$orderId/pause', {});
       if (response['success'] == true) {
-        print('✅ Order paused: $orderId');
+        print(' Order paused: $orderId');
       }
       return response;
     } catch (e) {
-      print('❌ Error pausing order: $e');
+      print(' Error pausing order: $e');
       throw ApiException('Failed to pause order: $e');
     }
   }
@@ -3212,11 +3224,11 @@ class ApiService {
     try {
       final response = await _delete('/api/orders/$deviceId/$orderId');
       if (response['success'] == true) {
-        print('✅ Order deleted: $orderId');
+        print(' Order deleted: $orderId');
       }
       return response;
     } catch (e) {
-      print('❌ Error deleting order: $e');
+      print(' Error deleting order: $e');
       throw ApiException('Failed to delete order: $e');
     }
   }
@@ -3233,7 +3245,7 @@ class ApiService {
       }
       throw ApiException('Failed to get order stats: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting order stats: $e');
+      print(' Error getting order stats: $e');
       throw ApiException('Failed to get order stats: $e');
     }
   }
@@ -3251,7 +3263,7 @@ class ApiService {
       throw ApiException(
           'Failed to get system order stats: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting system order stats: $e');
+      print(' Error getting system order stats: $e');
       throw ApiException('Failed to get system order stats: $e');
     }
   }
@@ -3266,7 +3278,7 @@ class ApiService {
       }
       throw ApiException('Failed to get map stations: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting map stations: $e');
+      print(' Error getting map stations: $e');
       throw ApiException('Failed to get map stations: $e');
     }
   }
@@ -3279,7 +3291,7 @@ class ApiService {
         return parts[1];
       }
     } catch (e) {
-      print('❌ Error extracting device ID from order ID: $e');
+      print(' Error extracting device ID from order ID: $e');
     }
     // Fallback - assume first connected device if extraction fails
     return 'piros'; // or throw an exception
@@ -3289,7 +3301,7 @@ class ApiService {
   // SIMPLE COORDINATE ORDER MANAGEMENT
   // ==========================================
 
-  /// ✅ CREATE SIMPLE COORDINATE ORDER
+  ///  CREATE SIMPLE COORDINATE ORDER
   Future<Map<String, dynamic>> createSimpleCoordinateOrder({
     required String deviceId,
     required String name,
@@ -3298,7 +3310,7 @@ class ApiService {
     _ensureInitialized();
     try {
       print(
-          '📝 Creating simple coordinate order: $name with ${coordinates.length} coordinates');
+          ' Creating simple coordinate order: $name with ${coordinates.length} coordinates');
 
       final response = await _post('/api/simple-orders/create', {
         'deviceId': deviceId,
@@ -3307,44 +3319,44 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Simple coordinate order created successfully');
+        print(' Simple coordinate order created successfully');
         return response;
       } else {
         throw ApiException(
             response['error'] ?? 'Failed to create simple coordinate order');
       }
     } catch (e) {
-      print('❌ Error creating simple coordinate order: $e');
+      print(' Error creating simple coordinate order: $e');
       if (e is ApiException) rethrow;
       throw ApiException('Failed to create simple coordinate order: $e');
     }
   }
 
-  /// ✅ START ORDER EXECUTION
+  ///  START ORDER EXECUTION
   Future<Map<String, dynamic>> startOrderExecution({
     required String orderId,
   }) async {
     _ensureInitialized();
     try {
-      print('🚀 Starting execution for order: $orderId');
+      print(' Starting execution for order: $orderId');
 
       final response = await _post('/api/simple-orders/$orderId/start', {});
 
       if (response['success'] == true) {
-        print('✅ Order execution started successfully');
+        print(' Order execution started successfully');
         return response;
       } else {
         throw ApiException(
             response['error'] ?? 'Failed to start order execution');
       }
     } catch (e) {
-      print('❌ Error starting order execution: $e');
+      print(' Error starting order execution: $e');
       if (e is ApiException) rethrow;
       throw ApiException('Failed to start order execution: $e');
     }
   }
 
-  /// ✅ PUBLISH GOAL TO TARGET_POSE
+  ///  PUBLISH GOAL TO TARGET_POSE
   Future<Map<String, dynamic>> publishGoalToTargetPose({
     required String deviceId,
     required double x,
@@ -3353,7 +3365,7 @@ class ApiService {
   }) async {
     _ensureInitialized();
     try {
-      print('🎯 Publishing goal to /target_pose: ($x, $y) @ ${orientation}rad');
+      print(' Publishing goal to /target_pose: ($x, $y) @ ${orientation}rad');
 
       final response = await _post('/api/control/devices/$deviceId/goal', {
         'x': x,
@@ -3362,103 +3374,103 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Goal published to /target_pose successfully');
+        print(' Goal published to /target_pose successfully');
         return response;
       } else {
         throw ApiException(response['error'] ?? 'Failed to publish goal');
       }
     } catch (e) {
-      print('❌ Error publishing goal: $e');
+      print(' Error publishing goal: $e');
       if (e is ApiException) rethrow;
       throw ApiException('Failed to publish goal: $e');
     }
   }
 
-  /// ✅ GET EXECUTION STATUS
+  ///  GET EXECUTION STATUS
   Future<Map<String, dynamic>> getExecutionStatus() async {
     _ensureInitialized();
     try {
       final response = await _get('/api/simple-orders/execution-status');
       return response;
     } catch (e) {
-      print('❌ Error getting execution status: $e');
+      print(' Error getting execution status: $e');
       if (e is ApiException) rethrow;
       throw ApiException('Failed to get execution status: $e');
     }
   }
 
-  /// ✅ STOP ORDER EXECUTION
+  ///  STOP ORDER EXECUTION
   Future<Map<String, dynamic>> stopOrderExecution() async {
     _ensureInitialized();
     try {
-      print('🛑 Stopping order execution');
+      print(' Stopping order execution');
 
       final response = await _post('/api/simple-orders/stop-execution', {});
 
       if (response['success'] == true) {
-        print('✅ Order execution stopped successfully');
+        print(' Order execution stopped successfully');
         return response;
       } else {
         throw ApiException(response['error'] ?? 'Failed to stop execution');
       }
     } catch (e) {
-      print('❌ Error stopping execution: $e');
+      print(' Error stopping execution: $e');
       if (e is ApiException) rethrow;
       throw ApiException('Failed to stop execution: $e');
     }
   }
 
-  /// ✅ RESTART ORDER
+  ///  RESTART ORDER
   Future<Map<String, dynamic>> restartOrder({
     required String orderId,
   }) async {
     _ensureInitialized();
     try {
-      print('🔄 Restarting order: $orderId');
+      print(' Restarting order: $orderId');
 
       final response = await _post('/api/simple-orders/$orderId/restart', {});
 
       if (response['success'] == true) {
-        print('✅ Order restarted successfully');
+        print(' Order restarted successfully');
         return response;
       } else {
         throw ApiException(response['error'] ?? 'Failed to restart order');
       }
     } catch (e) {
-      print('❌ Error restarting order: $e');
+      print(' Error restarting order: $e');
       if (e is ApiException) rethrow;
       throw ApiException('Failed to restart order: $e');
     }
   }
 
-  /// ✅ GET SIMPLE ORDERS FOR DEVICE
+  ///  GET SIMPLE ORDERS FOR DEVICE
   Future<Map<String, dynamic>> getSimpleOrders(String deviceId) async {
     _ensureInitialized();
     try {
-      print('📋 Getting simple orders for device: $deviceId');
+      print(' Getting simple orders for device: $deviceId');
 
       final response = await _get('/api/simple-orders/$deviceId');
 
       if (response['success'] == true) {
-        print('✅ Loaded ${response['orders']?.length ?? 0} simple orders');
+        print(' Loaded ${response['orders']?.length ?? 0} simple orders');
         return response;
       } else {
         throw ApiException(response['error'] ?? 'Failed to load simple orders');
       }
     } catch (e) {
-      print('❌ Error loading simple orders: $e');
+      print(' Error loading simple orders: $e');
 
       // Enhanced error handling for better user experience
       if (e is ApiException && e.message.contains('Network error')) {
         print(
-            '🔄 Network error detected for simple orders, checking backend connection...');
+            ' Network error detected for simple orders, checking backend connection...');
 
         // Try to test backend connectivity
         try {
           final isHealthy = await testConnection();
           if (!isHealthy) {
             print(
-                '⚠️ Backend not responding, returning empty orders for graceful handling');
+                '️ Backend not responding, returning empty orders for graceful handling');
             return {
               'success': false,
               'error': 'Backend server is not responding',
@@ -3466,7 +3478,7 @@ class ApiService {
             };
           }
         } catch (healthError) {
-          print('⚠️ Backend connectivity failed, returning empty orders');
+          print('️ Backend connectivity failed, returning empty orders');
           return {
             'success': false,
             'error': 'Cannot connect to backend server',
@@ -3484,25 +3496,25 @@ class ApiService {
     }
   }
 
-  /// ✅ DELETE SIMPLE COORDINATE ORDER
+  ///  DELETE SIMPLE COORDINATE ORDER
   Future<Map<String, dynamic>> deleteSimpleOrder(
       String deviceId, String orderId) async {
     _ensureInitialized();
     try {
       print(
-          '🗑️ Deleting simple coordinate order: $orderId for device: $deviceId');
+          '️ Deleting simple coordinate order: $orderId for device: $deviceId');
 
       final response = await _delete('/api/simple-orders/$deviceId/$orderId');
 
       if (response['success'] == true) {
-        print('✅ Simple coordinate order deleted successfully');
+        print(' Simple coordinate order deleted successfully');
         return response;
       } else {
         throw ApiException(
             response['error'] ?? 'Failed to delete simple coordinate order');
       }
     } catch (e) {
-      print('❌ Error deleting simple coordinate order: $e');
+      print(' Error deleting simple coordinate order: $e');
       throw ApiException('Failed to delete simple coordinate order: $e');
     }
   }
@@ -3523,7 +3535,7 @@ class ApiService {
 
       throw ApiException('Failed to get ROS status: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting ROS status: $e');
+      print(' Error getting ROS status: $e');
       throw ApiException('Failed to get ROS status: $e');
     }
   }
@@ -3540,7 +3552,7 @@ class ApiService {
 
       throw ApiException('Connectivity test failed: ${response['error']}');
     } catch (e) {
-      print('❌ Error testing connectivity: $e');
+      print(' Error testing connectivity: $e');
       throw ApiException('Failed to test connectivity: $e');
     }
   }
@@ -3557,7 +3569,7 @@ class ApiService {
 
       throw ApiException('Failed to get system status: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting system status: $e');
+      print(' Error getting system status: $e');
       throw ApiException('Failed to get system status: $e');
     }
   }
@@ -3569,7 +3581,7 @@ class ApiService {
       final response = await _get('/health');
       return response;
     } catch (e) {
-      print('❌ Error checking health: $e');
+      print(' Error checking health: $e');
       throw ApiException('Failed to check health: $e');
     }
   }
@@ -3591,7 +3603,7 @@ class ApiService {
 
       return response;
     } catch (e) {
-      print('⚠️ Theme update failed (endpoint may not exist): $e');
+      print('️ Theme update failed (endpoint may not exist): $e');
       return {'success': false, 'error': 'Theme endpoint not available'};
     }
   }
@@ -3616,7 +3628,7 @@ class ApiService {
     if (useCache && _cachingEnabled && _cache.containsKey(cacheKey)) {
       final entry = _cache[cacheKey]!;
       if (!entry.isExpired) {
-        print('📋 Cache hit for $endpoint');
+        print(' Cache hit for $endpoint');
         return entry.data as Map<String, dynamic>;
       } else {
         _cache.remove(cacheKey);
@@ -3624,7 +3636,7 @@ class ApiService {
     }
 
     try {
-      print('📡 GET: $url');
+      print(' GET: $url');
       final response = await http.get(url, headers: _headers).timeout(_timeout);
       _trackRequest(endpoint, response.statusCode < 400, response.statusCode);
       final data = _handleResponse(response);
@@ -3667,7 +3679,7 @@ class ApiService {
 
     try {
       final url = Uri.parse('$_baseUrl$endpoint');
-      print('📡 POST: $url');
+      print(' POST: $url');
 
       final response = await http
           .post(
@@ -3695,7 +3707,7 @@ class ApiService {
 
     try {
       final url = Uri.parse('$_baseUrl$endpoint');
-      print('📡 PUT: $url');
+      print(' PUT: $url');
 
       final response = await http
           .put(
@@ -3722,7 +3734,7 @@ class ApiService {
 
     try {
       final url = Uri.parse('$_baseUrl$endpoint');
-      print('📡 DELETE: $url');
+      print(' DELETE: $url');
 
       final response =
           await http.delete(url, headers: _headers).timeout(_timeout);
@@ -3742,7 +3754,7 @@ class ApiService {
     final String body = response.body;
 
     print(
-        '📨 Response ${response.statusCode}: ${body.length > 200 ? body.substring(0, 200) + '...' : body}');
+        ' Response ${response.statusCode}: ${body.length > 200 ? body.substring(0, 200) + '...' : body}');
 
     try {
       final Map<String, dynamic> data = json.decode(body);
@@ -3818,7 +3830,7 @@ class ApiService {
 
   void clearCache() {
     _cache.clear();
-    print('🗑️ API cache cleared');
+    print('️ API cache cleared');
   }
 
   void clearStats() {
@@ -3827,7 +3839,7 @@ class ApiService {
     _failedRequests = 0;
     _endpointStats.clear();
     _statusCodeStats.clear();
-    print('📊 API statistics cleared');
+    print(' API statistics cleared');
   }
 
   void clearCacheForEndpoint(String endpoint) {
@@ -3836,7 +3848,7 @@ class ApiService {
     for (final key in keysToRemove) {
       _cache.remove(key);
     }
-    print('🗑️ Cache cleared for endpoint: $endpoint');
+    print('️ Cache cleared for endpoint: $endpoint');
   }
 
   void dispose() {
@@ -3844,7 +3856,7 @@ class ApiService {
     clearStats();
   }
 
-  // ✅ ADD THESE NEW METHODS to your existing ApiService class:
+  //  ADD THESE NEW METHODS to your existing ApiService class:
 
   /// Save complete map data with all layers and metadata
   Future<Map<String, dynamic>> saveCompleteMapData({
@@ -3878,7 +3890,7 @@ class ApiService {
           await _post('/api/maps/$deviceId/save-complete', requestData);
 
       if (response['success'] == true) {
-        print('✅ Complete map saved successfully: $completeMapName');
+        print(' Complete map saved successfully: $completeMapName');
 
         // Clear cache for this device to force reload
         clearCacheForEndpoint('/api/maps/$deviceId');
@@ -3886,7 +3898,7 @@ class ApiService {
 
       return response;
     } catch (e) {
-      print('❌ Error saving complete map data: $e');
+      print(' Error saving complete map data: $e');
       throw ApiException('Failed to save complete map data: $e');
     }
   }
@@ -3918,13 +3930,13 @@ class ApiService {
           await _get('/api/maps/$deviceId/load-complete?$queryString');
 
       if (response['success'] == true) {
-        print('✅ Complete map loaded for device: $deviceId');
+        print(' Complete map loaded for device: $deviceId');
         return response;
       }
 
       throw ApiException('Failed to load complete map: ${response['error']}');
     } catch (e) {
-      print('❌ Error loading complete map data: $e');
+      print(' Error loading complete map data: $e');
       throw ApiException('Failed to load complete map data: $e');
     }
   }
@@ -3960,7 +3972,7 @@ class ApiService {
 
       return [];
     } catch (e) {
-      print('❌ Error getting saved maps: $e');
+      print(' Error getting saved maps: $e');
       // Return empty list instead of throwing to handle gracefully
       return [];
     }
@@ -3982,7 +3994,7 @@ class ApiService {
 
       throw ApiException('Failed to get map preview: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting map preview: $e');
+      print(' Error getting map preview: $e');
       throw ApiException('Failed to get map preview: $e');
     }
   }
@@ -4006,7 +4018,7 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map cloned: $sourceMapName -> $targetMapName');
+        print(' Map cloned: $sourceMapName -> $targetMapName');
 
         // Clear cache to force reload
         clearCacheForEndpoint('/api/maps/$deviceId');
@@ -4014,7 +4026,7 @@ class ApiService {
 
       return response;
     } catch (e) {
-      print('❌ Error cloning map: $e');
+      print(' Error cloning map: $e');
       throw ApiException('Failed to clone map: $e');
     }
   }
@@ -4032,7 +4044,7 @@ class ApiService {
           '/api/maps/$deviceId/$mapName?deleteBackups=$deleteBackups');
 
       if (response['success'] == true) {
-        print('✅ Map deleted: $mapName');
+        print(' Map deleted: $mapName');
 
         // Clear cache for this device
         clearCacheForEndpoint('/api/maps/$deviceId');
@@ -4040,7 +4052,7 @@ class ApiService {
 
       return response;
     } catch (e) {
-      print('❌ Error deleting saved map: $e');
+      print(' Error deleting saved map: $e');
       throw ApiException('Failed to delete saved map: $e');
     }
   }
@@ -4063,13 +4075,13 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Maps exported in $format format: ${mapNames.join(', ')}');
+        print(' Maps exported in $format format: ${mapNames.join(', ')}');
         return response;
       }
 
       throw ApiException('Failed to export maps: ${response['error']}');
     } catch (e) {
-      print('❌ Error exporting maps: $e');
+      print(' Error exporting maps: $e');
       throw ApiException('Failed to export maps: $e');
     }
   }
@@ -4091,7 +4103,7 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Map shared: $mapName to ${targetDeviceIds.length} devices');
+        print(' Map shared: $mapName to ${targetDeviceIds.length} devices');
 
         // Clear cache for all affected devices
         for (final deviceId in targetDeviceIds) {
@@ -4101,7 +4113,7 @@ class ApiService {
 
       return response;
     } catch (e) {
-      print('❌ Error sharing map: $e');
+      print(' Error sharing map: $e');
       throw ApiException('Failed to share map: $e');
     }
   }
@@ -4184,15 +4196,15 @@ class ApiService {
   String getLocationTypeIcon(String type) {
     switch (type) {
       case 'pickup':
-        return '📦';
+        return '';
       case 'drop':
-        return '🎯';
+        return '';
       case 'charging':
-        return '🔋';
+        return '';
       case 'home':
-        return '🏠';
+        return '';
       case 'waypoint':
-        return '📍';
+        return '';
       default:
         return '⭕';
     }
@@ -4216,12 +4228,12 @@ class ApiService {
       });
 
       if (response['success'] == true) {
-        print('✅ Deployment config saved');
+        print(' Deployment config saved');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error saving deployment config: $e');
+      print(' Error saving deployment config: $e');
       throw ApiException('Failed to save deployment config: $e');
     }
   }
@@ -4250,7 +4262,7 @@ class ApiService {
         },
       };
     } catch (e) {
-      print('❌ Error getting deployment config: $e');
+      print(' Error getting deployment config: $e');
       throw ApiException('Failed to get deployment config: $e');
     }
   }
@@ -4265,7 +4277,7 @@ class ApiService {
     _ensureInitialized();
 
     try {
-      print('🚀 Starting batch deployment of ${mapNames.length} maps...');
+      print(' Starting batch deployment of ${mapNames.length} maps...');
 
       final results = <String, dynamic>{};
       String? lastDeployedMap;
@@ -4274,7 +4286,7 @@ class ApiService {
         final mapName = mapNames[i];
         final isLastMap = i == mapNames.length - 1;
 
-        print('📋 Deploying ${i + 1}/${mapNames.length}: $mapName');
+        print(' Deploying ${i + 1}/${mapNames.length}: $mapName');
 
         try {
           final result = await deployMapToRaspberryPi(
@@ -4288,9 +4300,9 @@ class ApiService {
 
           if (result['success'] == true) {
             lastDeployedMap = mapName;
-            print('✅ Deployed: $mapName');
+            print(' Deployed: $mapName');
           } else {
-            print('❌ Failed to deploy: $mapName');
+            print(' Failed to deploy: $mapName');
           }
 
           // Small delay between deployments
@@ -4300,7 +4312,7 @@ class ApiService {
             'success': false,
             'error': e.toString(),
           };
-          print('❌ Error deploying $mapName: $e');
+          print(' Error deploying $mapName: $e');
         }
       }
 
@@ -4318,7 +4330,7 @@ class ApiService {
         'completedAt': DateTime.now().toIso8601String(),
       };
     } catch (e) {
-      print('❌ Batch deployment failed: $e');
+      print(' Batch deployment failed: $e');
       throw ApiException('Batch deployment failed: $e');
     }
   }
@@ -4339,7 +4351,7 @@ class ApiService {
 
       throw ApiException('Failed to get map analytics: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting map analytics: $e');
+      print(' Error getting map analytics: $e');
       throw ApiException('Failed to get map analytics: $e');
     }
   }
@@ -4370,12 +4382,12 @@ class ApiService {
           await _post('/api/ros2/$deviceId/publish_goal', requestBody);
 
       if (response['success'] == true) {
-        print('🎯 Navigation goal published: ($x, $y) @ ${orientation}rad');
+        print(' Navigation goal published: ($x, $y) @ ${orientation}rad');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error publishing goal: $e');
+      print(' Error publishing goal: $e');
       throw ApiException('Failed to publish goal: $e');
     }
   }
@@ -4388,12 +4400,12 @@ class ApiService {
       final response = await _post('/api/ros2/$deviceId/cancel_goal', {});
 
       if (response['success'] == true) {
-        print('🛑 Navigation goal cancelled for device: $deviceId');
+        print(' Navigation goal cancelled for device: $deviceId');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error cancelling goal: $e');
+      print(' Error cancelling goal: $e');
       throw ApiException('Failed to cancel goal: $e');
     }
   }
@@ -4412,7 +4424,7 @@ class ApiService {
       throw ApiException(
           'Failed to get navigation status: ${response['error']}');
     } catch (e) {
-      print('❌ Error getting navigation status: $e');
+      print(' Error getting navigation status: $e');
       throw ApiException('Failed to get navigation status: $e');
     }
   }
@@ -4436,12 +4448,12 @@ class ApiService {
 
       if (response['success'] == true) {
         print(
-            '🏃 Velocity command published: linear=$linear, angular=$angular');
+            ' Velocity command published: linear=$linear, angular=$angular');
       }
 
       return response;
     } catch (e) {
-      print('❌ Error publishing velocity: $e');
+      print(' Error publishing velocity: $e');
       throw ApiException('Failed to publish velocity: $e');
     }
   }
@@ -4474,8 +4486,8 @@ class ApiService {
         throw Exception('Order has no waypoints');
       }
 
-      print('🚀 Starting order execution: ${order['name']}');
-      print('📍 Total waypoints: ${waypoints.length}');
+      print(' Starting order execution: ${order['name']}');
+      print(' Total waypoints: ${waypoints.length}');
 
       // Update order status to active
       await updateOrderStatus(
@@ -4493,8 +4505,8 @@ class ApiService {
         final orientation = waypoint['orientation']?.toDouble() ?? 0.0;
 
         print(
-            '🎯 Executing waypoint ${i + 1}/${waypoints.length}: ${waypoint['name']}');
-        print('📍 Coordinates: ($x, $y) @ ${orientation}rad');
+            ' Executing waypoint ${i + 1}/${waypoints.length}: ${waypoint['name']}');
+        print(' Coordinates: ($x, $y) @ ${orientation}rad');
 
         // Publish navigation goal to target_pose topic
         final goalResponse = await publishGoal(
@@ -4534,7 +4546,7 @@ class ApiService {
         status: 'completed',
       );
 
-      print('✅ Order execution completed successfully!');
+      print(' Order execution completed successfully!');
 
       return {
         'success': true,
@@ -4552,10 +4564,10 @@ class ApiService {
           reason: e.toString(),
         );
       } catch (updateError) {
-        print('❌ Failed to update order status to failed: $updateError');
+        print(' Failed to update order status to failed: $updateError');
       }
 
-      print('❌ Order execution failed: $e');
+      print(' Order execution failed: $e');
       throw ApiException('Order execution failed: $e');
     }
   }
@@ -4575,7 +4587,7 @@ class ApiService {
 
       for (int i = 0; i < orderIds.length; i++) {
         final orderId = orderIds[i];
-        print('📦 Executing batch order ${i + 1}/${orderIds.length}: $orderId');
+        print(' Executing batch order ${i + 1}/${orderIds.length}: $orderId');
 
         // Call order progress callback if provided
         onOrderProgress?.call(i + 1, orderIds.length);
@@ -4607,7 +4619,7 @@ class ApiService {
         'completedAt': DateTime.now().toIso8601String(),
       };
     } catch (e) {
-      print('❌ Batch execution failed: $e');
+      print(' Batch execution failed: $e');
       throw ApiException('Batch execution failed: $e');
     }
   }
@@ -4680,7 +4692,7 @@ class ApiService {
             'Quick order from ${fromStation['name']} to ${toStation['name']}${AMRSerial != null ? ' (AMR: $AMRSerial)' : ''}',
       );
     } catch (e) {
-      print('❌ Error creating quick order: $e');
+      print(' Error creating quick order: $e');
       throw ApiException('Failed to create quick order: $e');
     }
   }
@@ -4694,7 +4706,7 @@ class ApiService {
       final ordersResponse = await getAllOrders(limit: 1000);
 
       if (devicesResponse.isEmpty) {
-        print('⚠️ No devices found');
+        print('️ No devices found');
       }
 
       if (ordersResponse['success'] != true) {
@@ -4733,7 +4745,7 @@ class ApiService {
         'timestamp': DateTime.now().toIso8601String(),
       };
     } catch (e) {
-      print('❌ Error getting fleet summary: $e');
+      print(' Error getting fleet summary: $e');
       throw ApiException('Failed to get fleet summary: $e');
     }
   }
@@ -4757,7 +4769,7 @@ class ApiService {
         'source': 'fallback',
       };
     } catch (e) {
-      print('❌ Error getting available devices: $e');
+      print(' Error getting available devices: $e');
       throw ApiException('Failed to get available devices: $e');
     }
   }
@@ -4774,13 +4786,13 @@ class ApiService {
           return response;
         }
       } catch (e) {
-        print('⚠️ ROS2 status endpoint not available: $e');
+        print('️ ROS2 status endpoint not available: $e');
       }
 
       // Fallback to existing method
       return await getDeviceStatus(deviceId);
     } catch (e) {
-      print('❌ Error getting enhanced device status: $e');
+      print(' Error getting enhanced device status: $e');
       throw ApiException('Failed to get enhanced device status: $e');
     }
   }

@@ -10,7 +10,7 @@ const activeOrderExecutions = new Map();
 const executionHistory = [];
 
 /**
- * ✅ ENHANCED: Execute order with real navigation feedback integration
+ *  ENHANCED: Execute order with real navigation feedback integration
  * POST /api/enhanced-orders/:deviceId/:orderId/execute
  */
 router.post('/devices/:deviceId/orders/:orderId/execute', async (req, res) => {
@@ -18,7 +18,7 @@ router.post('/devices/:deviceId/orders/:orderId/execute', async (req, res) => {
         const { deviceId, orderId } = req.params;
         const { immediateStart = true, executionMode = 'sequential' } = req.body;
 
-        console.log(`🚀 Enhanced order execution starting: ${orderId} for device: ${deviceId}`);
+        console.log(` Enhanced order execution starting: ${orderId} for device: ${deviceId}`);
 
         // Get order from global storage
         const orders = global.deviceOrders[deviceId] || [];
@@ -49,12 +49,12 @@ router.post('/devices/:deviceId/orders/:orderId/execute', async (req, res) => {
             executionMode: executionMode,
             waypointResults: [],
             errors: [],
-            useRealNavigation: true // ✅ NEW: Flag for real navigation
+            useRealNavigation: true //  NEW: Flag for real navigation
         };
 
         activeOrderExecutions.set(orderId, executionContext);
 
-        // ✅ NEW: Set up navigation feedback callbacks
+        //  NEW: Set up navigation feedback callbacks
         navigationFeedback.setNavigationCallback(orderId, {
             onSuccess: (goalData) => handleNavigationSuccess(orderId, goalData),
             onFailure: (goalData, reason) => handleNavigationFailure(orderId, goalData, reason)
@@ -94,7 +94,7 @@ router.post('/devices/:deviceId/orders/:orderId/execute', async (req, res) => {
         }
 
     } catch (error) {
-        console.error('❌ Error starting enhanced order execution:', error);
+        console.error(' Error starting enhanced order execution:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -103,13 +103,13 @@ router.post('/devices/:deviceId/orders/:orderId/execute', async (req, res) => {
 });
 
 /**
- * ✅ NEW: Execute waypoint with real navigation feedback
+ *  NEW: Execute waypoint with real navigation feedback
  */
 async function executeNextWaypointWithRealNav(orderId) {
     try {
         const executionContext = activeOrderExecutions.get(orderId);
         if (!executionContext) {
-            console.error(`❌ Execution context not found for order: ${orderId}`);
+            console.error(` Execution context not found for order: ${orderId}`);
             return;
         }
         
@@ -121,9 +121,9 @@ async function executeNextWaypointWithRealNav(orderId) {
         }
         
         const waypoint = order.waypoints[currentWaypointIndex];
-        console.log(`🎯 Executing waypoint ${currentWaypointIndex + 1}/${order.waypoints.length}: ${waypoint.name}`);
-        console.log(`📍 Target coordinates: (${waypoint.position.x}, ${waypoint.position.y})`);
-        console.log(`🤖 Using REAL navigation feedback`);
+        console.log(` Executing waypoint ${currentWaypointIndex + 1}/${order.waypoints.length}: ${waypoint.name}`);
+        console.log(` Target coordinates: (${waypoint.position.x}, ${waypoint.position.y})`);
+        console.log(` Using REAL navigation feedback`);
         
         // Update execution context
         executionContext.status = 'navigating';
@@ -150,13 +150,13 @@ async function executeNextWaypointWithRealNav(orderId) {
             timestamp: new Date().toISOString()
         });
         
-        // ✅ NEW: Publish target pose and register for navigation feedback
+        //  NEW: Publish target pose and register for navigation feedback
         const targetPoseResult = await publishTargetPoseWithTracking(waypoint, deviceId, orderId, currentWaypointIndex);
         
         if (targetPoseResult.success) {
-            console.log(`✅ Target pose published with tracking: ${waypoint.name}`);
-            console.log(`🎯 Goal ID: ${targetPoseResult.goalId}`);
-            console.log(`🤖 Waiting for real navigation feedback...`);
+            console.log(` Target pose published with tracking: ${waypoint.name}`);
+            console.log(` Goal ID: ${targetPoseResult.goalId}`);
+            console.log(` Waiting for real navigation feedback...`);
             
             // Record waypoint result
             const waypointResult = {
@@ -174,22 +174,22 @@ async function executeNextWaypointWithRealNav(orderId) {
             // Update order progress
             order.progress.currentWaypoint = currentWaypointIndex;
             
-            // ✅ NO TIMEOUT: Wait for real navigation feedback
+            //  NO TIMEOUT: Wait for real navigation feedback
             console.log(`⏳ Navigation started, waiting for action feedback from /navigate_to_pose/_action/result...`);
             
         } else {
-            console.error(`❌ Failed to publish target pose for waypoint: ${waypoint.name}`);
+            console.error(` Failed to publish target pose for waypoint: ${waypoint.name}`);
             await handleNavigationFailure(orderId, { waypointIndex: currentWaypointIndex }, targetPoseResult.error);
         }
         
     } catch (error) {
-        console.error(`❌ Error executing waypoint for order ${orderId}:`, error);
+        console.error(` Error executing waypoint for order ${orderId}:`, error);
         await handleOrderExecutionError(orderId, error);
     }
 }
 
 /**
- * ✅ NEW: Publish target pose with goal tracking
+ *  NEW: Publish target pose with goal tracking
  */
 async function publishTargetPoseWithTracking(waypoint, deviceId, orderId, waypointIndex) {
     try {
@@ -201,9 +201,9 @@ async function publishTargetPoseWithTracking(waypoint, deviceId, orderId, waypoi
             throw new Error(`Invalid coordinates: x=${position.x}, y=${position.y}`);
         }
         
-        console.log(`📍 Publishing tracked target pose: (${position.x}, ${position.y}, orientation: ${orientation})`);
+        console.log(` Publishing tracked target pose: (${position.x}, ${position.y}, orientation: ${orientation})`);
         
-        // ✅ NEW: Generate unique goal ID for tracking
+        //  NEW: Generate unique goal ID for tracking
         const goalId = `goal_${orderId}_wp${waypointIndex}_${Date.now()}`;
         
         // Publish target pose
@@ -212,7 +212,7 @@ async function publishTargetPoseWithTracking(waypoint, deviceId, orderId, waypoi
             publishers.publishGoal(position.x, position.y, orientation);
         
         if (result.success) {
-            // ✅ NEW: Register goal for navigation feedback tracking
+            //  NEW: Register goal for navigation feedback tracking
             navigationFeedback.registerNavigationGoal(
                 goalId,
                 orderId,
@@ -220,8 +220,8 @@ async function publishTargetPoseWithTracking(waypoint, deviceId, orderId, waypoi
                 { x: position.x, y: position.y }
             );
             
-            console.log(`🎯 Target pose published with tracking to /target_pose`);
-            console.log(`📊 Goal ID: ${goalId} registered for feedback`);
+            console.log(` Target pose published with tracking to /target_pose`);
+            console.log(` Goal ID: ${goalId} registered for feedback`);
             
             return {
                 success: true,
@@ -240,7 +240,7 @@ async function publishTargetPoseWithTracking(waypoint, deviceId, orderId, waypoi
         }
         
     } catch (error) {
-        console.error(`❌ Error publishing tracked target pose:`, error);
+        console.error(` Error publishing tracked target pose:`, error);
         return {
             success: false,
             error: error.message,
@@ -250,16 +250,16 @@ async function publishTargetPoseWithTracking(waypoint, deviceId, orderId, waypoi
 }
 
 /**
- * ✅ NEW: Handle successful navigation (called by navigation feedback)
+ *  NEW: Handle successful navigation (called by navigation feedback)
  */
 async function handleNavigationSuccess(orderId, goalData) {
     try {
-        console.log(`✅ Navigation SUCCESS callback for order: ${orderId}`);
-        console.log(`🎯 Goal reached: ${goalData.goalId}, waypoint: ${goalData.waypointIndex + 1}`);
+        console.log(` Navigation SUCCESS callback for order: ${orderId}`);
+        console.log(` Goal reached: ${goalData.goalId}, waypoint: ${goalData.waypointIndex + 1}`);
         
         const executionContext = activeOrderExecutions.get(orderId);
         if (!executionContext) {
-            console.error(`❌ Execution context not found for completed navigation: ${orderId}`);
+            console.error(` Execution context not found for completed navigation: ${orderId}`);
             return;
         }
         
@@ -289,7 +289,7 @@ async function handleNavigationSuccess(orderId, goalData) {
         waypoint.completed = true;
         waypoint.completedAt = new Date().toISOString();
         
-        console.log(`✅ Waypoint ${waypointIndex + 1} completed via ROS action: ${waypoint.name}`);
+        console.log(` Waypoint ${waypointIndex + 1} completed via ROS action: ${waypoint.name}`);
         console.log(`⏱️ Navigation time: ${navigationDuration} seconds`);
         
         // Broadcast waypoint completion
@@ -318,7 +318,7 @@ async function handleNavigationSuccess(orderId, goalData) {
         // Move to next waypoint
         executionContext.currentWaypointIndex = waypointIndex + 1;
         
-        // ✅ NEW: Small delay before next waypoint (configurable)
+        //  NEW: Small delay before next waypoint (configurable)
         const nextWaypointDelay = 2000; // 2 seconds between waypoints
         console.log(`⏳ Waiting ${nextWaypointDelay/1000} seconds before next waypoint...`);
         
@@ -327,22 +327,22 @@ async function handleNavigationSuccess(orderId, goalData) {
         }, nextWaypointDelay);
         
     } catch (error) {
-        console.error(`❌ Error handling navigation success:`, error);
+        console.error(` Error handling navigation success:`, error);
         await handleOrderExecutionError(orderId, error);
     }
 }
 
 /**
- * ✅ NEW: Handle navigation failure (called by navigation feedback)
+ *  NEW: Handle navigation failure (called by navigation feedback)
  */
 async function handleNavigationFailure(orderId, goalData, reason) {
     try {
-        console.error(`❌ Navigation FAILURE callback for order: ${orderId}`);
-        console.error(`🎯 Goal failed: ${goalData.goalId || 'unknown'}, reason: ${reason}`);
+        console.error(` Navigation FAILURE callback for order: ${orderId}`);
+        console.error(` Goal failed: ${goalData.goalId || 'unknown'}, reason: ${reason}`);
         
         const executionContext = activeOrderExecutions.get(orderId);
         if (!executionContext) {
-            console.error(`❌ Execution context not found for failed navigation: ${orderId}`);
+            console.error(` Execution context not found for failed navigation: ${orderId}`);
             return;
         }
         
@@ -380,7 +380,7 @@ async function handleNavigationFailure(orderId, goalData, reason) {
         await handleOrderExecutionError(orderId, new Error(`Waypoint ${waypointIndex + 1} navigation failed: ${reason}`));
         
     } catch (error) {
-        console.error(`❌ Error handling navigation failure:`, error);
+        console.error(` Error handling navigation failure:`, error);
     }
 }
 
@@ -392,7 +392,7 @@ function isValidCoordinate(value) {
 }
 
 /**
- * ✅ ENHANCED: Complete order execution with navigation cleanup
+ *  ENHANCED: Complete order execution with navigation cleanup
  */
 async function completeOrderExecution(orderId) {
     try {
@@ -401,7 +401,7 @@ async function completeOrderExecution(orderId) {
 
         const { order, deviceId } = executionContext;
 
-        // ✅ NEW: Clear navigation callbacks
+        //  NEW: Clear navigation callbacks
         navigationFeedback.clearNavigationCallback(orderId);
 
         // Update order status
@@ -420,7 +420,7 @@ async function completeOrderExecution(orderId) {
         executionContext.endTime = order.completedAt;
         executionContext.duration = order.actualDuration;
 
-        console.log(`🎉 Order execution completed with real navigation: ${orderId} (${order.actualDuration}s)`);
+        console.log(` Order execution completed with real navigation: ${orderId} (${order.actualDuration}s)`);
 
         // Add to execution history
         executionHistory.push({
@@ -449,12 +449,12 @@ async function completeOrderExecution(orderId) {
         });
 
     } catch (error) {
-        console.error(`❌ Error completing order execution:`, error);
+        console.error(` Error completing order execution:`, error);
     }
 }
 
 /**
- * ✅ ENHANCED: Handle order execution errors with navigation cleanup
+ *  ENHANCED: Handle order execution errors with navigation cleanup
  */
 async function handleOrderExecutionError(orderId, error) {
     try {
@@ -463,7 +463,7 @@ async function handleOrderExecutionError(orderId, error) {
 
         const { order, deviceId } = executionContext;
 
-        // ✅ NEW: Clear navigation callbacks
+        //  NEW: Clear navigation callbacks
         navigationFeedback.clearNavigationCallback(orderId);
 
         // Update order status
@@ -477,14 +477,14 @@ async function handleOrderExecutionError(orderId, error) {
         executionContext.error = error.message;
         executionContext.endTime = new Date().toISOString();
 
-        console.error(`❌ Order execution failed: ${orderId} - ${error.message}`);
+        console.error(` Order execution failed: ${orderId} - ${error.message}`);
 
         // Emergency stop
         try {
             publishers.emergencyStop();
-            console.log('🛑 Emergency stop activated due to order execution failure');
+            console.log(' Emergency stop activated due to order execution failure');
         } catch (stopError) {
-            console.error('❌ Failed to activate emergency stop:', stopError);
+            console.error(' Failed to activate emergency stop:', stopError);
         }
 
         // Add to execution history
@@ -507,12 +507,12 @@ async function handleOrderExecutionError(orderId, error) {
         });
 
     } catch (handlingError) {
-        console.error(`❌ Error handling order execution error:`, handlingError);
+        console.error(` Error handling order execution error:`, handlingError);
     }
 }
 
 /**
- * ✅ NEW: Pause order execution
+ *  NEW: Pause order execution
  * POST /api/enhanced-orders/:deviceId/:orderId/pause
  */
 router.post('/devices/:deviceId/orders/:orderId/pause', (req, res) => {
@@ -554,7 +554,7 @@ router.post('/devices/:deviceId/orders/:orderId/pause', (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error pausing order execution:', error);
+        console.error(' Error pausing order execution:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -563,7 +563,7 @@ router.post('/devices/:deviceId/orders/:orderId/pause', (req, res) => {
 });
 
 /**
- * ✅ NEW: Resume order execution
+ *  NEW: Resume order execution
  * POST /api/enhanced-orders/:deviceId/:orderId/resume
  */
 router.post('/devices/:deviceId/orders/:orderId/resume', (req, res) => {
@@ -612,7 +612,7 @@ router.post('/devices/:deviceId/orders/:orderId/resume', (req, res) => {
         setImmediate(() => executeNextWaypointWithRealNav(orderId));
 
     } catch (error) {
-        console.error('❌ Error resuming order execution:', error);
+        console.error(' Error resuming order execution:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -621,7 +621,7 @@ router.post('/devices/:deviceId/orders/:orderId/resume', (req, res) => {
 });
 
 /**
- * ✅ ENHANCED: Cancel order execution with navigation cleanup
+ *  ENHANCED: Cancel order execution with navigation cleanup
  * POST /api/enhanced-orders/:deviceId/:orderId/cancel
  */
 router.post('/devices/:deviceId/orders/:orderId/cancel', (req, res) => {
@@ -637,7 +637,7 @@ router.post('/devices/:deviceId/orders/:orderId/cancel', (req, res) => {
             });
         }
 
-        // ✅ NEW: Cancel active navigation goals
+        //  NEW: Cancel active navigation goals
         navigationFeedback.cancelAllNavigationGoals();
         navigationFeedback.clearNavigationCallback(orderId);
 
@@ -655,7 +655,7 @@ router.post('/devices/:deviceId/orders/:orderId/cancel', (req, res) => {
         // Emergency stop
         publishers.emergencyStop();
 
-        console.log(`❌ Order execution cancelled with navigation stop: ${orderId} - ${reason}`);
+        console.log(` Order execution cancelled with navigation stop: ${orderId} - ${reason}`);
 
         // Add to execution history
         executionHistory.push({
@@ -684,7 +684,7 @@ router.post('/devices/:deviceId/orders/:orderId/cancel', (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error cancelling order execution:', error);
+        console.error(' Error cancelling order execution:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -693,7 +693,7 @@ router.post('/devices/:deviceId/orders/:orderId/cancel', (req, res) => {
 });
 
 /**
- * ✅ NEW: Get execution status
+ *  NEW: Get execution status
  * GET /api/enhanced-orders/:deviceId/:orderId/status
  */
 router.get('/devices/:deviceId/orders/:orderId/status', (req, res) => {
@@ -715,7 +715,7 @@ router.get('/devices/:deviceId/orders/:orderId/status', (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error getting execution status:', error);
+        console.error(' Error getting execution status:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -724,7 +724,7 @@ router.get('/devices/:deviceId/orders/:orderId/status', (req, res) => {
 });
 
 /**
- * ✅ NEW: Get navigation status for debugging
+ *  NEW: Get navigation status for debugging
  * GET /api/enhanced-orders/:deviceId/:orderId/navigation-status
  */
 router.get('/devices/:deviceId/orders/:orderId/navigation-status', (req, res) => {
@@ -747,7 +747,7 @@ router.get('/devices/:deviceId/orders/:orderId/navigation-status', (req, res) =>
         });
         
     } catch (error) {
-        console.error('❌ Error getting navigation status:', error);
+        console.error(' Error getting navigation status:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -756,7 +756,7 @@ router.get('/devices/:deviceId/orders/:orderId/navigation-status', (req, res) =>
 });
 
 /**
- * ✅ NEW: Get execution history
+ *  NEW: Get execution history
  * GET /api/enhanced-orders/execution-history
  */
 router.get('/execution-history', (req, res) => {
@@ -781,7 +781,7 @@ router.get('/execution-history', (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error getting execution history:', error);
+        console.error(' Error getting execution history:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -790,7 +790,7 @@ router.get('/execution-history', (req, res) => {
 });
 
 /**
- * ✅ NEW: Get active executions
+ *  NEW: Get active executions
  * GET /api/enhanced-orders/active-executions
  */
 router.get('/active-executions', (req, res) => {
@@ -810,7 +810,7 @@ router.get('/active-executions', (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error getting active executions:', error);
+        console.error(' Error getting active executions:', error);
         res.status(500).json({
             success: false,
             error: error.message

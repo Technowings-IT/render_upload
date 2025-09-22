@@ -49,7 +49,7 @@ class MultiDeviceWebSocketService {
   Future<bool> connectToDevice(String deviceId, String ipAddress,
       {int port = 3000}) async {
     final wsUrl = 'ws://$ipAddress:$port';
-    print('🔌 Connecting to device $deviceId at $wsUrl');
+    print(' Connecting to device $deviceId at $wsUrl');
 
     try {
       // Disconnect existing connection if any
@@ -78,15 +78,15 @@ class MultiDeviceWebSocketService {
 
       if (success) {
         _connections[deviceId] = connection;
-        print('✅ Connected to device $deviceId');
+        print(' Connected to device $deviceId');
         _broadcastConnectionStates();
         return true;
       } else {
-        print('❌ Failed to connect to device $deviceId');
+        print(' Failed to connect to device $deviceId');
         return false;
       }
     } catch (e) {
-      print('❌ Error connecting to device $deviceId: $e');
+      print(' Error connecting to device $deviceId: $e');
       return false;
     }
   }
@@ -96,7 +96,7 @@ class MultiDeviceWebSocketService {
       List<AMRDevice> devices) async {
     final results = <String, bool>{};
 
-    print('🔌 Connecting to ${devices.length} devices...');
+    print(' Connecting to ${devices.length} devices...');
 
     // Connect to devices in parallel (with some delay to avoid overwhelming network)
     for (int i = 0; i < devices.length; i++) {
@@ -113,7 +113,7 @@ class MultiDeviceWebSocketService {
     }
 
     final successCount = results.values.where((success) => success).length;
-    print('✅ Connected to $successCount/${devices.length} devices');
+    print(' Connected to $successCount/${devices.length} devices');
 
     return results;
   }
@@ -125,18 +125,18 @@ class MultiDeviceWebSocketService {
       await connection.disconnect();
       _connections.remove(deviceId);
       _broadcastConnectionStates();
-      print('🔌 Disconnected from device $deviceId');
+      print(' Disconnected from device $deviceId');
     }
   }
 
   // Disconnect from all devices
   Future<void> disconnectAll() async {
-    print('🔌 Disconnecting from all devices...');
+    print(' Disconnecting from all devices...');
     final futures = _connections.values.map((conn) => conn.disconnect());
     await Future.wait(futures);
     _connections.clear();
     _broadcastConnectionStates();
-    print('✅ Disconnected from all devices');
+    print(' Disconnected from all devices');
   }
 
   // Get connection for specific device
@@ -163,7 +163,7 @@ class MultiDeviceWebSocketService {
     if (connection != null && connection.isConnected) {
       connection.sendMessage(message);
     } else {
-      print('⚠️ Device $deviceId not connected, cannot send message');
+      print('️ Device $deviceId not connected, cannot send message');
     }
   }
 
@@ -176,7 +176,7 @@ class MultiDeviceWebSocketService {
       entry.value.sendMessage(message);
     }
 
-    print('📡 Sent message to ${connectedDevices.length} devices');
+    print(' Sent message to ${connectedDevices.length} devices');
   }
 
   // Control commands for specific device
@@ -192,7 +192,7 @@ class MultiDeviceWebSocketService {
 
   // Emergency stop all devices
   void emergencyStopAll() {
-    print('🚨 EMERGENCY STOP ALL DEVICES');
+    print(' EMERGENCY STOP ALL DEVICES');
     sendToAllDevices({
       'type': 'control_command',
       'command': 'emergency_stop',
@@ -236,9 +236,9 @@ class MultiDeviceWebSocketService {
     _broadcastConnectionStates();
 
     if (connected) {
-      print('✅ Device $deviceId connected');
+      print(' Device $deviceId connected');
     } else {
-      print('❌ Device $deviceId disconnected');
+      print(' Device $deviceId disconnected');
     }
   }
 
@@ -336,7 +336,7 @@ class DeviceConnection {
 
   Future<bool> connect() async {
     try {
-      print('🔌 Connecting to $deviceId at $wsUrl');
+      print(' Connecting to $deviceId at $wsUrl');
 
       _channel = IOWebSocketChannel.connect(
         Uri.parse(wsUrl),
@@ -365,7 +365,7 @@ class DeviceConnection {
         return false;
       }
     } catch (e) {
-      print('❌ Error connecting to $deviceId: $e');
+      print(' Error connecting to $deviceId: $e');
       await disconnect();
       return false;
     }
@@ -406,7 +406,7 @@ class DeviceConnection {
         case 'connection':
           _isConnected = true;
           _connectionStateController!.add(true);
-          print('✅ Device $deviceId connection established');
+          print(' Device $deviceId connection established');
           break;
 
         case 'heartbeat':
@@ -438,10 +438,10 @@ class DeviceConnection {
           break;
 
         default:
-          print('❓ Unknown message type from $deviceId: $messageType');
+          print(' Unknown message type from $deviceId: $messageType');
       }
     } catch (e) {
-      print('❌ Error handling message from $deviceId: $e');
+      print(' Error handling message from $deviceId: $e');
     }
   }
 
@@ -460,7 +460,7 @@ class DeviceConnection {
   }
 
   void _handleError(error) {
-    print('❌ WebSocket error for $deviceId: $error');
+    print(' WebSocket error for $deviceId: $error');
     _handleDisconnection();
   }
 
@@ -473,7 +473,7 @@ class DeviceConnection {
     if (_reconnectAttempts < maxReconnectAttempts) {
       _startReconnectTimer();
     } else {
-      print('❌ Max reconnection attempts reached for $deviceId');
+      print(' Max reconnection attempts reached for $deviceId');
     }
   }
 
@@ -507,7 +507,7 @@ class DeviceConnection {
         Timer(Duration(seconds: 5 + _reconnectAttempts * 2), () async {
       _reconnectAttempts++;
       print(
-          '🔄 Reconnecting to $deviceId (attempt $_reconnectAttempts/$maxReconnectAttempts)');
+          ' Reconnecting to $deviceId (attempt $_reconnectAttempts/$maxReconnectAttempts)');
 
       final success = await connect();
       if (!success) {
@@ -521,10 +521,10 @@ class DeviceConnection {
       try {
         _channel!.sink.add(json.encode(message));
       } catch (e) {
-        print('❌ Error sending message to $deviceId: $e');
+        print(' Error sending message to $deviceId: $e');
       }
     } else {
-      print('⚠️ Device $deviceId not connected, cannot send message');
+      print('️ Device $deviceId not connected, cannot send message');
     }
   }
 
@@ -541,7 +541,7 @@ class DeviceConnection {
       _isConnected = false;
       _connectionStateController!.add(false);
     } catch (e) {
-      print('❌ Error disconnecting from $deviceId: $e');
+      print(' Error disconnecting from $deviceId: $e');
     }
   }
 

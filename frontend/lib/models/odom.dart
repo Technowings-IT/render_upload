@@ -292,8 +292,8 @@ class OdometryData {
         twistCovariance: _safeDoubleList(json['twistCovariance'] ?? json['twist_covariance']),
       );
     } catch (e) {
-      print('❌ Error parsing OdometryData: $e');
-      print('📋 JSON data: $json');
+      print(' Error parsing OdometryData: $e');
+      print(' JSON data: $json');
       
       // Return safe defaults
       return OdometryData(

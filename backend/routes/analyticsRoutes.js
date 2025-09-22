@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
     try {
         const { type, timeRange = '24h', deviceId } = req.query;
 
-        console.log(`📊 Analytics request: type=${type}, timeRange=${timeRange}, deviceId=${deviceId}`);
+        console.log(` Analytics request: type=${type}, timeRange=${timeRange}, deviceId=${deviceId}`);
 
         // Validate required parameters
         if (!type) {
@@ -67,7 +67,7 @@ router.get('/', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Analytics API error:', error);
+        console.error(' Analytics API error:', error);
         res.status(500).json({
             success: false,
             error: 'Failed to fetch analytics data',
@@ -131,7 +131,7 @@ async function getOrdersAnalytics(deviceId, timeRange) {
             });
         }
     } catch (error) {
-        console.warn('⚠️ Could not load orders from storage:', error.message);
+        console.warn('️ Could not load orders from storage:', error.message);
     }
 
     // Generate analytics from orders

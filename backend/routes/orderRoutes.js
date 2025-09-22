@@ -9,7 +9,7 @@ let rosPublishers = null;
 try {
     rosPublishers = require('../ros/utils/publishers');
 } catch (error) {
-    console.warn('⚠️ ROS publishers not available:', error.message);
+    console.warn('️ ROS publishers not available:', error.message);
 }
 
 // Storage paths
@@ -72,10 +72,10 @@ router.get('/stats', async (req, res) => {
             calculatedAt: new Date().toISOString()
         });
         
-        console.log(`✅ Order statistics calculated: ${stats.total} orders, ${stats.completionRate}% completion rate`);
+        console.log(` Order statistics calculated: ${stats.total} orders, ${stats.completionRate}% completion rate`);
         
     } catch (error) {
-        console.error('❌ Error getting order statistics:', error);
+        console.error(' Error getting order statistics:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -125,10 +125,10 @@ router.get('/:deviceId', async (req, res) => {
             }
         });
         
-        console.log(`✅ Retrieved ${paginatedOrders.length}/${deviceOrders.length} orders for ${deviceId}`);
+        console.log(` Retrieved ${paginatedOrders.length}/${deviceOrders.length} orders for ${deviceId}`);
         
     } catch (error) {
-        console.error('❌ Error getting orders for device:', error);
+        console.error(' Error getting orders for device:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -193,7 +193,7 @@ router.post('/:deviceId/:orderId/execute', async (req, res) => {
         const { deviceId, orderId } = req.params;
         const { realTimeExecution = true, waypointDelay = 3000 } = req.body;
         
-        console.log(`🚀 Executing order: ${orderId} for device: ${deviceId}`);
+        console.log(` Executing order: ${orderId} for device: ${deviceId}`);
         
         const orders = await loadOrders();
         const orderIndex = orders.findIndex(o => o.id === orderId && o.deviceId === deviceId);
@@ -228,7 +228,7 @@ router.post('/:deviceId/:orderId/execute', async (req, res) => {
         if (realTimeExecution && order.waypoints && order.waypoints.length > 0) {
             // Execute in background to return response immediately
             executeOrderWaypoints(deviceId, order, waypointDelay).catch(error => {
-                console.error(`❌ Background order execution failed: ${error}`);
+                console.error(` Background order execution failed: ${error}`);
                 updateOrderStatusInBackground(deviceId, orderId, 'failed', error.message);
             });
             
@@ -258,10 +258,10 @@ router.post('/:deviceId/:orderId/execute', async (req, res) => {
             });
         }
         
-        console.log(`✅ Order execution initiated: ${orderId}`);
+        console.log(` Order execution initiated: ${orderId}`);
         
     } catch (error) {
-        console.error('❌ Error executing order:', error);
+        console.error(' Error executing order:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -273,16 +273,16 @@ router.post('/:deviceId/:orderId/execute', async (req, res) => {
  * Execute order waypoints sequentially with ROS publishing
  */
 async function executeOrderWaypoints(deviceId, order, waypointDelay = 3000) {
-    console.log(`🎯 Starting waypoint execution for order: ${order.id}`);
-    console.log(`📍 Total waypoints: ${order.waypoints.length}`);
+    console.log(` Starting waypoint execution for order: ${order.id}`);
+    console.log(` Total waypoints: ${order.waypoints.length}`);
     
     try {
         for (let i = 0; i < order.waypoints.length; i++) {
             const waypoint = order.waypoints[i];
             const position = waypoint.position;
             
-            console.log(`🚶 Executing waypoint ${i + 1}/${order.waypoints.length}: ${waypoint.name}`);
-            console.log(`📍 Position: (${position.x}, ${position.y}) @ ${waypoint.orientation || 0}rad`);
+            console.log(` Executing waypoint ${i + 1}/${order.waypoints.length}: ${waypoint.name}`);
+            console.log(` Position: (${position.x}, ${position.y}) @ ${waypoint.orientation || 0}rad`);
             
             // Publish navigation goal to ROS target_pose topic (if ROS is available)
             if (rosPublishers && rosPublishers.publishGoalWithId) {
@@ -297,9 +297,9 @@ async function executeOrderWaypoints(deviceId, order, waypointDelay = 3000) {
                     throw new Error(`Failed to publish waypoint ${i + 1}: ${goalResult.error}`);
                 }
                 
-                console.log(`✅ Published waypoint ${i + 1} goal ID: ${goalResult.goalId}`);
+                console.log(` Published waypoint ${i + 1} goal ID: ${goalResult.goalId}`);
             } else {
-                console.log(`⚠️ ROS not available, simulating waypoint ${i + 1} execution`);
+                console.log(`️ ROS not available, simulating waypoint ${i + 1} execution`);
                 // Simulate execution when ROS is not available
             }
             
@@ -315,13 +315,13 @@ async function executeOrderWaypoints(deviceId, order, waypointDelay = 3000) {
         
         // Mark order as completed
         await updateOrderStatusInBackground(deviceId, order.id, 'completed');
-        console.log(`🎉 Order execution completed successfully: ${order.id}`);
+        console.log(` Order execution completed successfully: ${order.id}`);
         
         // Broadcast completion via WebSocket if available
         broadcastOrderUpdate(deviceId, order.id, 'completed');
         
     } catch (error) {
-        console.error(`❌ Order execution failed: ${error}`);
+        console.error(` Order execution failed: ${error}`);
         await updateOrderStatusInBackground(deviceId, order.id, 'failed', error.message);
         broadcastOrderUpdate(deviceId, order.id, 'failed', error.message);
         throw error;
@@ -336,7 +336,7 @@ router.post('/:deviceId/:orderId/waypoint/:waypointIndex', async (req, res) => {
     try {
         const { deviceId, orderId, waypointIndex } = req.params;
         
-        console.log(`🎯 Publishing waypoint ${waypointIndex} for order: ${orderId}`);
+        console.log(` Publishing waypoint ${waypointIndex} for order: ${orderId}`);
         
         const orders = await loadOrders();
         const order = orders.find(o => o.id === orderId && o.deviceId === deviceId);
@@ -419,7 +419,7 @@ router.post('/:deviceId/:orderId/waypoint/:waypointIndex', async (req, res) => {
         }
         
     } catch (error) {
-        console.error('❌ Error publishing waypoint:', error);
+        console.error(' Error publishing waypoint:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -436,14 +436,14 @@ router.post('/:deviceId/:orderId/cancel', async (req, res) => {
         const { deviceId, orderId } = req.params;
         const { reason } = req.body;
         
-        console.log(`🛑 Cancelling order: ${orderId}`);
+        console.log(` Cancelling order: ${orderId}`);
         
         // Cancel current navigation goal in ROS (if available)
         let cancelResult = { success: true, simulated: !rosPublishers };
         if (rosPublishers && rosPublishers.cancelCurrentGoal) {
             cancelResult = await rosPublishers.cancelCurrentGoal();
         } else {
-            console.log('⚠️ ROS not available, simulating goal cancellation');
+            console.log('️ ROS not available, simulating goal cancellation');
         }
         
         // Update order status
@@ -472,7 +472,7 @@ router.post('/:deviceId/:orderId/cancel', async (req, res) => {
         }
         
     } catch (error) {
-        console.error('❌ Error cancelling order:', error);
+        console.error(' Error cancelling order:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -488,7 +488,7 @@ router.post('/:deviceId/emergency_stop', async (req, res) => {
     try {
         const { deviceId } = req.params;
         
-        console.log(`🚨 EMERGENCY STOP for device: ${deviceId}`);
+        console.log(` EMERGENCY STOP for device: ${deviceId}`);
         
         // Send emergency stop command to ROS (if available)
         let emergencyResult = { success: true, simulated: !rosPublishers };
@@ -498,7 +498,7 @@ router.post('/:deviceId/emergency_stop', async (req, res) => {
             emergencyResult = await rosPublishers.emergencyStop();
             cancelResult = await rosPublishers.cancelCurrentGoal();
         } else {
-            console.log('⚠️ ROS not available, simulating emergency stop');
+            console.log('️ ROS not available, simulating emergency stop');
         }
         
         // Set all active orders for this device to cancelled
@@ -531,10 +531,10 @@ router.post('/:deviceId/emergency_stop', async (req, res) => {
         // Broadcast emergency stop
         broadcastEmergencyStop(deviceId, updatedCount);
         
-        console.log(`🛑 Emergency stop completed for ${deviceId}: ${updatedCount} orders affected`);
+        console.log(` Emergency stop completed for ${deviceId}: ${updatedCount} orders affected`);
         
     } catch (error) {
-        console.error('❌ Error in emergency stop:', error);
+        console.error(' Error in emergency stop:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -595,7 +595,7 @@ router.get('/:deviceId/:orderId/execution_status', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error getting execution status:', error);
+        console.error(' Error getting execution status:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -611,7 +611,7 @@ router.delete('/:deviceId/:orderId', async (req, res) => {
     try {
         const { deviceId, orderId } = req.params;
         
-        console.log(`🗑️ Deleting order: ${orderId} for device: ${deviceId}`);
+        console.log(`️ Deleting order: ${orderId} for device: ${deviceId}`);
         
         const orders = await loadOrders();
         const orderIndex = orders.findIndex(o => o.id === orderId && o.deviceId === deviceId);
@@ -637,7 +637,7 @@ router.delete('/:deviceId/:orderId', async (req, res) => {
         orders.splice(orderIndex, 1);
         await saveOrders(orders);
         
-        console.log(`✅ Order deleted successfully: ${orderId}`);
+        console.log(` Order deleted successfully: ${orderId}`);
         
         res.json({
             success: true,
@@ -655,7 +655,7 @@ router.delete('/:deviceId/:orderId', async (req, res) => {
         broadcastOrderUpdate(deviceId, orderId, 'deleted');
         
     } catch (error) {
-        console.error('❌ Error deleting order:', error);
+        console.error(' Error deleting order:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -679,11 +679,11 @@ router.post('/:deviceId/batch_execute', async (req, res) => {
             });
         }
         
-        console.log(`📦 Starting batch execution of ${orderIds.length} orders for ${deviceId}`);
+        console.log(` Starting batch execution of ${orderIds.length} orders for ${deviceId}`);
         
         // Execute batch in background
         executeBatchOrders(deviceId, orderIds, orderDelay, waypointDelay).catch(error => {
-            console.error(`❌ Batch execution failed: ${error}`);
+            console.error(` Batch execution failed: ${error}`);
         });
         
         res.json({
@@ -701,7 +701,7 @@ router.post('/:deviceId/batch_execute', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error starting batch execution:', error);
+        console.error(' Error starting batch execution:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -718,7 +718,7 @@ async function executeBatchOrders(deviceId, orderIds, orderDelay, waypointDelay)
     
     for (let i = 0; i < orderIds.length; i++) {
         const orderId = orderIds[i];
-        console.log(`📋 Executing batch order ${i + 1}/${orderIds.length}: ${orderId}`);
+        console.log(` Executing batch order ${i + 1}/${orderIds.length}: ${orderId}`);
         
         try {
             const orders = await loadOrders();
@@ -732,7 +732,7 @@ async function executeBatchOrders(deviceId, orderIds, orderDelay, waypointDelay)
             }
             
         } catch (error) {
-            console.error(`❌ Batch order ${orderId} failed: ${error}`);
+            console.error(` Batch order ${orderId} failed: ${error}`);
             results.push({ orderId, success: false, error: error.message });
         }
         
@@ -744,7 +744,7 @@ async function executeBatchOrders(deviceId, orderIds, orderDelay, waypointDelay)
     }
     
     const successCount = results.filter(r => r.success).length;
-    console.log(`🏁 Batch execution completed: ${successCount}/${orderIds.length} successful`);
+    console.log(` Batch execution completed: ${successCount}/${orderIds.length} successful`);
     
     broadcastBatchExecutionComplete(deviceId, orderIds.length, successCount, results);
 }
@@ -772,10 +772,10 @@ async function updateOrderProgress(deviceId, orderId, currentWaypoint) {
             orders[orderIndex] = order;
             await saveOrders(orders);
             
-            console.log(`📈 Order progress updated: ${orderId} - ${currentWaypoint}/${order.waypoints.length} (${order.progress.percentage}%)`);
+            console.log(` Order progress updated: ${orderId} - ${currentWaypoint}/${order.waypoints.length} (${order.progress.percentage}%)`);
         }
     } catch (error) {
-        console.error(`❌ Error updating order progress: ${error}`);
+        console.error(` Error updating order progress: ${error}`);
     }
 }
 
@@ -802,12 +802,12 @@ async function updateOrderStatusInBackground(deviceId, orderId, status, reason =
             orders[orderIndex] = order;
             await saveOrders(orders);
             
-            console.log(`🔄 Order status updated: ${orderId} → ${status}`);
+            console.log(` Order status updated: ${orderId} → ${status}`);
             return true;
         }
         return false;
     } catch (error) {
-        console.error(`❌ Error updating order status: ${error}`);
+        console.error(` Error updating order status: ${error}`);
         return false;
     }
 }
@@ -825,7 +825,7 @@ function broadcastOrderUpdate(deviceId, orderId, status, reason = null) {
             });
         }
     } catch (error) {
-        console.error('❌ Error broadcasting order update:', error);
+        console.error(' Error broadcasting order update:', error);
     }
 }
 
@@ -839,7 +839,7 @@ function broadcastEmergencyStop(deviceId, affectedOrders) {
             });
         }
     } catch (error) {
-        console.error('❌ Error broadcasting emergency stop:', error);
+        console.error(' Error broadcasting emergency stop:', error);
     }
 }
 
@@ -856,7 +856,7 @@ function broadcastBatchExecutionComplete(deviceId, totalOrders, successCount, re
             });
         }
     } catch (error) {
-        console.error('❌ Error broadcasting batch execution complete:', error);
+        console.error(' Error broadcasting batch execution complete:', error);
     }
 }
 
@@ -873,7 +873,7 @@ async function loadOrders() {
         const parsed = JSON.parse(data);
         return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
-        console.error('❌ Error loading orders:', error);
+        console.error(' Error loading orders:', error);
         return [];
     }
 }
@@ -881,9 +881,9 @@ async function loadOrders() {
 async function saveOrders(orders) {
     try {
         await fs.writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2));
-        console.log(`💾 Saved ${orders.length} orders to storage`);
+        console.log(` Saved ${orders.length} orders to storage`);
     } catch (error) {
-        console.error('❌ Error saving orders:', error);
+        console.error(' Error saving orders:', error);
         throw error;
     }
 }
@@ -892,7 +892,7 @@ async function ensureOrdersFileExists() {
     try {
         await fs.access(ORDERS_FILE);
     } catch (error) {
-        console.log('📁 Creating orders.json file');
+        console.log(' Creating orders.json file');
         await fs.writeFile(ORDERS_FILE, JSON.stringify([], null, 2));
     }
 }

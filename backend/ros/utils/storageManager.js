@@ -21,9 +21,9 @@ class StorageManager {
             this.setupAutosave();
             
             this.initialized = true;
-            console.log('✅ Storage Manager initialized');
+            console.log(' Storage Manager initialized');
         } catch (error) {
-            console.error('❌ Storage Manager initialization failed:', error);
+            console.error(' Storage Manager initialization failed:', error);
             throw error;
         }
     }
@@ -53,9 +53,9 @@ class StorageManager {
             // Load maps
             await this.loadMaps();
             
-            console.log('📂 All persistent data loaded');
+            console.log(' All persistent data loaded');
         } catch (error) {
-            console.error('❌ Error loading persistent data:', error);
+            console.error(' Error loading persistent data:', error);
             // Initialize with empty data if loading fails
             this.initializeEmptyData();
         }
@@ -73,12 +73,12 @@ class StorageManager {
                     device.lastStartup = new Date().toISOString();
                 });
                 
-                console.log(`📱 Loaded ${global.connectedDevices.length} devices`);
+                console.log(` Loaded ${global.connectedDevices.length} devices`);
             } else {
                 global.connectedDevices = [];
             }
         } catch (error) {
-            console.error('❌ Error loading devices:', error);
+            console.error(' Error loading devices:', error);
             global.connectedDevices = [];
         }
     }
@@ -104,13 +104,13 @@ class StorageManager {
                 }
                 
                 const totalOrders = Object.values(global.deviceOrders).reduce((acc, orders) => acc + orders.length, 0);
-                console.log(`📋 Loaded ${totalOrders} orders for ${Object.keys(global.deviceOrders).length} devices`);
+                console.log(` Loaded ${totalOrders} orders for ${Object.keys(global.deviceOrders).length} devices`);
             } else {
                 global.deviceOrders = {};
                 global.orderQueue = {};
             }
         } catch (error) {
-            console.error('❌ Error loading orders:', error);
+            console.error(' Error loading orders:', error);
             global.deviceOrders = {};
             global.orderQueue = {};
         }
@@ -133,17 +133,17 @@ class StorageManager {
                         if (this.validateMapData(mapData)) {
                             global.deviceMaps[deviceId] = mapData;
                         } else {
-                            console.warn(`⚠️ Invalid map data for device ${deviceId}, skipping`);
+                            console.warn(`️ Invalid map data for device ${deviceId}, skipping`);
                         }
                     } catch (error) {
-                        console.error(`❌ Error loading map file ${file}:`, error);
+                        console.error(` Error loading map file ${file}:`, error);
                     }
                 }
             }
             
-            console.log(`🗺️ Loaded maps for ${Object.keys(global.deviceMaps).length} devices`);
+            console.log(`️ Loaded maps for ${Object.keys(global.deviceMaps).length} devices`);
         } catch (error) {
-            console.error('❌ Error loading maps:', error);
+            console.error(' Error loading maps:', error);
             global.deviceMaps = {};
         }
     }
@@ -171,7 +171,7 @@ class StorageManager {
                 this.saveMaps()
             ]);
         } catch (error) {
-            console.error('❌ Error saving all data:', error);
+            console.error(' Error saving all data:', error);
             throw error;
         }
     }
@@ -180,7 +180,7 @@ class StorageManager {
         try {
             await fs.writeJson(config.STORAGE.DEVICES_FILE, global.connectedDevices || [], { spaces: 2 });
         } catch (error) {
-            console.error('❌ Error saving devices:', error);
+            console.error(' Error saving devices:', error);
             throw error;
         }
     }
@@ -189,7 +189,7 @@ class StorageManager {
         try {
             await fs.writeJson(config.STORAGE.ORDERS_FILE, global.deviceOrders || {}, { spaces: 2 });
         } catch (error) {
-            console.error('❌ Error saving orders:', error);
+            console.error(' Error saving orders:', error);
             throw error;
         }
     }
@@ -201,7 +201,7 @@ class StorageManager {
                 await fs.writeJson(mapPath, mapData, { spaces: 2 });
             }
         } catch (error) {
-            console.error('❌ Error saving maps:', error);
+            console.error(' Error saving maps:', error);
             throw error;
         }
     }
@@ -250,10 +250,10 @@ class StorageManager {
 
             await fs.writeJson(exportPath, exportData, { spaces: 2 });
             
-            console.log(`📤 Exported data for device ${deviceId} to ${exportPath}`);
+            console.log(` Exported data for device ${deviceId} to ${exportPath}`);
             return exportData;
         } catch (error) {
-            console.error(`❌ Error exporting device data for ${deviceId}:`, error);
+            console.error(` Error exporting device data for ${deviceId}:`, error);
             throw error;
         }
     }
@@ -306,10 +306,10 @@ class StorageManager {
             // Save all imported data
             await this.saveAllData();
 
-            console.log(`📥 Imported data for device ${deviceId} from ${importPath}`);
+            console.log(` Imported data for device ${deviceId} from ${importPath}`);
             return { deviceId, imported: true };
         } catch (error) {
-            console.error(`❌ Error importing device data:`, error);
+            console.error(` Error importing device data:`, error);
             throw error;
         }
     }
@@ -366,7 +366,7 @@ class StorageManager {
 
             return stats;
         } catch (error) {
-            console.error('❌ Error getting storage stats:', error);
+            console.error(' Error getting storage stats:', error);
             return null;
         }
     }
@@ -404,9 +404,9 @@ class StorageManager {
         this.autosaveInterval = setInterval(async () => {
             try {
                 await this.saveAllData();
-                console.log('💾 Autosave completed');
+                console.log(' Autosave completed');
             } catch (error) {
-                console.error('❌ Autosave failed:', error);
+                console.error(' Autosave failed:', error);
             }
         }, 120000); // 2 minutes
     }
@@ -420,9 +420,9 @@ class StorageManager {
             // Final save before cleanup
             await this.saveAllData();
             
-            console.log('🧹 Storage Manager cleanup completed');
+            console.log(' Storage Manager cleanup completed');
         } catch (error) {
-            console.error('❌ Storage Manager cleanup error:', error);
+            console.error(' Storage Manager cleanup error:', error);
         }
     }
 }

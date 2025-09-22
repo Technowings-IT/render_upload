@@ -292,7 +292,7 @@ class _ControlPageState extends State<ControlPage>
       _webSocketService.subscribe('script_status', deviceId: widget.deviceId);
       _webSocketService.subscribe('ros2_status', deviceId: widget.deviceId);
 
-      print('📡 Subscribed to all topics for device: ${widget.deviceId}');
+      print(' Subscribed to all topics for device: ${widget.deviceId}');
     }
   }
 
@@ -343,7 +343,7 @@ class _ControlPageState extends State<ControlPage>
         }
       });
     } catch (e) {
-      debugPrint('❌ Error processing position update: $e');
+      debugPrint(' Error processing position update: $e');
     }
   }
 
@@ -355,7 +355,7 @@ class _ControlPageState extends State<ControlPage>
         _lastMapUpdate = DateTime.now();
       });
     } catch (e) {
-      debugPrint('❌ Error processing map update: $e');
+      debugPrint(' Error processing map update: $e');
     }
   }
 
@@ -514,7 +514,7 @@ class _ControlPageState extends State<ControlPage>
     });
   }
 
-  // 🔧 NEW: Zoom Responsive Mapping Canvas for Mobile
+  //  NEW: Zoom Responsive Mapping Canvas for Mobile
   Widget _buildZoomResponsiveMappingCanvas() {
     return Stack(
       children: [
@@ -571,7 +571,7 @@ class _ControlPageState extends State<ControlPage>
           ),
         ),
 
-        // 🔧 NEW: Map size indicator
+        //  NEW: Map size indicator
         Positioned(
           bottom: 8,
           left: 8,
@@ -606,7 +606,7 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  // 🔧 NEW: Helper method for zoom control buttons
+  //  NEW: Helper method for zoom control buttons
   Widget _buildZoomControlButton({
     required IconData icon,
     required VoidCallback? onPressed,
@@ -744,7 +744,7 @@ class _ControlPageState extends State<ControlPage>
     // Immediate robot stop
     _webSocketService.stopRobot(widget.deviceId);
 
-    // ✅ FIXED: Execute specific kill.sh script for complete system shutdown
+    //  FIXED: Execute specific kill.sh script for complete system shutdown
     _webSocketService
         .sendScriptCommand(widget.deviceId, 'execute_script', options: {
       'script_name': 'kill.sh',
@@ -779,7 +779,7 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
-      _showSnackBar('🤖 Starting Robot Launch script on Pi...', Colors.green);
+      _showSnackBar(' Starting Robot Launch script on Pi...', Colors.green);
 
       final success = _webSocketService
           .sendScriptCommand(widget.deviceId, 'execute_script', options: {
@@ -793,12 +793,12 @@ class _ControlPageState extends State<ControlPage>
           _scriptStatus['robot_control'] = 'running';
         });
         _showSnackBar(
-            '✅ Robot Launch started successfully on Pi!', Colors.green);
+            ' Robot Launch started successfully on Pi!', Colors.green);
       } else {
-        _showSnackBar('❌ Failed to start Robot Launch script', Colors.red);
+        _showSnackBar(' Failed to start Robot Launch script', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('❌ Error starting Robot Launch script: $e', Colors.red);
+      _showSnackBar(' Error starting Robot Launch script: $e', Colors.red);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -815,7 +815,7 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
-      _showSnackBar('🗺️ Starting SLAM script on Pi...', Colors.purple);
+      _showSnackBar('️ Starting SLAM script on Pi...', Colors.purple);
 
       final success = _webSocketService
           .sendScriptCommand(widget.deviceId, 'execute_script', options: {
@@ -832,12 +832,12 @@ class _ControlPageState extends State<ControlPage>
           _robotTrail.clear(); // Clear trail for new mapping session
         });
         _showSnackBar(
-            '✅ SLAM script started successfully on Pi!', Colors.green);
+            ' SLAM script started successfully on Pi!', Colors.green);
       } else {
-        _showSnackBar('❌ Failed to start SLAM script', Colors.red);
+        _showSnackBar(' Failed to start SLAM script', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('❌ Error starting SLAM script: $e', Colors.red);
+      _showSnackBar(' Error starting SLAM script: $e', Colors.red);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -868,12 +868,12 @@ class _ControlPageState extends State<ControlPage>
           _scriptStatus['navigation'] = 'running';
         });
         _showSnackBar(
-            '✅ Navigation script started successfully on Pi!', Colors.green);
+            ' Navigation script started successfully on Pi!', Colors.green);
       } else {
-        _showSnackBar('❌ Failed to start Navigation script', Colors.red);
+        _showSnackBar(' Failed to start Navigation script', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('❌ Error starting Navigation script: $e', Colors.red);
+      _showSnackBar(' Error starting Navigation script: $e', Colors.red);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -903,12 +903,12 @@ class _ControlPageState extends State<ControlPage>
         setState(() {
           _scriptStatus['robot_control'] = 'stopped';
         });
-        _showSnackBar('✅ Robot stopped successfully on Pi!', Colors.green);
+        _showSnackBar(' Robot stopped successfully on Pi!', Colors.green);
       } else {
-        _showSnackBar('❌ Failed to stop Robot', Colors.red);
+        _showSnackBar(' Failed to stop Robot', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('❌ Error stopping Robot: $e', Colors.red);
+      _showSnackBar(' Error stopping Robot: $e', Colors.red);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -925,7 +925,7 @@ class _ControlPageState extends State<ControlPage>
     });
 
     try {
-      _showSnackBar('🔴 Stopping All PIDs on Pi...', Colors.red);
+      _showSnackBar(' Stopping All PIDs on Pi...', Colors.red);
 
       final success = _webSocketService
           .sendScriptCommand(widget.deviceId, 'execute_script', options: {
@@ -942,12 +942,12 @@ class _ControlPageState extends State<ControlPage>
           _scriptStatus['navigation'] = 'stopped';
           _mappingActive = false;
         });
-        _showSnackBar('✅ All PIDs stopped successfully on Pi!', Colors.green);
+        _showSnackBar(' All PIDs stopped successfully on Pi!', Colors.green);
       } else {
-        _showSnackBar('❌ Failed to stop all PIDs', Colors.red);
+        _showSnackBar(' Failed to stop all PIDs', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('❌ Error stopping all PIDs: $e', Colors.red);
+      _showSnackBar(' Error stopping all PIDs: $e', Colors.red);
     } finally {
       setState(() {
         _scriptExecutionInProgress = false;
@@ -1686,7 +1686,7 @@ class _ControlPageState extends State<ControlPage>
       case DeviceType.tablet:
         return _buildTabletLayout();
       case DeviceType.phone:
-        return _buildSimplifiedPhoneLayout(); // 🔧 NEW: Simplified mobile layout
+        return _buildSimplifiedPhoneLayout(); //  NEW: Simplified mobile layout
     }
   }
 
@@ -1762,12 +1762,12 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  // 🔧 NEW: Simplified Phone Layout - Only 3 Core Components
+  //  NEW: Simplified Phone Layout - Only 3 Core Components
   Widget _buildSimplifiedPhoneLayout() {
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // 🔧 NEW: Dynamic map height based on zoom level
+    //  NEW: Dynamic map height based on zoom level
     final baseMapHeight = screenHeight * 0.55;
     final dynamicMapHeight = baseMapHeight * _mapZoomLevel;
     final maxMapHeight = screenHeight * 0.75; // Cap maximum height
@@ -1878,7 +1878,7 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  // 🔧 NEW: Compact Speed Controls for Mobile
+  //  NEW: Compact Speed Controls for Mobile
   Widget _buildCompactSpeedControls() {
     final theme = Theme.of(context);
     return Container(
@@ -1962,7 +1962,7 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  // 🔧 NEW: Compact Speed Chip for Mobile
+  //  NEW: Compact Speed Chip for Mobile
   Widget _buildCompactSpeedChip(
       String label, double value, String unit, Color color) {
     return Container(
@@ -2012,7 +2012,7 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  // 🔧 NEW: Compact Speed Slider for Mobile
+  //  NEW: Compact Speed Slider for Mobile
   Widget _buildCompactSpeedSlider(
     String label,
     double value,
@@ -3099,7 +3099,7 @@ class _ControlPageState extends State<ControlPage>
     );
   }
 
-  // 🔧 NEW: Comprehensive Settings Tab with All Moved Controls
+  //  NEW: Comprehensive Settings Tab with All Moved Controls
   Widget _buildSettingsTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),

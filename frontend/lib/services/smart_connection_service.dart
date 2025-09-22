@@ -57,7 +57,7 @@ class SmartConnectionService {
     bool useNetworkScan = true,
   }) async {
     if (_isDiscovering) {
-      print('🔄 Discovery already in progress...');
+      print(' Discovery already in progress...');
       return _discoveredBackends;
     }
 
@@ -66,7 +66,7 @@ class SmartConnectionService {
     _updateConnectionStatus('Discovering AMR backends...');
 
     try {
-      print('🔍 Starting AMR backend discovery...');
+      print(' Starting AMR backend discovery...');
 
       // Get device's current network info
       final networkInfo = await _getDeviceNetworkInfo();
@@ -75,7 +75,7 @@ class SmartConnectionService {
       }
 
       final subnet = networkInfo['subnet']!;
-      print('📡 Scanning subnet: $subnet.x');
+      print(' Scanning subnet: $subnet.x');
 
       final List<Future<List<Map<String, dynamic>>>> discoveryTasks = [];
 
@@ -108,12 +108,12 @@ class SmartConnectionService {
       });
 
       print(
-          '✅ Discovery complete. Found ${_discoveredBackends.length} AMR backends');
+          ' Discovery complete. Found ${_discoveredBackends.length} AMR backends');
       _backendsController.add(_discoveredBackends);
 
       return _discoveredBackends;
     } catch (e) {
-      print('❌ Discovery error: $e');
+      print(' Discovery error: $e');
       _updateConnectionStatus('Discovery failed: $e');
       return [];
     } finally {
@@ -124,7 +124,7 @@ class SmartConnectionService {
   /// Discover known/common AMR backend IPs
   Future<List<Map<String, dynamic>>> _discoverKnownBackends(
       String subnet) async {
-    print('🎯 Checking known AMR backend IPs...');
+    print(' Checking known AMR backend IPs...');
 
     final backends = <Map<String, dynamic>>[];
 
@@ -143,7 +143,7 @@ class SmartConnectionService {
         final backend = await _testBackendAtIP(ip);
         if (backend != null) {
           backends.add(backend);
-          print('✅ Found known backend: ${backend['name']} at $ip');
+          print(' Found known backend: ${backend['name']} at $ip');
         }
       } catch (e) {
         // Skip failed connections
@@ -156,7 +156,7 @@ class SmartConnectionService {
   /// Scan network for AMR backends
   Future<List<Map<String, dynamic>>> _scanNetworkForBackends(
       String subnet, Duration timeout) async {
-    print('🔍 Scanning network for AMR backends...');
+    print(' Scanning network for AMR backends...');
 
     final backends = <Map<String, dynamic>>[];
 
@@ -189,7 +189,7 @@ class SmartConnectionService {
       await Future.wait(scanTasks, eagerError: false);
     }
 
-    print('✅ Network scan complete. Found ${backends.length} backends');
+    print(' Network scan complete. Found ${backends.length} backends');
     return backends;
   }
 
@@ -200,7 +200,7 @@ class SmartConnectionService {
       final backend = await _testBackendAtIP(ip);
       if (backend != null) {
         backends.add(backend);
-        print('✅ Found backend: ${backend['name']} at $ip');
+        print(' Found backend: ${backend['name']} at $ip');
       }
     } catch (e) {
       // Skip failed connections
@@ -345,7 +345,7 @@ class SmartConnectionService {
       final bestBackend = _discoveredBackends.first;
       return await connectToBackend(bestBackend);
     } catch (e) {
-      print('❌ Error connecting to best backend: $e');
+      print(' Error connecting to best backend: $e');
       _updateConnectionStatus('Connection failed: $e');
       return false;
     }
@@ -393,13 +393,13 @@ class SmartConnectionService {
       _updateConnectionStatus('Connected to ${backend['name']}');
       _isConnectedController.add(true);
 
-      print('✅ Successfully connected to backend: ${backend['name']}');
+      print(' Successfully connected to backend: ${backend['name']}');
       print('   HTTP: $httpUrl');
       print('   WebSocket: $wsUrl');
 
       return true;
     } catch (e) {
-      print('❌ Error connecting to backend: $e');
+      print(' Error connecting to backend: $e');
       _updateConnectionStatus('Connection failed: $e');
       await disconnect();
       return false;
@@ -421,9 +421,9 @@ class SmartConnectionService {
       _updateConnectionStatus('Disconnected');
       _isConnectedController.add(false);
 
-      print('🔌 Disconnected from backend');
+      print(' Disconnected from backend');
     } catch (e) {
-      print('❌ Error during disconnect: $e');
+      print(' Error during disconnect: $e');
     }
   }
 
@@ -455,7 +455,7 @@ class SmartConnectionService {
         }
       }
     } catch (e) {
-      print('❌ Error getting network info: $e');
+      print(' Error getting network info: $e');
     }
     return null;
   }
@@ -479,7 +479,7 @@ class SmartConnectionService {
 
   /// Update connection status
   void _updateConnectionStatus(String status) {
-    print('📡 Connection Status: $status');
+    print(' Connection Status: $status');
     _connectionStatusController.add(status);
   }
 

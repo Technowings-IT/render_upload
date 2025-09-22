@@ -9,7 +9,7 @@ let rosPublishers = null;
 try {
     rosPublishers = require('../ros/utils/publishers');
 } catch (error) {
-    console.warn('⚠️ ROS publishers not available:', error.message);
+    console.warn('️ ROS publishers not available:', error.message);
 }
 
 // Storage
@@ -19,15 +19,15 @@ const SIMPLE_ORDERS_FILE = path.join(__dirname, '../storage/simple_orders.json')
 let activeOrderExecution = null;
 
 /**
- * ✅ CREATE SIMPLE COORDINATE ORDER - EXACTLY what you need
+ *  CREATE SIMPLE COORDINATE ORDER - EXACTLY what you need
  * POST /api/simple-orders/create
  */
 router.post('/create', async (req, res) => {
     try {
         const { deviceId, name, coordinates } = req.body;
         
-        console.log(`📝 Creating simple coordinate order: ${name}`);
-        console.log(`📍 Coordinates: ${coordinates.length}`);
+        console.log(` Creating simple coordinate order: ${name}`);
+        console.log(` Coordinates: ${coordinates.length}`);
         
         // Validate coordinates
         if (!coordinates || coordinates.length === 0) {
@@ -53,7 +53,7 @@ router.post('/create', async (req, res) => {
         orders.push(simpleOrder);
         await saveSimpleOrders(orders);
         
-        console.log(`✅ Simple coordinate order created: ${simpleOrder.id}`);
+        console.log(` Simple coordinate order created: ${simpleOrder.id}`);
         
         res.json({
             success: true,
@@ -62,7 +62,7 @@ router.post('/create', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error creating simple coordinate order:', error);
+        console.error(' Error creating simple coordinate order:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -71,14 +71,14 @@ router.post('/create', async (req, res) => {
 });
 
 /**
- * ✅ START ORDER EXECUTION - Send coordinates one by one
+ *  START ORDER EXECUTION - Send coordinates one by one
  * POST /api/simple-orders/:orderId/start
  */
 router.post('/:orderId/start', async (req, res) => {
     try {
         const { orderId } = req.params;
         
-        console.log(`🚀 Starting execution of order: ${orderId}`);
+        console.log(` Starting execution of order: ${orderId}`);
         
         // Load order
         const orders = await loadSimpleOrders();
@@ -122,7 +122,7 @@ router.post('/:orderId/start', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error starting order execution:', error);
+        console.error(' Error starting order execution:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -131,15 +131,15 @@ router.post('/:orderId/start', async (req, res) => {
 });
 
 /**
- * ✅ EXECUTE COORDINATES SEQUENTIALLY - The heart of your system
+ *  EXECUTE COORDINATES SEQUENTIALLY - The heart of your system
  */
 async function executeCoordinatesSequentially(order) {
-    console.log(`📋 Starting sequential execution of ${order.coordinates.length} coordinates`);
+    console.log(` Starting sequential execution of ${order.coordinates.length} coordinates`);
     
     for (let i = 0; i < order.coordinates.length; i++) {
         const coordinate = order.coordinates[i];
         
-        console.log(`📍 Executing coordinate ${i + 1}/${order.coordinates.length}: ${coordinate.name}`);
+        console.log(` Executing coordinate ${i + 1}/${order.coordinates.length}: ${coordinate.name}`);
         console.log(`   Position: (${coordinate.x}, ${coordinate.y})`);
         
         try {
@@ -161,7 +161,7 @@ async function executeCoordinatesSequentially(order) {
                     throw new Error(`Failed to publish coordinate: ${goalResult.error}`);
                 }
                 
-                console.log(`✅ Published coordinate ${i + 1} to /target_pose`);
+                console.log(` Published coordinate ${i + 1} to /target_pose`);
                 
                 // Wait for navigation feedback
                 const feedbackResult = await waitForNavigationFeedback(goalResult.goalId, 30000); // 30 second timeout
@@ -170,16 +170,16 @@ async function executeCoordinatesSequentially(order) {
                     throw new Error(`Navigation failed: ${feedbackResult.error}`);
                 }
                 
-                console.log(`✅ Navigation to coordinate ${i + 1} completed successfully`);
+                console.log(` Navigation to coordinate ${i + 1} completed successfully`);
                 
             } else {
-                console.log(`⚠️ ROS publishers not available, simulating coordinate ${i + 1}`);
+                console.log(`️ ROS publishers not available, simulating coordinate ${i + 1}`);
                 // Simulate execution
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
             
         } catch (error) {
-            console.error(`❌ Failed to execute coordinate ${i + 1}: ${error.message}`);
+            console.error(` Failed to execute coordinate ${i + 1}: ${error.message}`);
             
             // Mark order as failed
             await updateOrderStatus(order.id, 'failed', `Failed at coordinate ${i + 1}: ${error.message}`);
@@ -195,7 +195,7 @@ async function executeCoordinatesSequentially(order) {
     }
     
     // All coordinates completed successfully
-    console.log(`🎉 All coordinates completed successfully for order: ${order.id}`);
+    console.log(` All coordinates completed successfully for order: ${order.id}`);
     
     await updateOrderStatus(order.id, 'completed', 'All coordinates executed successfully');
     
@@ -207,7 +207,7 @@ async function executeCoordinatesSequentially(order) {
 }
 
 /**
- * ✅ WAIT FOR NAVIGATION FEEDBACK - Critical function
+ *  WAIT FOR NAVIGATION FEEDBACK - Critical function
  */
 function waitForNavigationFeedback(goalId, timeoutMs = 30000) {
     return new Promise((resolve) => {
@@ -268,7 +268,7 @@ function waitForNavigationFeedback(goalId, timeoutMs = 30000) {
 }
 
 /**
- * ✅ CHECK GOAL STATUS - Integrate with your navigation feedback
+ *  CHECK GOAL STATUS - Integrate with your navigation feedback
  */
 async function checkGoalStatus(goalId) {
     // TODO: Integrate with your existing navigate_to_pose subscriber
@@ -288,7 +288,7 @@ async function checkGoalStatus(goalId) {
 }
 
 /**
- * ✅ GET EXECUTION STATUS
+ *  GET EXECUTION STATUS
  * GET /api/simple-orders/execution-status
  */
 router.get('/execution-status', (req, res) => {
@@ -300,7 +300,7 @@ router.get('/execution-status', (req, res) => {
 });
 
 /**
- * ✅ STOP EXECUTION
+ *  STOP EXECUTION
  * POST /api/simple-orders/stop-execution
  */
 router.post('/stop-execution', async (req, res) => {
@@ -325,7 +325,7 @@ router.post('/stop-execution', async (req, res) => {
         // Clear active execution
         activeOrderExecution = null;
         
-        console.log(`🛑 Execution stopped for order: ${orderId}`);
+        console.log(` Execution stopped for order: ${orderId}`);
         
         res.json({
             success: true,
@@ -333,7 +333,7 @@ router.post('/stop-execution', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error stopping execution:', error);
+        console.error(' Error stopping execution:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -342,7 +342,7 @@ router.post('/stop-execution', async (req, res) => {
 });
 
 /**
- * ✅ GET ALL SIMPLE ORDERS
+ *  GET ALL SIMPLE ORDERS
  * GET /api/simple-orders/:deviceId
  */
 router.get('/:deviceId', async (req, res) => {
@@ -358,7 +358,7 @@ router.get('/:deviceId', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error loading simple orders:', error);
+        console.error(' Error loading simple orders:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -367,14 +367,14 @@ router.get('/:deviceId', async (req, res) => {
 });
 
 /**
- * ✅ RESTART FAILED ORDER - For your restart popup
+ *  RESTART FAILED ORDER - For your restart popup
  * POST /api/simple-orders/:orderId/restart
  */
 router.post('/:orderId/restart', async (req, res) => {
     try {
         const { orderId } = req.params;
         
-        console.log(`🔄 Restarting order: ${orderId}`);
+        console.log(` Restarting order: ${orderId}`);
         
         // Load order
         const orders = await loadSimpleOrders();
@@ -401,7 +401,7 @@ router.post('/:orderId/restart', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error restarting order:', error);
+        console.error(' Error restarting order:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -410,14 +410,14 @@ router.post('/:orderId/restart', async (req, res) => {
 });
 
 /**
- * ✅ DELETE SIMPLE COORDINATE ORDER
+ *  DELETE SIMPLE COORDINATE ORDER
  * DELETE /api/simple-orders/:deviceId/:orderId
  */
 router.delete('/:deviceId/:orderId', async (req, res) => {
     try {
         const { deviceId, orderId } = req.params;
         
-        console.log(`🗑️ Deleting simple coordinate order: ${orderId} for device: ${deviceId}`);
+        console.log(`️ Deleting simple coordinate order: ${orderId} for device: ${deviceId}`);
         
         const orders = await loadSimpleOrders();
         const orderIndex = orders.findIndex(o => o.id === orderId && o.deviceId === deviceId);
@@ -448,7 +448,7 @@ router.delete('/:deviceId/:orderId', async (req, res) => {
         orders.splice(orderIndex, 1);
         await saveSimpleOrders(orders);
         
-        console.log(`✅ Simple coordinate order deleted successfully: ${orderId}`);
+        console.log(` Simple coordinate order deleted successfully: ${orderId}`);
         
         res.json({
             success: true,
@@ -467,7 +467,7 @@ router.delete('/:deviceId/:orderId', async (req, res) => {
         broadcastOrderDeletion(deviceId, orderId);
         
     } catch (error) {
-        console.error('❌ Error deleting simple coordinate order:', error);
+        console.error(' Error deleting simple coordinate order:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -486,7 +486,7 @@ async function loadSimpleOrders() {
         if (!data || data.trim() === '') return [];
         return JSON.parse(data);
     } catch (error) {
-        console.error('❌ Error loading simple orders:', error);
+        console.error(' Error loading simple orders:', error);
         return [];
     }
 }
@@ -494,9 +494,9 @@ async function loadSimpleOrders() {
 async function saveSimpleOrders(orders) {
     try {
         await fs.writeFile(SIMPLE_ORDERS_FILE, JSON.stringify(orders, null, 2));
-        console.log(`💾 Saved ${orders.length} simple orders`);
+        console.log(` Saved ${orders.length} simple orders`);
     } catch (error) {
-        console.error('❌ Error saving simple orders:', error);
+        console.error(' Error saving simple orders:', error);
         throw error;
     }
 }
@@ -505,7 +505,7 @@ async function ensureSimpleOrdersFileExists() {
     try {
         await fs.access(SIMPLE_ORDERS_FILE);
     } catch (error) {
-        console.log('📁 Creating simple_orders.json file');
+        console.log(' Creating simple_orders.json file');
         await fs.writeFile(SIMPLE_ORDERS_FILE, JSON.stringify([], null, 2));
     }
 }
@@ -528,10 +528,10 @@ async function updateOrderStatus(orderId, status, reason = null) {
             }
             
             await saveSimpleOrders(orders);
-            console.log(`🔄 Order ${orderId} status updated: ${status}`);
+            console.log(` Order ${orderId} status updated: ${status}`);
         }
     } catch (error) {
-        console.error('❌ Error updating order status:', error);
+        console.error(' Error updating order status:', error);
     }
 }
 
@@ -548,7 +548,7 @@ function broadcastOrderFailure(orderId, coordinateIndex, error) {
             });
         }
     } catch (error) {
-        console.error('❌ Error broadcasting order failure:', error);
+        console.error(' Error broadcasting order failure:', error);
     }
 }
 
@@ -561,7 +561,7 @@ function broadcastOrderCompletion(orderId) {
             });
         }
     } catch (error) {
-        console.error('❌ Error broadcasting order completion:', error);
+        console.error(' Error broadcasting order completion:', error);
     }
 }
 
@@ -576,7 +576,7 @@ function broadcastOrderDeletion(deviceId, orderId) {
             });
         }
     } catch (error) {
-        console.error('❌ Error broadcasting order deletion:', error);
+        console.error(' Error broadcasting order deletion:', error);
     }
 }
 

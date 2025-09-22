@@ -46,7 +46,7 @@ router.post('/maps/:deviceId/convert-to-pgm', async (req, res) => {
         const { deviceId } = req.params;
         const { mapName, sourceMapName } = req.body;
         
-        console.log(`🔄 Converting map to PGM format for device: ${deviceId}`);
+        console.log(` Converting map to PGM format for device: ${deviceId}`);
         
         // Get the source map file (either current or saved)
         let sourceMapPath;
@@ -85,7 +85,7 @@ router.post('/maps/:deviceId/convert-to-pgm', async (req, res) => {
         );
         
         if (conversionResult.success) {
-            console.log(`✅ Map converted successfully: ${outputMapName}`);
+            console.log(` Map converted successfully: ${outputMapName}`);
             
             res.json({
                 success: true,
@@ -103,7 +103,7 @@ router.post('/maps/:deviceId/convert-to-pgm', async (req, res) => {
         }
         
     } catch (error) {
-        console.error('❌ Error converting map to PGM:', error);
+        console.error(' Error converting map to PGM:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -126,7 +126,7 @@ router.post('/maps/:deviceId/convert-to-pgm-advanced', async (req, res) => {
             conversionOptions = {}
         } = req.body;
         
-        console.log(`🚀 Advanced PGM conversion for device: ${deviceId}`);
+        console.log(` Advanced PGM conversion for device: ${deviceId}`);
         
         // Get source map data
         let sourceMapPath;
@@ -193,7 +193,7 @@ router.post('/maps/:deviceId/convert-to-pgm-advanced', async (req, res) => {
         }
         
     } catch (error) {
-        console.error('❌ Advanced PGM conversion error:', error);
+        console.error(' Advanced PGM conversion error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -217,7 +217,7 @@ router.post('/maps/:deviceId/apply-edits', async (req, res) => {
             validateChanges = true
         } = req.body;
         
-        console.log(`✏️ Applying map edits for device: ${deviceId}, map: ${mapName}`);
+        console.log(`️ Applying map edits for device: ${deviceId}, map: ${mapName}`);
         
         // Decode base64 data
         const pgmData = Buffer.from(editedData, 'base64');
@@ -277,7 +277,7 @@ router.post('/maps/:deviceId/apply-edits', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error applying map edits:', error);
+        console.error(' Error applying map edits:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -294,7 +294,7 @@ router.put('/maps/:deviceId/edit-pgm/:mapName', async (req, res) => {
         const { deviceId, mapName } = req.params;
         const { locations, metadata } = req.body;
         
-        console.log(`✏️ Editing PGM map: ${mapName} for device: ${deviceId}`);
+        console.log(`️ Editing PGM map: ${mapName} for device: ${deviceId}`);
         
         // Load existing map metadata
         const yamlPath = path.join(__dirname, '../maps', `${mapName}.yaml`);
@@ -351,7 +351,7 @@ total_locations: ${locationMetadata.length}
             editedAt: new Date().toISOString()
         }, null, 2));
         
-        console.log(`✅ Map edited successfully: ${mapName} with ${locationMetadata.length} locations`);
+        console.log(` Map edited successfully: ${mapName} with ${locationMetadata.length} locations`);
         
         res.json({
             success: true,
@@ -363,7 +363,7 @@ total_locations: ${locationMetadata.length}
         });
         
     } catch (error) {
-        console.error('❌ Error editing PGM map:', error);
+        console.error(' Error editing PGM map:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -380,7 +380,7 @@ router.post('/maps/:deviceId/rename-for-deployment', async (req, res) => {
         const { deviceId } = req.params;
         const { sourceMapName, targetMapName, deploymentNotes } = req.body;
         
-        console.log(`📝 Renaming map for deployment: ${sourceMapName} -> ${targetMapName}`);
+        console.log(` Renaming map for deployment: ${sourceMapName} -> ${targetMapName}`);
         
         const sourceYamlPath = path.join(__dirname, '../maps', `${sourceMapName}.yaml`);
         const sourcePgmPath = path.join(__dirname, '../maps', `${sourceMapName}.pgm`);
@@ -399,7 +399,7 @@ router.post('/maps/:deviceId/rename-for-deployment', async (req, res) => {
             await fs.access(sourceLocationsPath);
             await fs.copyFile(sourceLocationsPath, targetLocationsPath);
         } catch (error) {
-            console.log('⚠️ No locations file found, skipping');
+            console.log('️ No locations file found, skipping');
         }
         
         // Update YAML to reference correct PGM file
@@ -421,7 +421,7 @@ target_device: "${deviceId}"
         
         await fs.writeFile(targetYamlPath, yamlContent);
         
-        console.log(`✅ Map renamed and prepared for deployment: ${targetMapName}`);
+        console.log(` Map renamed and prepared for deployment: ${targetMapName}`);
         
         res.json({
             success: true,
@@ -437,7 +437,7 @@ target_device: "${deviceId}"
         });
         
     } catch (error) {
-        console.error('❌ Error renaming map for deployment:', error);
+        console.error(' Error renaming map for deployment:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -454,7 +454,7 @@ router.post('/maps/:deviceId/deploy-to-pi', async (req, res) => {
         const { deviceId } = req.params;
         const { mapName, piConfig, autoLoad = true, fullNavigation = false } = req.body;
         
-        console.log(`🚀 Deploying map to Raspberry Pi: ${mapName}`);
+        console.log(` Deploying map to Raspberry Pi: ${mapName}`);
         console.log(`   Device: ${deviceId}`);
         console.log(`   Auto-load: ${autoLoad}`);
         console.log(`   Full navigation: ${fullNavigation}`);
@@ -476,9 +476,9 @@ router.post('/maps/:deviceId/deploy-to-pi', async (req, res) => {
         try {
             await fs.access(yamlPath);
             await fs.access(pgmPath);
-            console.log('✅ Map files verified locally');
+            console.log(' Map files verified locally');
         } catch (error) {
-            console.error('❌ Map files not found:', error);
+            console.error(' Map files not found:', error);
             return res.status(404).json({
                 success: false,
                 error: 'Map files not found',
@@ -503,7 +503,7 @@ router.post('/maps/:deviceId/deploy-to-pi', async (req, res) => {
         );
         
         if (deploymentResult.success) {
-            console.log(`✅ Map deployed successfully to Raspberry Pi: ${mapName}`);
+            console.log(` Map deployed successfully to Raspberry Pi: ${mapName}`);
             
             res.json({
                 success: true,
@@ -521,7 +521,7 @@ router.post('/maps/:deviceId/deploy-to-pi', async (req, res) => {
         }
         
     } catch (error) {
-        console.error('❌ Error deploying map to Raspberry Pi:', error);
+        console.error(' Error deploying map to Raspberry Pi:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -554,7 +554,7 @@ router.get('/maps/:deviceId/deployment-status', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error checking deployment status:', error);
+        console.error(' Error checking deployment status:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -575,7 +575,7 @@ router.post('/maps/pi-config/test', async (req, res) => {
             ...piConfig
         };
         
-        console.log(`🔧 Testing Pi connection: ${testConfig.host}:${testConfig.port}`);
+        console.log(` Testing Pi connection: ${testConfig.host}:${testConfig.port}`);
         
         const testResult = await testPiConnection(testConfig);
         
@@ -588,7 +588,7 @@ router.post('/maps/pi-config/test', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error testing Pi connection:', error);
+        console.error(' Error testing Pi connection:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -613,7 +613,7 @@ router.post('/maps/:deviceId/deploy-validated', async (req, res) => {
             deploymentOptions = {}
         } = req.body;
         
-        console.log(`🚀 Validated deployment for device: ${deviceId}, map: ${mapName}`);
+        console.log(` Validated deployment for device: ${deviceId}, map: ${mapName}`);
         
         // Pre-deployment validation
         if (validateBeforeDeploy) {
@@ -655,7 +655,7 @@ router.post('/maps/:deviceId/deploy-validated', async (req, res) => {
             if (deploymentOptions.verifyTransfer) {
                 const verification = await verifyDeployment(deviceId, targetMapName || mapName);
                 if (!verification.success) {
-                    console.warn('⚠️ Deployment verification failed:', verification.error);
+                    console.warn('️ Deployment verification failed:', verification.error);
                 }
             }
             
@@ -681,7 +681,7 @@ router.post('/maps/:deviceId/deploy-validated', async (req, res) => {
         }
         
     } catch (error) {
-        console.error('❌ Validated deployment error:', error);
+        console.error(' Validated deployment error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -697,7 +697,7 @@ router.get('/maps/:deviceId/pi-maps', async (req, res) => {
     try {
         const { deviceId } = req.params;
         
-        console.log(`📋 Getting available maps on Raspberry Pi for device: ${deviceId}`);
+        console.log(` Getting available maps on Raspberry Pi for device: ${deviceId}`);
         
         const availableMaps = await getAvailableMapsOnPi(SSH_CONFIG);
         
@@ -710,7 +710,7 @@ router.get('/maps/:deviceId/pi-maps', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Error getting Pi maps:', error);
+        console.error(' Error getting Pi maps:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -727,7 +727,7 @@ router.post('/maps/:deviceId/set-active-pi-map', async (req, res) => {
         const { deviceId } = req.params;
         const { mapName } = req.body;
         
-        console.log(`🎯 Setting active map on Raspberry Pi: ${mapName}`);
+        console.log(` Setting active map on Raspberry Pi: ${mapName}`);
         
         const result = await setActiveMapOnPi(SSH_CONFIG, mapName);
         
@@ -745,7 +745,7 @@ router.post('/maps/:deviceId/set-active-pi-map', async (req, res) => {
         }
         
     } catch (error) {
-        console.error('❌ Error setting active map on Pi:', error);
+        console.error(' Error setting active map on Pi:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -766,7 +766,7 @@ router.post('/maps/:deviceId/analyze', async (req, res) => {
         const { deviceId } = req.params;
         const { mapName, analysisTypes = [] } = req.body;
         
-        console.log(`📊 Analyzing map: ${mapName} for device: ${deviceId}`);
+        console.log(` Analyzing map: ${mapName} for device: ${deviceId}`);
         
         const mapPath = path.join(__dirname, '../maps', `${mapName}.pgm`);
         const yamlPath = path.join(__dirname, '../maps', `${mapName}.yaml`);
@@ -825,7 +825,7 @@ router.post('/maps/:deviceId/analyze', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Map analysis error:', error);
+        console.error(' Map analysis error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -842,7 +842,7 @@ router.post('/maps/:deviceId/export-advanced', async (req, res) => {
         const { deviceId } = req.params;
         const { mapName, format, exportOptions = {} } = req.body;
         
-        console.log(`📤 Advanced export: ${mapName} to ${format} for device: ${deviceId}`);
+        console.log(` Advanced export: ${mapName} to ${format} for device: ${deviceId}`);
         
         const mapPath = path.join(__dirname, '../maps', `${mapName}.pgm`);
         const yamlPath = path.join(__dirname, '../maps', `${mapName}.yaml`);
@@ -877,7 +877,7 @@ router.post('/maps/:deviceId/export-advanced', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Advanced export error:', error);
+        console.error(' Advanced export error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -894,7 +894,7 @@ router.post('/maps/:deviceId/validate', async (req, res) => {
         const { deviceId } = req.params;
         const { mapName, validationRules = [] } = req.body;
         
-        console.log(`🔍 Validating map: ${mapName} for device: ${deviceId}`);
+        console.log(` Validating map: ${mapName} for device: ${deviceId}`);
         
         const validation = {
             valid: true,
@@ -931,7 +931,7 @@ router.post('/maps/:deviceId/validate', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Map validation error:', error);
+        console.error(' Map validation error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -954,7 +954,7 @@ router.post('/maps/:deviceId/test-path', async (req, res) => {
             pathPlanningOptions = {} 
         } = req.body;
         
-        console.log(`🛤️ Testing path planning on map: ${mapName}`);
+        console.log(`️ Testing path planning on map: ${mapName}`);
         
         const pathResult = await testPathPlanning(
             mapName,
@@ -976,7 +976,7 @@ router.post('/maps/:deviceId/test-path', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Path planning test error:', error);
+        console.error(' Path planning test error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -993,7 +993,7 @@ router.post('/maps/:deviceId/create-backup', async (req, res) => {
         const { deviceId } = req.params;
         const { mapName, backupNote } = req.body;
         
-        console.log(`💾 Creating backup for map: ${mapName}`);
+        console.log(` Creating backup for map: ${mapName}`);
         
         const backup = await createMapBackup(deviceId, mapName, backupNote);
         
@@ -1006,7 +1006,7 @@ router.post('/maps/:deviceId/create-backup', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Backup creation error:', error);
+        console.error(' Backup creation error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -1023,7 +1023,7 @@ router.post('/maps/:deviceId/restore-backup', async (req, res) => {
         const { deviceId } = req.params;
         const { backupId, targetMapName } = req.body;
         
-        console.log(`🔄 Restoring backup: ${backupId} for device: ${deviceId}`);
+        console.log(` Restoring backup: ${backupId} for device: ${deviceId}`);
         
         const restoration = await restoreMapFromBackup(deviceId, backupId, targetMapName);
         
@@ -1037,7 +1037,7 @@ router.post('/maps/:deviceId/restore-backup', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Backup restoration error:', error);
+        console.error(' Backup restoration error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -1054,7 +1054,7 @@ router.post('/maps/:deviceId/batch-location-ops', async (req, res) => {
         const { deviceId } = req.params;
         const { mapName, operations, batchId } = req.body;
         
-        console.log(`🔄 Processing batch operations for map: ${mapName}`);
+        console.log(` Processing batch operations for map: ${mapName}`);
         
         const results = [];
         
@@ -1089,7 +1089,7 @@ router.post('/maps/:deviceId/batch-location-ops', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Batch operations error:', error);
+        console.error(' Batch operations error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -1113,7 +1113,7 @@ router.post('/maps/:deviceId/complete-workflow', async (req, res) => {
             workflowSteps 
         } = req.body;
         
-        console.log(`🔄 Complete workflow for device: ${deviceId}, map: ${finalMapName}`);
+        console.log(` Complete workflow for device: ${deviceId}, map: ${finalMapName}`);
         
         const workflowResult = {
             success: true,
@@ -1166,7 +1166,7 @@ router.post('/maps/:deviceId/complete-workflow', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ Complete workflow error:', error);
+        console.error(' Complete workflow error:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -1206,12 +1206,12 @@ async function runPythonMapConverter(mapData, outputDir, mapName) {
             
             pythonProcess.stdout.on('data', (data) => {
                 stdout += data.toString();
-                console.log('🐍 Python:', data.toString().trim());
+                console.log(' Python:', data.toString().trim());
             });
             
             pythonProcess.stderr.on('data', (data) => {
                 stderr += data.toString();
-                console.error('🐍 Python Error:', data.toString().trim());
+                console.error(' Python Error:', data.toString().trim());
             });
             
             pythonProcess.on('close', async (code) => {
@@ -1219,7 +1219,7 @@ async function runPythonMapConverter(mapData, outputDir, mapName) {
                 try {
                     await fs.unlink(tempJsonPath);
                 } catch (error) {
-                    console.warn('⚠️ Could not cleanup temp file:', error);
+                    console.warn('️ Could not cleanup temp file:', error);
                 }
                 
                 if (code === 0) {
@@ -1263,7 +1263,7 @@ async function runPythonMapConverter(mapData, outputDir, mapName) {
  * Deploy map to Raspberry Pi with fallback methods
  */
 async function deployMapToRaspberryPi(sshConfig, files, autoLoad = true, fullNavigation = false) {
-    console.log('🚀 Starting map deployment to Pi...');
+    console.log(' Starting map deployment to Pi...');
     
     // Update SSH config with correct map directory
     const updatedSSHConfig = {
@@ -1279,18 +1279,18 @@ async function deployMapToRaspberryPi(sshConfig, files, autoLoad = true, fullNav
         console.log('� Attempting SCP transfer...');
         
         await transferFile(files.yamlPath, `${files.mapName}.yaml`, updatedSSHConfig);
-        console.log('✅ YAML file transferred via SCP');
+        console.log(' YAML file transferred via SCP');
         
         await transferFile(files.pgmPath, `${files.mapName}.pgm`, updatedSSHConfig);
-        console.log('✅ PGM file transferred via SCP');
+        console.log(' PGM file transferred via SCP');
         
         // Transfer locations file if exists
         try {
             await fs.access(files.locationsPath);
             await transferFile(files.locationsPath, `${files.mapName}_locations.json`, updatedSSHConfig);
-            console.log('✅ Locations file transferred via SCP');
+            console.log(' Locations file transferred via SCP');
         } catch (error) {
-            console.log('⚠️ No locations file to transfer');
+            console.log('️ No locations file to transfer');
         }
         
         // Create deployment script and execute if autoLoad is enabled
@@ -1309,7 +1309,7 @@ async function deployMapToRaspberryPi(sshConfig, files, autoLoad = true, fullNav
         };
         
     } catch (scpError) {
-        console.warn('⚠️ SCP failed, trying rsync...', scpError.message);
+        console.warn('️ SCP failed, trying rsync...', scpError.message);
         
         try {
             // Method 2: Fallback to rsync
@@ -1321,7 +1321,7 @@ async function deployMapToRaspberryPi(sshConfig, files, autoLoad = true, fullNav
                 await fs.access(files.locationsPath);
                 await transferFileWithRsync(files.locationsPath, `${files.mapName}_locations.json`, updatedSSHConfig);
             } catch (error) {
-                console.log('⚠️ No locations file to transfer');
+                console.log('️ No locations file to transfer');
             }
             
             if (autoLoad) {
@@ -1338,7 +1338,7 @@ async function deployMapToRaspberryPi(sshConfig, files, autoLoad = true, fullNav
             };
             
         } catch (rsyncError) {
-            console.error('❌ Both SCP and rsync failed');
+            console.error(' Both SCP and rsync failed');
             
             return {
                 success: false,
@@ -1434,7 +1434,7 @@ function transferFile(localPath, remotePath, sshConfig) {
         
         const remoteHost = `${sshConfig.username}@${sshConfig.host}`;
         
-        console.log(`🚀 Starting SCP transfer with password automation:`);
+        console.log(` Starting SCP transfer with password automation:`);
         console.log(`   Local:  ${localPath}`);
         console.log(`   Remote: ${remoteHost}:${fullRemotePath}`);
         
@@ -1459,19 +1459,19 @@ function transferFile(localPath, remotePath, sshConfig) {
         
         scpProcess.stdout.on('data', (data) => {
             stdout += data.toString();
-            console.log(`📡 SCP stdout: ${data.toString().trim()}`);
+            console.log(` SCP stdout: ${data.toString().trim()}`);
         });
         
         scpProcess.stderr.on('data', (data) => {
             stderr += data.toString();
-            console.log(`📡 SCP stderr: ${data.toString().trim()}`);
+            console.log(` SCP stderr: ${data.toString().trim()}`);
         });
         
         scpProcess.on('close', (code) => {
-            console.log(`📊 SCP process exited with code: ${code}`);
+            console.log(` SCP process exited with code: ${code}`);
             
             if (code === 0) {
-                console.log(`✅ SCP transfer successful: ${localPath} -> ${fullRemotePath}`);
+                console.log(` SCP transfer successful: ${localPath} -> ${fullRemotePath}`);
                 resolve({
                     success: true,
                     stdout: stdout,
@@ -1479,15 +1479,15 @@ function transferFile(localPath, remotePath, sshConfig) {
                 });
             } else {
                 const errorMessage = `SCP failed with code ${code}`;
-                console.error(`❌ ${errorMessage}`);
-                console.error(`❌ STDERR: ${stderr}`);
+                console.error(` ${errorMessage}`);
+                console.error(` STDERR: ${stderr}`);
                 
                 reject(new Error(`${errorMessage}: ${stderr}`));
             }
         });
         
         scpProcess.on('error', (error) => {
-            console.error(`❌ SCP command failed to start: ${error.message}`);
+            console.error(` SCP command failed to start: ${error.message}`);
             reject(new Error(`SCP command failed: ${error.message}`));
         });
         
@@ -1516,7 +1516,7 @@ function transferFileWithRsync(localPath, remotePath, sshConfig) {
         
         const remoteHost = `${sshConfig.username}@${sshConfig.host}`;
         
-        console.log(`🔄 Starting Rsync transfer with password automation:`);
+        console.log(` Starting Rsync transfer with password automation:`);
         console.log(`   Local:  ${localPath}`);
         console.log(`   Remote: ${remoteHost}:${fullRemotePath}`);
         
@@ -1542,17 +1542,17 @@ function transferFileWithRsync(localPath, remotePath, sshConfig) {
         
         rsyncProcess.stdout.on('data', (data) => {
             stdout += data.toString();
-            console.log(`📡 Rsync: ${data.toString().trim()}`);
+            console.log(` Rsync: ${data.toString().trim()}`);
         });
         
         rsyncProcess.stderr.on('data', (data) => {
             stderr += data.toString();
-            console.error(`📡 Rsync stderr: ${data.toString().trim()}`);
+            console.error(` Rsync stderr: ${data.toString().trim()}`);
         });
         
         rsyncProcess.on('close', (code) => {
             if (code === 0) {
-                console.log(`✅ Rsync transfer successful`);
+                console.log(` Rsync transfer successful`);
                 resolve({
                     success: true,
                     stdout: stdout,
@@ -1560,7 +1560,7 @@ function transferFileWithRsync(localPath, remotePath, sshConfig) {
                 });
             } else {
                 const errorMessage = `Rsync failed with code ${code}`;
-                console.error(`❌ ${errorMessage}`);
+                console.error(` ${errorMessage}`);
                 reject(new Error(`${errorMessage}: ${stderr}`));
             }
         });
@@ -1597,7 +1597,7 @@ async function triggerMapLoadOnPi(conn, sshConfig, mapName) {
         };
         
     } catch (error) {
-        console.warn('⚠️ Auto-load failed:', error.message);
+        console.warn('️ Auto-load failed:', error.message);
         return {
             success: false,
             error: error.message
@@ -1633,7 +1633,7 @@ function createRemoteDirectory(sshConfig) {
         
         sshProcess.on('close', (code) => {
             if (code === 0) {
-                console.log(`✅ Created remote directory: ${sshConfig.mapDirectory}`);
+                console.log(` Created remote directory: ${sshConfig.mapDirectory}`);
                 resolve();
             } else {
                 reject(new Error(`Failed to create remote directory: ${stderr}`));
@@ -1655,7 +1655,7 @@ async function createAndExecuteDeploymentScript(sshConfig, files, fullNavigation
 # Generated at: ${new Date().toISOString()}
 # Map: ${files.mapName}
 
-echo "🗺️ Deploying map: ${files.mapName}"
+echo "️ Deploying map: ${files.mapName}"
 
 # Set map directory
 MAP_DIR="${sshConfig.mapDirectory}"
@@ -1663,19 +1663,19 @@ MAP_NAME="${files.mapName}"
 
 # Verify map files exist
 if [ ! -f "$MAP_DIR/$MAP_NAME.yaml" ]; then
-    echo "❌ Map YAML file not found: $MAP_DIR/$MAP_NAME.yaml"
+    echo " Map YAML file not found: $MAP_DIR/$MAP_NAME.yaml"
     exit 1
 fi
 
 if [ ! -f "$MAP_DIR/$MAP_NAME.pgm" ]; then
-    echo "❌ Map PGM file not found: $MAP_DIR/$MAP_NAME.pgm"
+    echo " Map PGM file not found: $MAP_DIR/$MAP_NAME.pgm"
     exit 1
 fi
 
-echo "✅ Map files verified"
+echo " Map files verified"
 
 # Stop current navigation if running
-echo "🛑 Stopping current navigation..."
+echo " Stopping current navigation..."
 pkill -f "ros2 launch nav2_bringup" || true
 pkill -f "map_server" || true
 sleep 2
@@ -1687,7 +1687,7 @@ source ~/ros2_ws/install/setup.bash || true
 # Set the map parameter file path
 export MAP_YAML_FILE="$MAP_DIR/$MAP_NAME.yaml"
 
-echo "🚀 Starting map server with: $MAP_YAML_FILE"
+echo " Starting map server with: $MAP_YAML_FILE"
 
 # Start map server in background
 ros2 run nav2_map_server map_server --ros-args -p yaml_filename:=$MAP_YAML_FILE &
@@ -1700,24 +1700,24 @@ sleep 3
 ros2 lifecycle set /map_server configure || true
 ros2 lifecycle set /map_server activate || true
 
-echo "✅ Map server started with PID: $MAP_SERVER_PID"
+echo " Map server started with PID: $MAP_SERVER_PID"
 
 # Update active map configuration
 echo "{\\"activeMap\\": \\"$MAP_NAME\\", \\"setAt\\": \\"$(date -Iseconds)\\", \\"autoLoad\\": true, \\"mapServerPid\\": $MAP_SERVER_PID}" > "$MAP_DIR/active_map.json"
 
 # Optional: Start full navigation stack
 if [ "$1" = "--full-nav" ]; then
-    echo "🧭 Starting full navigation stack..."
+    echo " Starting full navigation stack..."
     ros2 launch nav2_bringup navigation_launch.py map:=$MAP_YAML_FILE &
     NAV_PID=$!
-    echo "✅ Navigation started with PID: $NAV_PID"
+    echo " Navigation started with PID: $NAV_PID"
     echo "{\\"activeMap\\": \\"$MAP_NAME\\", \\"setAt\\": \\"$(date -Iseconds)\\", \\"autoLoad\\": true, \\"mapServerPid\\": $MAP_SERVER_PID, \\"navPid\\": $NAV_PID}" > "$MAP_DIR/active_map.json"
 fi
 
-echo "🎉 Map deployment completed successfully!"
-echo "📍 Active map: $MAP_NAME"
-echo "📁 Map directory: $MAP_DIR"
-echo "🔧 Config file: $MAP_DIR/active_map.json"
+echo " Map deployment completed successfully!"
+echo " Active map: $MAP_NAME"
+echo " Map directory: $MAP_DIR"
+echo " Config file: $MAP_DIR/active_map.json"
 `;
 
     return new Promise((resolve, reject) => {
@@ -1743,7 +1743,7 @@ EOF`
         
         createProcess.on('close', (code) => {
             if (code === 0) {
-                console.log('📜 Deployment script created on Pi');
+                console.log(' Deployment script created on Pi');
                 
                 // Make script executable and run it using sshpass
                 const executeArgs = [
@@ -1763,20 +1763,20 @@ EOF`
                 
                 executeProcess.stdout.on('data', (data) => {
                     stdout += data.toString();
-                    console.log(`🐧 Pi: ${data.toString().trim()}`);
+                    console.log(` Pi: ${data.toString().trim()}`);
                 });
                 
                 executeProcess.stderr.on('data', (data) => {
                     stderr += data.toString();
-                    console.error(`🐧 Pi Error: ${data.toString().trim()}`);
+                    console.error(` Pi Error: ${data.toString().trim()}`);
                 });
                 
                 executeProcess.on('close', (execCode) => {
                     if (execCode === 0) {
-                        console.log('✅ Deployment script executed successfully');
+                        console.log(' Deployment script executed successfully');
                         resolve({ success: true, output: stdout });
                     } else {
-                        console.warn('⚠️ Deployment script execution failed:', stderr);
+                        console.warn('️ Deployment script execution failed:', stderr);
                         resolve({ success: false, error: stderr });
                     }
                 });
@@ -1878,13 +1878,13 @@ async function getAvailableMapsOnPi(sshConfig) {
                 
             } catch (error) {
                 conn.end();
-                console.error('❌ Error listing Pi maps:', error);
+                console.error(' Error listing Pi maps:', error);
                 resolve([]);
             }
         });
         
         conn.on('error', (error) => {
-            console.error('❌ SSH error getting Pi maps:', error);
+            console.error(' SSH error getting Pi maps:', error);
             resolve([]);
         });
         
@@ -1933,7 +1933,7 @@ router.get('/control/devices/:deviceId/maps', async (req, res) => {
     try {
         const { deviceId } = req.params;
         
-        console.log(`📍 [ENHANCED] Getting map data for device: ${deviceId}`);
+        console.log(` [ENHANCED] Getting map data for device: ${deviceId}`);
         
         let mapData = null;
         let source = 'unknown';
@@ -1942,7 +1942,7 @@ router.get('/control/devices/:deviceId/maps', async (req, res) => {
         if (global.deviceMaps && global.deviceMaps[deviceId]) {
             mapData = global.deviceMaps[deviceId];
             source = 'memory';
-            console.log(`✅ Found map in global state`);
+            console.log(` Found map in global state`);
         }
         
         // Strategy 2: Try to load from main device file
@@ -1952,9 +1952,9 @@ router.get('/control/devices/:deviceId/maps', async (req, res) => {
                 const mapContent = await fs.readFile(mainMapPath, 'utf8');
                 mapData = JSON.parse(mapContent);
                 source = 'device_file';
-                console.log(`✅ Loaded map from device file: ${mainMapPath}`);
+                console.log(` Loaded map from device file: ${mainMapPath}`);
             } catch (fileError) {
-                console.log(`⚠️ Device file not found: ${fileError.message}`);
+                console.log(`️ Device file not found: ${fileError.message}`);
             }
         }
         
@@ -1967,10 +1967,10 @@ router.get('/control/devices/:deviceId/maps', async (req, res) => {
                     const mapContent = await fs.readFile(latestMapPath, 'utf8');
                     mapData = JSON.parse(mapContent);
                     source = 'latest_saved';
-                    console.log(`✅ Loaded latest saved map: ${latestMapPath}`);
+                    console.log(` Loaded latest saved map: ${latestMapPath}`);
                 }
             } catch (savedError) {
-                console.log(`⚠️ No saved maps found: ${savedError.message}`);
+                console.log(`️ No saved maps found: ${savedError.message}`);
             }
         }
         
@@ -1978,7 +1978,7 @@ router.get('/control/devices/:deviceId/maps', async (req, res) => {
         if (!mapData) {
             mapData = createEmptyMapData(deviceId);
             source = 'empty_created';
-            console.log(`⚠️ Created empty map for device: ${deviceId}`);
+            console.log(`️ Created empty map for device: ${deviceId}`);
         }
         
         // Ensure map data has proper structure
@@ -1990,7 +1990,7 @@ router.get('/control/devices/:deviceId/maps', async (req, res) => {
         }
         global.deviceMaps[deviceId] = mapData;
         
-        console.log(`✅ Map data prepared for ${deviceId}: ${mapData.shapes?.length || 0} shapes, source: ${source}`);
+        console.log(` Map data prepared for ${deviceId}: ${mapData.shapes?.length || 0} shapes, source: ${source}`);
         
         res.json({
             success: true,
@@ -2001,7 +2001,7 @@ router.get('/control/devices/:deviceId/maps', async (req, res) => {
         });
         
     } catch (error) {
-        console.error(`❌ [ENHANCED] Error getting map data for ${req.params.deviceId}:`, error);
+        console.error(` [ENHANCED] Error getting map data for ${req.params.deviceId}:`, error);
         res.status(500).json({
             success: false,
             error: `Failed to get map data: ${error.message}`,
@@ -2020,7 +2020,7 @@ router.post('/control/devices/:deviceId/map/data', async (req, res) => {
         const { deviceId } = req.params;
         const { mapData } = req.body;
         
-        console.log(`💾 [ENHANCED] Saving map data for device: ${deviceId}`);
+        console.log(` [ENHANCED] Saving map data for device: ${deviceId}`);
         
         if (!mapData) {
             return res.status(400).json({
@@ -2050,9 +2050,9 @@ router.post('/control/devices/:deviceId/map/data', async (req, res) => {
             const mapFilePath = path.join(mapsDir, `${deviceId}.json`);
             await fs.writeFile(mapFilePath, JSON.stringify(enhancedMapData, null, 2));
             
-            console.log(`✅ Map data saved to device file: ${mapFilePath}`);
+            console.log(` Map data saved to device file: ${mapFilePath}`);
         } catch (fileError) {
-            console.error(`❌ Error saving device file:`, fileError);
+            console.error(` Error saving device file:`, fileError);
         }
         
         // Also save as timestamped backup
@@ -2073,9 +2073,9 @@ router.post('/control/devices/:deviceId/map/data', async (req, res) => {
                 metadata: enhancedMapData.metadata || {}
             });
             
-            console.log(`✅ Map backup saved: ${backupPath}`);
+            console.log(` Map backup saved: ${backupPath}`);
         } catch (backupError) {
-            console.warn(`⚠️ Backup save failed:`, backupError.message);
+            console.warn(`️ Backup save failed:`, backupError.message);
         }
         
         // Save via storage manager if available
@@ -2085,7 +2085,7 @@ router.post('/control/devices/:deviceId/map/data', async (req, res) => {
                 await storageManager.saveMap(deviceId);
             }
         } catch (storageError) {
-            console.warn(`⚠️ Storage manager save failed:`, storageError.message);
+            console.warn(`️ Storage manager save failed:`, storageError.message);
         }
         
         res.json({
@@ -2099,7 +2099,7 @@ router.post('/control/devices/:deviceId/map/data', async (req, res) => {
         });
         
     } catch (error) {
-        console.error(`❌ [ENHANCED] Error saving map data for ${req.params.deviceId}:`, error);
+        console.error(` [ENHANCED] Error saving map data for ${req.params.deviceId}:`, error);
         res.status(500).json({
             success: false,
             error: `Failed to save map data: ${error.message}`,
@@ -2121,7 +2121,7 @@ router.get('/maps/:deviceId/load-complete', async (req, res) => {
             includeMetadata = 'true' 
         } = req.query;
 
-        console.log(`📂 [ENHANCED] Loading complete map for device: ${deviceId}, map: ${mapName || 'current'}`);
+        console.log(` [ENHANCED] Loading complete map for device: ${deviceId}, map: ${mapName || 'current'}`);
 
         let mapData;
         let source;
@@ -2133,7 +2133,7 @@ router.get('/maps/:deviceId/load-complete', async (req, res) => {
                 const mapContent = await fs.readFile(mapFilePath, 'utf8');
                 mapData = JSON.parse(mapContent);
                 source = 'saved_map';
-                console.log(`✅ Loaded specific map: ${mapFilePath}`);
+                console.log(` Loaded specific map: ${mapFilePath}`);
             } catch (fileError) {
                 // Try without device prefix
                 try {
@@ -2141,7 +2141,7 @@ router.get('/maps/:deviceId/load-complete', async (req, res) => {
                     const mapContent = await fs.readFile(mapFilePath, 'utf8');
                     mapData = JSON.parse(mapContent);
                     source = 'saved_map_alt';
-                    console.log(`✅ Loaded map (alt format): ${mapFilePath}`);
+                    console.log(` Loaded map (alt format): ${mapFilePath}`);
                 } catch (altError) {
                     throw new Error(`Map not found: ${mapName}`);
                 }
@@ -2193,7 +2193,7 @@ router.get('/maps/:deviceId/load-complete', async (req, res) => {
         });
 
     } catch (error) {
-        console.error(`❌ [ENHANCED] Error loading complete map:`, error);
+        console.error(` [ENHANCED] Error loading complete map:`, error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -2215,7 +2215,7 @@ router.get('/maps/:deviceId/saved', async (req, res) => {
             descending = 'true' 
         } = req.query;
 
-        console.log(`📋 [ENHANCED] Getting saved maps for device: ${deviceId}`);
+        console.log(` [ENHANCED] Getting saved maps for device: ${deviceId}`);
 
         const savedMaps = await getLatestSavedMaps(deviceId);
         
@@ -2230,7 +2230,7 @@ router.get('/maps/:deviceId/saved', async (req, res) => {
                         preview: preview
                     };
                 } catch (previewError) {
-                    console.warn(`⚠️ Could not generate preview for ${mapInfo.name}:`, previewError.message);
+                    console.warn(`️ Could not generate preview for ${mapInfo.name}:`, previewError.message);
                     return {
                         ...mapInfo,
                         preview: { error: 'Preview not available' }
@@ -2261,7 +2261,7 @@ router.get('/maps/:deviceId/saved', async (req, res) => {
         });
 
     } catch (error) {
-        console.error(`❌ [ENHANCED] Error getting saved maps:`, error);
+        console.error(` [ENHANCED] Error getting saved maps:`, error);
         res.status(500).json({
             success: false,
             error: error.message,
@@ -2279,7 +2279,7 @@ router.post('/control/devices/:deviceId/map/shapes', async (req, res) => {
         const { deviceId } = req.params;
         const { type, name, points, sides, color } = req.body;
         
-        console.log(`➕ Adding shape to map for device: ${deviceId}`);
+        console.log(` Adding shape to map for device: ${deviceId}`);
         
         // Validate required fields
         if (!type || !name || !points) {
@@ -2329,7 +2329,7 @@ router.post('/control/devices/:deviceId/map/shapes', async (req, res) => {
             const mapFilePath = path.join(__dirname, '../storage/maps', `${deviceId}.json`);
             await fs.writeFile(mapFilePath, JSON.stringify(mapData, null, 2));
         } catch (fileError) {
-            console.warn(`⚠️ Error saving map file:`, fileError.message);
+            console.warn(`️ Error saving map file:`, fileError.message);
         }
         
         res.json({
@@ -2341,7 +2341,7 @@ router.post('/control/devices/:deviceId/map/shapes', async (req, res) => {
         });
         
     } catch (error) {
-        console.error(`❌ Error adding shape to map for ${req.params.deviceId}:`, error);
+        console.error(` Error adding shape to map for ${req.params.deviceId}:`, error);
         res.status(500).json({
             success: false,
             error: `Failed to add shape: ${error.message}`,
@@ -2359,7 +2359,7 @@ router.put('/control/devices/:deviceId/map/shapes/:shapeId', async (req, res) =>
         const { deviceId, shapeId } = req.params;
         const updates = req.body;
         
-        console.log(`✏️ Updating shape ${shapeId} for device: ${deviceId}`);
+        console.log(`️ Updating shape ${shapeId} for device: ${deviceId}`);
         
         // Get current map data
         let mapData = global.deviceMaps?.[deviceId];
@@ -2402,7 +2402,7 @@ router.put('/control/devices/:deviceId/map/shapes/:shapeId', async (req, res) =>
             const mapFilePath = path.join(__dirname, '../storage/maps', `${deviceId}.json`);
             await fs.writeFile(mapFilePath, JSON.stringify(mapData, null, 2));
         } catch (fileError) {
-            console.warn(`⚠️ Error saving map file:`, fileError.message);
+            console.warn(`️ Error saving map file:`, fileError.message);
         }
         
         res.json({
@@ -2414,7 +2414,7 @@ router.put('/control/devices/:deviceId/map/shapes/:shapeId', async (req, res) =>
         });
         
     } catch (error) {
-        console.error(`❌ Error updating shape for ${req.params.deviceId}:`, error);
+        console.error(` Error updating shape for ${req.params.deviceId}:`, error);
         res.status(500).json({
             success: false,
             error: `Failed to update shape: ${error.message}`,
@@ -2431,7 +2431,7 @@ router.delete('/control/devices/:deviceId/map/shapes/:shapeId', async (req, res)
     try {
         const { deviceId, shapeId } = req.params;
         
-        console.log(`🗑️ Deleting shape ${shapeId} from device: ${deviceId}`);
+        console.log(`️ Deleting shape ${shapeId} from device: ${deviceId}`);
         
         // Get current map data
         let mapData = global.deviceMaps?.[deviceId];
@@ -2469,7 +2469,7 @@ router.delete('/control/devices/:deviceId/map/shapes/:shapeId', async (req, res)
             const mapFilePath = path.join(__dirname, '../storage/maps', `${deviceId}.json`);
             await fs.writeFile(mapFilePath, JSON.stringify(mapData, null, 2));
         } catch (fileError) {
-            console.warn(`⚠️ Error saving map file:`, fileError.message);
+            console.warn(`️ Error saving map file:`, fileError.message);
         }
         
         res.json({
@@ -2482,7 +2482,7 @@ router.delete('/control/devices/:deviceId/map/shapes/:shapeId', async (req, res)
         });
         
     } catch (error) {
-        console.error(`❌ Error deleting shape for ${req.params.deviceId}:`, error);
+        console.error(` Error deleting shape for ${req.params.deviceId}:`, error);
         res.status(500).json({
             success: false,
             error: `Failed to delete shape: ${error.message}`,
@@ -2654,7 +2654,7 @@ async function getLatestSavedMaps(deviceId) {
         const index = JSON.parse(indexContent);
         return index.maps || [];
     } catch (error) {
-        console.log(`⚠️ No saved maps index found for ${deviceId}`);
+        console.log(`️ No saved maps index found for ${deviceId}`);
         
         // Fallback: scan directory for maps
         try {
@@ -2678,13 +2678,13 @@ async function getLatestSavedMaps(deviceId) {
                         mapType: 'discovered'
                     });
                 } catch (statError) {
-                    console.warn(`⚠️ Could not stat file ${file}:`, statError.message);
+                    console.warn(`️ Could not stat file ${file}:`, statError.message);
                 }
             }
             
             return maps.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
         } catch (scanError) {
-            console.warn(`⚠️ Could not scan maps directory:`, scanError.message);
+            console.warn(`️ Could not scan maps directory:`, scanError.message);
             return [];
         }
     }
@@ -2721,10 +2721,10 @@ async function updateSavedMapsIndex(deviceId, mapInfo) {
         index.lastUpdated = new Date().toISOString();
 
         await fs.writeFile(indexPath, JSON.stringify(index, null, 2));
-        console.log(`✅ Updated maps index for ${deviceId}`);
+        console.log(` Updated maps index for ${deviceId}`);
         
     } catch (error) {
-        console.error(`❌ Error updating saved maps index:`, error);
+        console.error(` Error updating saved maps index:`, error);
     }
 }
 
@@ -2759,7 +2759,7 @@ async function generateMapPreview(deviceId, mapName) {
             fileSize: JSON.stringify(mapData).length
         };
     } catch (error) {
-        console.error(`❌ Error generating map preview:`, error);
+        console.error(` Error generating map preview:`, error);
         return { error: 'Preview generation failed' };
     }
 }
@@ -2807,7 +2807,7 @@ async function createMapBackup(deviceId, mapName) {
 
         return null;
     } catch (error) {
-        console.error(`❌ Error creating map backup:`, error);
+        console.error(` Error creating map backup:`, error);
         throw error;
     }
 }
@@ -2896,9 +2896,9 @@ async function optimizeMapForEditing(pgmPath, yamlPath) {
         // Replace original with optimized version
         await fs.rename(optimizedPath, pgmPath);
         
-        console.log('✅ Map optimized for editing');
+        console.log(' Map optimized for editing');
     } catch (error) {
-        console.warn('⚠️ Map optimization failed:', error.message);
+        console.warn('️ Map optimization failed:', error.message);
     }
 }
 
@@ -3374,7 +3374,7 @@ router.post('/maps/:deviceId/export/pgm', async (req, res) => {
             includeStaticMap = true
         } = req.body;
 
-        console.log(`🗺️ Exporting map to PGM for device: ${deviceId}`);
+        console.log(`️ Exporting map to PGM for device: ${deviceId}`);
 
         // Get live data for the device
         const liveData = rosConnection.getLiveData(deviceId);
@@ -3398,9 +3398,9 @@ router.post('/maps/:deviceId/export/pgm', async (req, res) => {
                     type: 'static_map',
                     files: files
                 });
-                console.log(`✅ Static map exported: ${files.pgm}`);
+                console.log(` Static map exported: ${files.pgm}`);
             } catch (error) {
-                console.error('❌ Error exporting static map:', error);
+                console.error(' Error exporting static map:', error);
             }
         }
 
@@ -3413,9 +3413,9 @@ router.post('/maps/:deviceId/export/pgm', async (req, res) => {
                     type: 'global_costmap',
                     files: files
                 });
-                console.log(`✅ Global costmap exported: ${files.pgm}`);
+                console.log(` Global costmap exported: ${files.pgm}`);
             } catch (error) {
-                console.error('❌ Error exporting global costmap:', error);
+                console.error(' Error exporting global costmap:', error);
             }
         }
 
@@ -3428,9 +3428,9 @@ router.post('/maps/:deviceId/export/pgm', async (req, res) => {
                     type: 'local_costmap',
                     files: files
                 });
-                console.log(`✅ Local costmap exported: ${files.pgm}`);
+                console.log(` Local costmap exported: ${files.pgm}`);
             } catch (error) {
-                console.error('❌ Error exporting local costmap:', error);
+                console.error(' Error exporting local costmap:', error);
             }
         }
 
@@ -3451,7 +3451,7 @@ router.post('/maps/:deviceId/export/pgm', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error in PGM export:', error);
+        console.error(' Error in PGM export:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -3468,7 +3468,7 @@ router.post('/maps/:deviceId/upload', async (req, res) => {
         const { deviceId } = req.params;
         const { mapName, setAsActiveMap = true } = req.body;
 
-        console.log(`🚀 Uploading map to AMR: ${mapName} for device: ${deviceId}`);
+        console.log(` Uploading map to AMR: ${mapName} for device: ${deviceId}`);
 
         // Find the map files
         const mapsDir = path.join(__dirname, '../maps');
@@ -3496,7 +3496,7 @@ router.post('/maps/:deviceId/upload', async (req, res) => {
             // Method 1: Try to use ROS map_server service
             uploadResult = await publishMapToROS(deviceId, mapData, mapName);
         } catch (rosError) {
-            console.warn('⚠️ ROS map service unavailable, using file-based method');
+            console.warn('️ ROS map service unavailable, using file-based method');
             
             // Method 2: Copy files to ROS map directory
             uploadResult = await copyMapToROSDirectory(deviceId, yamlPath, pgmPath, mapName);
@@ -3506,9 +3506,9 @@ router.post('/maps/:deviceId/upload', async (req, res) => {
         if (setAsActiveMap && uploadResult.success) {
             try {
                 await setActiveMapOnAMR(deviceId, mapName);
-                console.log(`✅ Map set as active: ${mapName}`);
+                console.log(` Map set as active: ${mapName}`);
             } catch (error) {
-                console.warn(`⚠️ Could not set as active map: ${error.message}`);
+                console.warn(`️ Could not set as active map: ${error.message}`);
             }
         }
 
@@ -3523,7 +3523,7 @@ router.post('/maps/:deviceId/upload', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error uploading map to AMR:', error);
+        console.error(' Error uploading map to AMR:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -3578,7 +3578,7 @@ router.get('/maps/:deviceId/available', async (req, res) => {
                         const yamlContent = await fs.readFile(yamlPath, 'utf8');
                         metadata = pgmConverter.parseMapYAML(yamlContent);
                     } catch (error) {
-                        console.warn(`⚠️ Could not parse metadata for ${mapName}`);
+                        console.warn(`️ Could not parse metadata for ${mapName}`);
                     }
 
                     availableMaps.push({
@@ -3594,7 +3594,7 @@ router.get('/maps/:deviceId/available', async (req, res) => {
                         metadata: metadata
                     });
                 } catch (error) {
-                    console.warn(`⚠️ Error getting stats for ${mapName}:`, error.message);
+                    console.warn(`️ Error getting stats for ${mapName}:`, error.message);
                 }
             }
         }
@@ -3610,7 +3610,7 @@ router.get('/maps/:deviceId/available', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error getting available maps:', error);
+        console.error(' Error getting available maps:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -3627,7 +3627,7 @@ router.post('/maps/:deviceId/convert', async (req, res) => {
         const { deviceId } = req.params;
         const { sourceFormat, targetFormat, mapName } = req.body;
 
-        console.log(`🔄 Converting map from ${sourceFormat} to ${targetFormat}`);
+        console.log(` Converting map from ${sourceFormat} to ${targetFormat}`);
 
         const supportedFormats = ['occupancy_grid', 'pgm', 'yaml', 'json', 'png'];
         
@@ -3694,7 +3694,7 @@ router.post('/maps/:deviceId/convert', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error converting map format:', error);
+        console.error(' Error converting map format:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -3711,7 +3711,7 @@ router.post('/maps/:deviceId/process', async (req, res) => {
         const { deviceId } = req.params;
         const { mapName, operation, operationParams = {} } = req.body;
 
-        console.log(`🔧 Processing map ${mapName} with operation: ${operation}`);
+        console.log(` Processing map ${mapName} with operation: ${operation}`);
 
         // Load the map
         const yamlPath = path.join(__dirname, '../maps', `${mapName}.yaml`);
@@ -3764,7 +3764,7 @@ router.post('/maps/:deviceId/process', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error processing map:', error);
+        console.error(' Error processing map:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -3781,7 +3781,7 @@ router.delete('/maps/:deviceId/:mapName', async (req, res) => {
         const { deviceId, mapName } = req.params;
         const { deleteAllFormats = true } = req.query;
 
-        console.log(`🗑️ Deleting map: ${mapName} for device: ${deviceId}`);
+        console.log(`️ Deleting map: ${mapName} for device: ${deviceId}`);
 
         const mapsDir = path.join(__dirname, '../maps');
         const deletedFiles = [];
@@ -3794,7 +3794,7 @@ router.delete('/maps/:deviceId/:mapName', async (req, res) => {
             try {
                 await fs.unlink(filePath);
                 deletedFiles.push(`${mapName}${ext}`);
-                console.log(`✅ Deleted: ${mapName}${ext}`);
+                console.log(` Deleted: ${mapName}${ext}`);
             } catch (error) {
                 // File doesn't exist, ignore
             }
@@ -3817,7 +3817,7 @@ router.delete('/maps/:deviceId/:mapName', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error deleting map:', error);
+        console.error(' Error deleting map:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -3864,7 +3864,7 @@ router.get('/maps/:deviceId/costmaps', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error getting costmap data:', error);
+        console.error(' Error getting costmap data:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -3881,7 +3881,7 @@ router.post('/costmaps/:deviceId/clear', async (req, res) => {
         const { deviceId } = req.params;
         const { costmapType } = req.body;
 
-        console.log(`🧹 Clearing ${costmapType} costmap for device: ${deviceId}`);
+        console.log(` Clearing ${costmapType} costmap for device: ${deviceId}`);
 
         // Try to call ROS service to clear costmap
         let clearResult = { success: false, method: 'none' };
@@ -3897,7 +3897,7 @@ router.post('/costmaps/:deviceId/clear', async (req, res) => {
                 clearResult = await callROSService(deviceId, '/local_costmap/clear_costmap', {});
             }
         } catch (rosError) {
-            console.warn('⚠️ ROS costmap clear service unavailable:', rosError.message);
+            console.warn('️ ROS costmap clear service unavailable:', rosError.message);
             clearResult = { success: false, error: rosError.message };
         }
 
@@ -3912,7 +3912,7 @@ router.post('/costmaps/:deviceId/clear', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error clearing costmap:', error);
+        console.error(' Error clearing costmap:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -3983,8 +3983,8 @@ async function setActiveMapOnAMR(deviceId, mapName) {
 async function callROSService(deviceId, serviceName, params) {
     // This would integrate with your ROS service calling mechanism
     // For now, return a placeholder
-    console.log(`📞 Calling ROS service: ${serviceName} for device: ${deviceId}`);
-    console.log(`📄 Parameters:`, params);
+    console.log(` Calling ROS service: ${serviceName} for device: ${deviceId}`);
+    console.log(` Parameters:`, params);
     
     // Placeholder - implement actual ROS service calls
     return {
@@ -4010,7 +4010,7 @@ router.post('/maps/:deviceId/save-complete', async (req, res) => {
             clientInfo = {}
         } = req.body;
 
-        console.log(`💾 Saving complete map for device: ${deviceId}`);
+        console.log(` Saving complete map for device: ${deviceId}`);
 
         // Validate map data
         if (!mapData || !mapData.info) {
@@ -4028,9 +4028,9 @@ router.post('/maps/:deviceId/save-complete', async (req, res) => {
         if (createBackup && global.deviceMaps && global.deviceMaps[deviceId]) {
             try {
                 backupInfo = await createMapBackup(deviceId, finalMapName);
-                console.log(`✅ Backup created: ${backupInfo.backupId}`);
+                console.log(` Backup created: ${backupInfo.backupId}`);
             } catch (backupError) {
-                console.warn('⚠️ Backup creation failed:', backupError.message);
+                console.warn('️ Backup creation failed:', backupError.message);
             }
         }
 
@@ -4090,7 +4090,7 @@ router.post('/maps/:deviceId/save-complete', async (req, res) => {
             metadata: enhancedMapData.metadata
         });
 
-        console.log(`✅ Complete map saved: ${finalMapName} (${fileSizeKB} KB)`);
+        console.log(` Complete map saved: ${finalMapName} (${fileSizeKB} KB)`);
 
         res.json({
             success: true,
@@ -4106,7 +4106,7 @@ router.post('/maps/:deviceId/save-complete', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error saving complete map:', error);
+        console.error(' Error saving complete map:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -4127,7 +4127,7 @@ router.get('/maps/:deviceId/load-complete', async (req, res) => {
             includeMetadata = 'true' 
         } = req.query;
 
-        console.log(`📂 Loading complete map for device: ${deviceId}`);
+        console.log(` Loading complete map for device: ${deviceId}`);
 
         let mapData;
 
@@ -4174,7 +4174,7 @@ router.get('/maps/:deviceId/load-complete', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error loading complete map:', error);
+        console.error(' Error loading complete map:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -4195,7 +4195,7 @@ router.get('/maps/:deviceId/saved', async (req, res) => {
             descending = 'true' 
         } = req.query;
 
-        console.log(`📋 Getting saved maps for device: ${deviceId}`);
+        console.log(` Getting saved maps for device: ${deviceId}`);
 
         const savedMapsIndex = await getSavedMapsIndex(deviceId);
         let savedMaps = savedMapsIndex.maps || [];
@@ -4210,7 +4210,7 @@ router.get('/maps/:deviceId/saved', async (req, res) => {
                         preview: previewData
                     };
                 } catch (previewError) {
-                    console.warn(`⚠️ Could not generate preview for ${mapInfo.name}`);
+                    console.warn(`️ Could not generate preview for ${mapInfo.name}`);
                     return mapInfo;
                 }
             }));
@@ -4238,7 +4238,7 @@ router.get('/maps/:deviceId/saved', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error getting saved maps:', error);
+        console.error(' Error getting saved maps:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -4254,7 +4254,7 @@ router.get('/maps/:deviceId/:mapName/preview', async (req, res) => {
     try {
         const { deviceId, mapName } = req.params;
 
-        console.log(`👀 Generating preview for map: ${mapName}`);
+        console.log(` Generating preview for map: ${mapName}`);
 
         const previewData = await generateMapPreview(deviceId, mapName);
 
@@ -4274,7 +4274,7 @@ router.get('/maps/:deviceId/:mapName/preview', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error generating map preview:', error);
+        console.error(' Error generating map preview:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -4295,7 +4295,7 @@ router.post('/maps/:deviceId/:mapName/clone', async (req, res) => {
             includeMetadata = true 
         } = req.body;
 
-        console.log(`🔄 Cloning map: ${mapName} -> ${targetMapName}`);
+        console.log(` Cloning map: ${mapName} -> ${targetMapName}`);
 
         // Load source map
         const sourceMapPath = path.join(__dirname, '../storage/maps', `${deviceId}_${mapName}.json`);
@@ -4337,7 +4337,7 @@ router.post('/maps/:deviceId/:mapName/clone', async (req, res) => {
             metadata: clonedMapData.metadata
         });
 
-        console.log(`✅ Map cloned successfully: ${targetMapName}`);
+        console.log(` Map cloned successfully: ${targetMapName}`);
 
         res.json({
             success: true,
@@ -4350,7 +4350,7 @@ router.post('/maps/:deviceId/:mapName/clone', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error cloning map:', error);
+        console.error(' Error cloning map:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -4367,16 +4367,16 @@ router.delete('/maps/:deviceId/:mapName', async (req, res) => {
         const { deviceId, mapName } = req.params;
         const { deleteBackups = 'false' } = req.query;
 
-        console.log(`🗑️ Deleting map: ${mapName} for device: ${deviceId}`);
+        console.log(`️ Deleting map: ${mapName} for device: ${deviceId}`);
 
         const mapFilePath = path.join(__dirname, '../storage/maps', `${deviceId}_${mapName}.json`);
         
         // Delete map file
         try {
             await fs.unlink(mapFilePath);
-            console.log(`✅ Deleted map file: ${mapFilePath}`);
+            console.log(` Deleted map file: ${mapFilePath}`);
         } catch (fileError) {
-            console.warn(`⚠️ Map file not found: ${mapFilePath}`);
+            console.warn(`️ Map file not found: ${mapFilePath}`);
         }
 
         // Delete backups if requested
@@ -4397,7 +4397,7 @@ router.delete('/maps/:deviceId/:mapName', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error deleting map:', error);
+        console.error(' Error deleting map:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -4436,7 +4436,7 @@ async function updateSavedMapsIndex(deviceId, mapInfo) {
         await fs.writeFile(indexPath, JSON.stringify(index, null, 2));
         
     } catch (error) {
-        console.error('❌ Error updating saved maps index:', error);
+        console.error(' Error updating saved maps index:', error);
     }
 }
 
@@ -4467,7 +4467,7 @@ async function removeFromSavedMapsIndex(deviceId, mapName) {
         await fs.writeFile(indexPath, JSON.stringify(index, null, 2));
         
     } catch (error) {
-        console.error('❌ Error removing map from index:', error);
+        console.error(' Error removing map from index:', error);
     }
 }
 
@@ -4514,7 +4514,7 @@ async function generateMapPreview(deviceId, mapName) {
         return preview;
         
     } catch (error) {
-        console.error('❌ Error generating map preview:', error);
+        console.error(' Error generating map preview:', error);
         return null;
     }
 }
@@ -4552,7 +4552,7 @@ async function createMapBackup(deviceId, mapName) {
         return null;
         
     } catch (error) {
-        console.error('❌ Error creating map backup:', error);
+        console.error(' Error creating map backup:', error);
         throw error;
     }
 }
@@ -4572,13 +4572,13 @@ async function deleteMapBackups(deviceId, mapName) {
         for (const backupFile of backupFiles) {
             const backupPath = path.join(backupsDir, backupFile);
             await fs.unlink(backupPath);
-            console.log(`✅ Deleted backup: ${backupFile}`);
+            console.log(` Deleted backup: ${backupFile}`);
         }
 
         return backupFiles.length;
         
     } catch (error) {
-        console.error('❌ Error deleting map backups:', error);
+        console.error(' Error deleting map backups:', error);
         return 0;
     }
 }
@@ -4601,7 +4601,7 @@ router.post('/maps/:deviceId/save-via-ros2', async (req, res) => {
             includeTimestamp = true 
         } = req.body;
 
-        console.log(`🗺️ Executing ROS2 map saver for device: ${deviceId}`);
+        console.log(`️ Executing ROS2 map saver for device: ${deviceId}`);
 
         const finalMapName = includeTimestamp 
             ? `${mapName}_${Date.now()}`
@@ -4625,7 +4625,7 @@ router.post('/maps/:deviceId/save-via-ros2', async (req, res) => {
         });
 
         if (result.success) {
-            console.log(`✅ ROS2 map saved: ${finalMapName}`);
+            console.log(` ROS2 map saved: ${finalMapName}`);
             
             res.json({
                 success: true,
@@ -4642,7 +4642,7 @@ router.post('/maps/:deviceId/save-via-ros2', async (req, res) => {
         }
 
     } catch (error) {
-        console.error('❌ Error executing ROS2 map saver:', error);
+        console.error(' Error executing ROS2 map saver:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -4659,7 +4659,7 @@ router.get('/maps/:deviceId/ros2-saved', async (req, res) => {
         const { deviceId } = req.params;
         const { directory = '/tmp/saved_maps' } = req.query;
 
-        console.log(`📋 Getting ROS2 saved maps for device: ${deviceId}`);
+        console.log(` Getting ROS2 saved maps for device: ${deviceId}`);
 
         // Try to use global instance first, otherwise create new instance
         let ros2ScriptManager;
@@ -4684,7 +4684,7 @@ router.get('/maps/:deviceId/ros2-saved', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error getting ROS2 saved maps:', error);
+        console.error(' Error getting ROS2 saved maps:', error);
         res.status(500).json({
             success: false,
             error: error.message
@@ -4701,7 +4701,7 @@ router.post('/maps/:deviceId/load-ros2-saved', async (req, res) => {
         const { deviceId } = req.params;
         const { mapName, directory = '/tmp/saved_maps' } = req.body;
 
-        console.log(`📂 Loading ROS2 saved map: ${mapName} for device: ${deviceId}`);
+        console.log(` Loading ROS2 saved map: ${mapName} for device: ${deviceId}`);
 
         // Try to use global instance first, otherwise create new instance
         let ros2ScriptManager;
@@ -4732,7 +4732,7 @@ router.post('/maps/:deviceId/load-ros2-saved', async (req, res) => {
         }
 
     } catch (error) {
-        console.error('❌ Error loading ROS2 saved map:', error);
+        console.error(' Error loading ROS2 saved map:', error);
         res.status(500).json({
             success: false,
             error: error.message

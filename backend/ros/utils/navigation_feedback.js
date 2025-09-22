@@ -25,10 +25,10 @@ function initializeNavigationFeedback(node) {
         // Subscribe to navigation status topics (alternatives)
         setupNavigationStatusSubscribers();
         
-        console.log('✅ Navigation feedback system initialized');
+        console.log(' Navigation feedback system initialized');
         
     } catch (error) {
-        console.error('❌ Error initializing navigation feedback:', error);
+        console.error(' Error initializing navigation feedback:', error);
     }
 }
 
@@ -49,7 +49,7 @@ function setupNavigationActionSubscriber() {
         );
         
         navigationSubscriber.on('message', handleNavigationActionStatus);
-        console.log('✅ Subscribed to /navigate_to_pose/_action/status');
+        console.log(' Subscribed to /navigate_to_pose/_action/status');
         
         // Also try to subscribe to result topic if available
         try {
@@ -65,14 +65,14 @@ function setupNavigationActionSubscriber() {
             
             resultSubscriber.on('message', handleNavigationActionResult);
             actionSubscribers['result'] = resultSubscriber;
-            console.log('✅ Subscribed to /navigate_to_pose/_action/result');
+            console.log(' Subscribed to /navigate_to_pose/_action/result');
             
         } catch (resultError) {
-            console.warn('⚠️ Could not subscribe to action result topic:', resultError.message);
+            console.warn('️ Could not subscribe to action result topic:', resultError.message);
         }
         
     } catch (error) {
-        console.error('❌ Error setting up navigation action subscriber:', error);
+        console.error(' Error setting up navigation action subscriber:', error);
     }
 }
 
@@ -94,10 +94,10 @@ function setupNavigationStatusSubscribers() {
         
         moveBaseSubscriber.on('message', handleMoveBaseStatus);
         actionSubscribers['move_base'] = moveBaseSubscriber;
-        console.log('✅ Subscribed to /move_base/status (fallback)');
+        console.log(' Subscribed to /move_base/status (fallback)');
         
     } catch (error) {
-        console.warn('⚠️ Could not subscribe to move_base status:', error.message);
+        console.warn('️ Could not subscribe to move_base status:', error.message);
     }
     
     try {
@@ -114,10 +114,10 @@ function setupNavigationStatusSubscribers() {
         
         amclSubscriber.on('message', handleAMCLPose);
         actionSubscribers['amcl'] = amclSubscriber;
-        console.log('✅ Subscribed to /amcl_pose for position feedback');
+        console.log(' Subscribed to /amcl_pose for position feedback');
         
     } catch (error) {
-        console.warn('⚠️ Could not subscribe to amcl_pose:', error.message);
+        console.warn('️ Could not subscribe to amcl_pose:', error.message);
     }
 }
 
@@ -131,7 +131,7 @@ function handleNavigationActionStatus(message) {
                 const goalId = status.goal_info?.goal_id?.uuid?.join('') || 'unknown';
                 const statusCode = status.status;
                 
-                console.log(`🎯 Navigation status for goal ${goalId}: ${getStatusText(statusCode)}`);
+                console.log(` Navigation status for goal ${goalId}: ${getStatusText(statusCode)}`);
                 
                 // Handle different status codes
                 switch (statusCode) {
@@ -157,7 +157,7 @@ function handleNavigationActionStatus(message) {
             }
         }
     } catch (error) {
-        console.error('❌ Error handling navigation action status:', error);
+        console.error(' Error handling navigation action status:', error);
     }
 }
 
@@ -169,7 +169,7 @@ function handleNavigationActionResult(message) {
         const goalId = message.goal_id?.uuid?.join('') || 'unknown';
         const result = message.result;
         
-        console.log(`🎯 Navigation result for goal ${goalId}:`, result);
+        console.log(` Navigation result for goal ${goalId}:`, result);
         
         if (result && result.result_code !== undefined) {
             if (result.result_code === 0) { // Success
@@ -179,7 +179,7 @@ function handleNavigationActionResult(message) {
             }
         }
     } catch (error) {
-        console.error('❌ Error handling navigation action result:', error);
+        console.error(' Error handling navigation action result:', error);
     }
 }
 
@@ -193,7 +193,7 @@ function handleMoveBaseStatus(message) {
             const statusCode = latestStatus.status;
             const goalId = latestStatus.goal_id?.id || 'move_base_goal';
             
-            console.log(`🎯 Move Base status: ${getStatusText(statusCode)}`);
+            console.log(` Move Base status: ${getStatusText(statusCode)}`);
             
             switch (statusCode) {
                 case 3: // SUCCEEDED
@@ -206,7 +206,7 @@ function handleMoveBaseStatus(message) {
             }
         }
     } catch (error) {
-        console.error('❌ Error handling move_base status:', error);
+        console.error(' Error handling move_base status:', error);
     }
 }
 
@@ -225,7 +225,7 @@ function handleAMCLPose(message) {
             
             // If within 0.5 meters of target, consider goal reached
             if (distance < 0.5) {
-                console.log(`🎯 Robot reached target position via AMCL feedback: ${goalId}`);
+                console.log(` Robot reached target position via AMCL feedback: ${goalId}`);
                 handleNavigationSuccess(goalId, { via: 'amcl_proximity' });
             }
         });
@@ -238,7 +238,7 @@ function handleAMCLPose(message) {
         });
         
     } catch (error) {
-        console.error('❌ Error handling AMCL pose:', error);
+        console.error(' Error handling AMCL pose:', error);
     }
 }
 
@@ -246,7 +246,7 @@ function handleAMCLPose(message) {
  * Handle successful navigation
  */
 function handleNavigationSuccess(goalId, statusMessage) {
-    console.log(`✅ Navigation succeeded for goal: ${goalId}`);
+    console.log(` Navigation succeeded for goal: ${goalId}`);
     
     const goalData = activeNavigationGoals.get(goalId);
     if (goalData) {
@@ -277,7 +277,7 @@ function handleNavigationSuccess(goalId, statusMessage) {
  * Handle navigation failure
  */
 function handleNavigationFailure(goalId, statusMessage, reason) {
-    console.error(`❌ Navigation failed for goal: ${goalId} - ${reason}`);
+    console.error(` Navigation failed for goal: ${goalId} - ${reason}`);
     
     const goalData = activeNavigationGoals.get(goalId);
     if (goalData) {
@@ -328,7 +328,7 @@ function handleNavigationPreempted(goalId, statusMessage) {
  * Handle navigation active status
  */
 function handleNavigationActive(goalId, statusMessage) {
-    console.log(`🔄 Navigation active for goal: ${goalId}`);
+    console.log(` Navigation active for goal: ${goalId}`);
     
     const goalData = activeNavigationGoals.get(goalId);
     if (goalData) {
@@ -356,7 +356,7 @@ function registerNavigationGoal(goalId, orderId, waypointIndex, targetPosition) 
     };
     
     activeNavigationGoals.set(goalId, goalData);
-    console.log(`📝 Registered navigation goal: ${goalId} for order: ${orderId}`);
+    console.log(` Registered navigation goal: ${goalId} for order: ${orderId}`);
 }
 
 /**
@@ -364,7 +364,7 @@ function registerNavigationGoal(goalId, orderId, waypointIndex, targetPosition) 
  */
 function setNavigationCallback(orderId, callbacks) {
     navigationCallbacks.set(orderId, callbacks);
-    console.log(`📞 Set navigation callbacks for order: ${orderId}`);
+    console.log(` Set navigation callbacks for order: ${orderId}`);
 }
 
 /**
@@ -372,7 +372,7 @@ function setNavigationCallback(orderId, callbacks) {
  */
 function clearNavigationCallback(orderId) {
     navigationCallbacks.delete(orderId);
-    console.log(`🗑️ Cleared navigation callbacks for order: ${orderId}`);
+    console.log(`️ Cleared navigation callbacks for order: ${orderId}`);
 }
 
 /**
@@ -417,7 +417,7 @@ function getActiveNavigationGoals() {
 function cancelAllNavigationGoals() {
     activeNavigationGoals.clear();
     navigationCallbacks.clear();
-    console.log('🛑 Cancelled all active navigation goals');
+    console.log(' Cancelled all active navigation goals');
 }
 
 /**
@@ -433,7 +433,7 @@ function cleanup() {
             try {
                 subscriber.destroy();
             } catch (e) {
-                console.warn('⚠️ Error destroying subscriber:', e.message);
+                console.warn('️ Error destroying subscriber:', e.message);
             }
         });
         
@@ -441,9 +441,9 @@ function cleanup() {
         actionSubscribers = {};
         isInitialized = false;
         
-        console.log('🧹 Navigation feedback system cleaned up');
+        console.log(' Navigation feedback system cleaned up');
     } catch (error) {
-        console.error('❌ Error cleaning up navigation feedback:', error);
+        console.error(' Error cleaning up navigation feedback:', error);
     }
 }
 

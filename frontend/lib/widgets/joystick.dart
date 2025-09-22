@@ -377,7 +377,7 @@ class _JoystickControlPageState extends State<JoystickControlPage> {
       }
     });
 
-    // ✅ NEW: Listen for mapping results and joystick results
+    //  NEW: Listen for mapping results and joystick results
     _mappingSubscription = _webSocketService.mappingEvents.listen((event) {
       if (mounted && event['type'] == 'mapping_result') {
         final success = event['result']?['success'] ?? false;
@@ -733,7 +733,7 @@ class _JoystickControlPageState extends State<JoystickControlPage> {
         
         const SizedBox(height: 12),
         
-        // ✅ NEW: Mapping control buttons for testing
+        //  NEW: Mapping control buttons for testing
         if (_isConnected) ...[
           const Text(
             'Mapping Controls',
@@ -837,14 +837,14 @@ class _JoystickControlPageState extends State<JoystickControlPage> {
 
     try {
       if (_useWebSocket) {
-        // ✅ FIXED: Use the correct WebSocket method for joystick control with max speeds
+        //  FIXED: Use the correct WebSocket method for joystick control with max speeds
         _webSocketService.sendJoystickControl(
           widget.deviceId,
           angular / _maxAngularSpeed, // Normalize for WebSocket
           linear / _maxLinearSpeed,   // Normalize for WebSocket
           deadmanActive,
-          maxLinearSpeed: _maxLinearSpeed,   // ✅ NEW: Pass actual max speeds
-          maxAngularSpeed: _maxAngularSpeed, // ✅ NEW: Pass actual max speeds
+          maxLinearSpeed: _maxLinearSpeed,   //  NEW: Pass actual max speeds
+          maxAngularSpeed: _maxAngularSpeed, //  NEW: Pass actual max speeds
         );
       } else {
         // Send via HTTP API (less real-time but more reliable)
@@ -856,7 +856,7 @@ class _JoystickControlPageState extends State<JoystickControlPage> {
         );
       }
     } catch (e) {
-      debugPrint('❌ Error sending velocity command: $e');
+      debugPrint(' Error sending velocity command: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -910,7 +910,7 @@ class _JoystickControlPageState extends State<JoystickControlPage> {
     }
   }
 
-  // ✅ NEW: Method to send mapping commands for testing
+  //  NEW: Method to send mapping commands for testing
   void _sendMappingCommand(String command) {
     if (!_isConnected) {
       ScaffoldMessenger.of(context).showSnackBar(

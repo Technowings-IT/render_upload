@@ -52,7 +52,7 @@ class ROS2ScriptManager extends EventEmitter {
             ...this.piConfig,
             ...newConfig
         };
-        console.log(`🔧 Pi configuration updated:`, this.piConfig);
+        console.log(` Pi configuration updated:`, this.piConfig);
         return this.piConfig;
     }
 
@@ -74,7 +74,7 @@ class ROS2ScriptManager extends EventEmitter {
         } catch (error) {
             console.error('Failed to write to log file:', error);
         }
-        console.log(`🤖 ROS2Manager: ${message}`);
+        console.log(` ROS2Manager: ${message}`);
     }
 
     // Diagnostic method to check Pi status
@@ -100,9 +100,9 @@ class ROS2ScriptManager extends EventEmitter {
 
             status.piReachable = pingResult;
             if (pingResult) {
-                status.diagnostics.push(`✅ Pi is reachable at ${this.piConfig.host}`);
+                status.diagnostics.push(` Pi is reachable at ${this.piConfig.host}`);
             } else {
-                status.diagnostics.push(`❌ Pi is not reachable at ${this.piConfig.host}`);
+                status.diagnostics.push(` Pi is not reachable at ${this.piConfig.host}`);
                 status.recommendations.push('Check Pi power and network connection');
             }
 
@@ -110,30 +110,30 @@ class ROS2ScriptManager extends EventEmitter {
             try {
                 await this.testSSHConnectivity();
                 status.sshConnectable = true;
-                status.diagnostics.push('✅ SSH connection successful');
+                status.diagnostics.push(' SSH connection successful');
 
                 // Test if scripts exist
                 try {
                     const scriptsResult = await this.checkScriptsExist();
                     status.scriptsExist = scriptsResult;
                     if (scriptsResult) {
-                        status.diagnostics.push('✅ Required scripts found on Pi');
+                        status.diagnostics.push(' Required scripts found on Pi');
                     } else {
-                        status.diagnostics.push('❌ Required scripts missing on Pi');
+                        status.diagnostics.push(' Required scripts missing on Pi');
                         status.recommendations.push('Deploy scripts to Pi: /home/piros/scripts/');
                     }
                 } catch (error) {
-                    status.diagnostics.push(`❌ Cannot check scripts: ${error.message}`);
+                    status.diagnostics.push(` Cannot check scripts: ${error.message}`);
                 }
 
             } catch (sshError) {
-                status.diagnostics.push(`❌ SSH connection failed: ${sshError.message}`);
+                status.diagnostics.push(` SSH connection failed: ${sshError.message}`);
                 status.recommendations.push('Check SSH service is running on Pi');
                 status.recommendations.push('Verify SSH credentials (username: piros, password: piros)');
             }
 
         } catch (error) {
-            status.diagnostics.push(`❌ Status check failed: ${error.message}`);
+            status.diagnostics.push(` Status check failed: ${error.message}`);
         }
 
         return status;
@@ -225,7 +225,7 @@ class ROS2ScriptManager extends EventEmitter {
             const conn = new Client();
             
             conn.on('ready', () => {
-                this.log(`✅ SSH connected for ${scriptType}`);
+                this.log(` SSH connected for ${scriptType}`);
                 
                 // Prepare script arguments based on type
                 let scriptName, args = '';
@@ -264,7 +264,7 @@ class ROS2ScriptManager extends EventEmitter {
                 
                 // Execute script in background with nohup (same as direct_start.js)
                 const command = `cd /home/piros/scripts && nohup bash ${scriptName} ${args} > /tmp/${scriptName.replace('.sh', '')}.log 2>&1 & echo $!`;
-                this.log(`📤 Executing: ${command}`);
+                this.log(` Executing: ${command}`);
                 
                 conn.exec(command, (err, stream) => {
                     if (err) {
@@ -276,13 +276,13 @@ class ROS2ScriptManager extends EventEmitter {
                     
                     stream.on('data', (data) => {
                         output += data.toString();
-                        this.log(`📥 ${scriptName} output: ${data.toString().trim()}`);
+                        this.log(` ${scriptName} output: ${data.toString().trim()}`);
                     });
                     
                     stream.on('close', (code) => {
                         conn.end();
                         const pid = output.trim();
-                        this.log(`🏁 ${scriptName} finished with code ${code}, PID: ${pid}`);
+                        this.log(` ${scriptName} finished with code ${code}, PID: ${pid}`);
                         
                         // Store PID for process tracking
                         if (pid && pid !== '') {
@@ -452,7 +452,7 @@ class ROS2ScriptManager extends EventEmitter {
         try {
             let result;
             switch (command) {
-                // ✅ NEW: 5 Specific Robot Control Commands
+                //  NEW: 5 Specific Robot Control Commands
                 case 'start_robot':
                 case 'execute_robot_launch':
                     result = await this.executeSpecificScript({
@@ -499,7 +499,7 @@ class ROS2ScriptManager extends EventEmitter {
                     });
                     break;
                 
-                // ✅ EXISTING: Backward compatibility commands
+                //  EXISTING: Backward compatibility commands
                 case 'start_robot_control':
                     result = await this.startRobotControl();
                     break;
@@ -532,7 +532,7 @@ class ROS2ScriptManager extends EventEmitter {
                     result = await this.killAllRosProcesses();
                     break;
                     
-                // ✅ NEW: Handle specific script execution
+                //  NEW: Handle specific script execution
                 case 'execute_script':
                     result = await this.executeSpecificScript(options);
                     break;
@@ -573,7 +573,7 @@ class ROS2ScriptManager extends EventEmitter {
                     throw new Error(`Unknown script command: ${command}`);
             }
             
-            this.log(`✅ Script command '${command}' executed successfully`);
+            this.log(` Script command '${command}' executed successfully`);
             return result;
         } catch (error) {
             this.log(`Script command failed: ${error.message}`);
@@ -581,7 +581,7 @@ class ROS2ScriptManager extends EventEmitter {
         }
     }
 
-    // ✅ NEW: Execute specific script directly on Pi
+    //  NEW: Execute specific script directly on Pi
     async executeSpecificScript(options) {
         const { script_name, script_path, action, map_name } = options;
         
@@ -589,9 +589,9 @@ class ROS2ScriptManager extends EventEmitter {
             throw new Error('script_name is required');
         }
         
-        this.log(`🎯 Executing specific script: ${script_name} on Pi`);
-        this.log(`📂 Script path: ${script_path || 'default'}`);
-        this.log(`🎬 Action: ${action || 'run_only_this_script'}`);
+        this.log(` Executing specific script: ${script_name} on Pi`);
+        this.log(` Script path: ${script_path || 'default'}`);
+        this.log(` Action: ${action || 'run_only_this_script'}`);
         
         try {
             const result = await this.executePiScript(script_name, script_path, {
@@ -618,7 +618,7 @@ class ROS2ScriptManager extends EventEmitter {
                     this.processStatus.robot_control = 'stopped'; // For compatibility
                     // Clean up robot PID file
                     this.cleanupPidFiles('kill_robot').catch(err => 
-                        this.log(`⚠️ PID cleanup failed: ${err.message}`)
+                        this.log(`️ PID cleanup failed: ${err.message}`)
                     );
                     break;
                 case 'kill_all.sh':
@@ -632,7 +632,7 @@ class ROS2ScriptManager extends EventEmitter {
                     this.processStatus.robot_control = 'stopped'; // For compatibility
                     // Clean up all PID files
                     this.cleanupPidFiles('kill_all').catch(err => 
-                        this.log(`⚠️ PID cleanup failed: ${err.message}`)
+                        this.log(`️ PID cleanup failed: ${err.message}`)
                     );
                     break;
             }
@@ -648,12 +648,12 @@ class ROS2ScriptManager extends EventEmitter {
             };
             
         } catch (error) {
-            this.log(`❌ Failed to execute ${script_name}: ${error.message}`);
+            this.log(` Failed to execute ${script_name}: ${error.message}`);
             throw new Error(`Failed to execute ${script_name}: ${error.message}`);
         }
     }
 
-    // ✅ NEW: Clean up PID files on Pi after process termination
+    //  NEW: Clean up PID files on Pi after process termination
     async cleanupPidFiles(scriptType) {
         return new Promise((resolve, reject) => {
             const conn = new Client();
@@ -679,7 +679,7 @@ class ROS2ScriptManager extends EventEmitter {
                         return resolve({ success: true, message: 'No cleanup needed' });
                 }
 
-                this.log(`🧹 Cleaning up PID files: ${cleanupCommand}`);
+                this.log(` Cleaning up PID files: ${cleanupCommand}`);
                 
                 conn.exec(cleanupCommand, (err, stream) => {
                     if (err) {
@@ -691,7 +691,7 @@ class ROS2ScriptManager extends EventEmitter {
                     stream.on('close', (code) => {
                         clearTimeout(timeout);
                         conn.end();
-                        this.log(`✅ PID files cleaned up successfully`);
+                        this.log(` PID files cleaned up successfully`);
                         resolve({ success: true, code });
                     });
                 });
@@ -706,7 +706,7 @@ class ROS2ScriptManager extends EventEmitter {
         });
     }
 
-        // ✅ NEW: Execute script directly on Pi via SSH
+        //  NEW: Execute script directly on Pi via SSH
     async executePiScript(scriptName, scriptPath, options = {}) {
         return new Promise((resolve, reject) => {
             const conn = new Client();
@@ -716,25 +716,25 @@ class ROS2ScriptManager extends EventEmitter {
             }, 30000); // 30 second timeout
             
             conn.on('ready', () => {
-                this.log(`📡 SSH connected for ${scriptName} execution`);
+                this.log(` SSH connected for ${scriptName} execution`);
                 
-                // ✅ FIXED: Always use absolute paths from piScriptPaths first
+                //  FIXED: Always use absolute paths from piScriptPaths first
                 let actualPath;
                 const scriptKey = scriptName.replace('.sh', '');
                 
                 // Priority: 1. Predefined paths, 2. Absolute path, 3. Default absolute path
                 if (this.piScriptPaths[scriptKey]) {
                     actualPath = this.piScriptPaths[scriptKey];
-                    this.log(`🎯 Using predefined path: ${actualPath}`);
+                    this.log(` Using predefined path: ${actualPath}`);
                 } else if (scriptPath && scriptPath.startsWith('/')) {
                     actualPath = scriptPath;
-                    this.log(`🎯 Using provided absolute path: ${actualPath}`);
+                    this.log(` Using provided absolute path: ${actualPath}`);
                 } else {
                     actualPath = `/home/piros/scripts/${scriptName}`;
-                    this.log(`🎯 Using default absolute path: ${actualPath}`);
+                    this.log(` Using default absolute path: ${actualPath}`);
                 }
                 
-                // ✅ UPDATED: Build command for all 5 script types
+                //  UPDATED: Build command for all 5 script types
                 let command;
                 switch (scriptName) {
                     case 'robot_launch.sh':
@@ -764,7 +764,7 @@ class ROS2ScriptManager extends EventEmitter {
                         command = `cd /home/piros/scripts && nohup bash ${actualPath} > /tmp/${scriptName}_output.log 2>&1 & echo $!`;
                 }
                 
-                this.log(`🚀 Executing command: ${command}`);
+                this.log(` Executing command: ${command}`);
                 
                 conn.exec(command, (err, stream) => {
                     if (err) {
@@ -778,26 +778,26 @@ class ROS2ScriptManager extends EventEmitter {
                     
                     stream.on('data', (data) => {
                         stdout += data.toString();
-                        this.log(`📄 ${scriptName} stdout: ${data.toString().trim()}`);
+                        this.log(` ${scriptName} stdout: ${data.toString().trim()}`);
                     });
                     
                     stream.stderr.on('data', (data) => {
                         stderr += data.toString();
-                        this.log(`⚠️ ${scriptName} stderr: ${data.toString().trim()}`);
+                        this.log(`️ ${scriptName} stderr: ${data.toString().trim()}`);
                     });
                     
                     stream.on('close', (code) => {
                         clearTimeout(timeout);
                         conn.end();
                         
-                        this.log(`✅ ${scriptName} execution completed with code: ${code}`);
+                        this.log(` ${scriptName} execution completed with code: ${code}`);
                         
                         // For background processes, store PID if available
                         if (scriptName !== 'kill.sh' && scriptName !== 'kill_all.sh' && scriptName !== 'kill_robot.sh') {
                             const pid = stdout.trim();
                             if (pid && !isNaN(pid)) {
                                 this.processPIDs[scriptKey] = pid;
-                                this.log(`🆔 Stored PID ${pid} for ${scriptName}`);
+                                this.log(` Stored PID ${pid} for ${scriptName}`);
                             }
                         }
                         
@@ -819,7 +819,7 @@ class ROS2ScriptManager extends EventEmitter {
             
             conn.on('error', (err) => {
                 clearTimeout(timeout);
-                this.log(`❌ SSH connection error for ${scriptName}: ${err.message}`);
+                this.log(` SSH connection error for ${scriptName}: ${err.message}`);
                 reject(new Error(`SSH connection failed: ${err.message}`));
             });
             
@@ -1512,13 +1512,13 @@ class ROS2ScriptManager extends EventEmitter {
                     
                 } catch (error) {
                     conn.end();
-                    console.error('❌ Error listing ROS2 saved maps:', error);
+                    console.error(' Error listing ROS2 saved maps:', error);
                     resolve([]);
                 }
             });
             
             conn.on('error', (error) => {
-                console.error('❌ SSH error listing ROS2 maps:', error);
+                console.error(' SSH error listing ROS2 maps:', error);
                 resolve([]);
             });
             

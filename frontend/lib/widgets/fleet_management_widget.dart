@@ -64,9 +64,9 @@ class _CompleteFleetManagementWidgetState
               .toList();
         }
       }
-      print('🏪 Loaded stations for ${_deviceStations.length} devices');
+      print(' Loaded stations for ${_deviceStations.length} devices');
     } catch (e) {
-      print('❌ Error loading stations: $e');
+      print(' Error loading stations: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -86,7 +86,7 @@ class _CompleteFleetManagementWidgetState
         });
       }
     } catch (e) {
-      print('❌ Error loading orders: $e');
+      print(' Error loading orders: $e');
     }
   }
 
@@ -799,7 +799,7 @@ class _CompleteFleetManagementWidgetState
         final y = position['y']?.toDouble() ?? 0.0;
 
         print(
-            '🎯 Publishing navigation goal ${i + 1}/${waypoints.length}: ($x, $y)');
+            ' Publishing navigation goal ${i + 1}/${waypoints.length}: ($x, $y)');
 
         // Publish to target_pose topic
         final response = await _apiService.publishGoal(order['deviceId'], x, y);

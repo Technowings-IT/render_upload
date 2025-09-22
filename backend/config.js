@@ -15,7 +15,7 @@ const config = {
     // Server Configuration
     SERVER: {
         PORT: process.env.PORT || 3000,
-        HOST: process.env.HOST || '0.0.0.0', // ✅ FIXED: Listen on all interfaces
+        HOST: process.env.HOST || '0.0.0.0', //  FIXED: Listen on all interfaces
         ENV: process.env.NODE_ENV || 'development'
     },
 
@@ -40,7 +40,7 @@ const config = {
             LOAD_MAP: '/load_map'
         },
         QOS: {
-            RELIABILITY: 'reliable', // ✅ FIXED: Ensure reliable delivery
+            RELIABILITY: 'reliable', //  FIXED: Ensure reliable delivery
             DURABILITY: 'volatile',
             DEPTH: 10
         }
@@ -48,8 +48,8 @@ const config = {
 
     // AMR Configuration
     AMR: {
-        MAX_LINEAR_SPEED: 1.0,   // ✅ FIXED: Reduced for safety
-        MAX_ANGULAR_SPEED: 1.5,  // ✅ FIXED: Reduced for safety
+        MAX_LINEAR_SPEED: 1.0,   //  FIXED: Reduced for safety
+        MAX_ANGULAR_SPEED: 1.5,  //  FIXED: Reduced for safety
         DEFAULT_LINEAR_SPEED: 0.3,
         DEFAULT_ANGULAR_SPEED: 0.8,
         SAFETY_TIMEOUT: 1000,
@@ -59,13 +59,13 @@ const config = {
         EMERGENCY_STOP_TIMEOUT: 100
     },
 
-    // ✅ FIXED: WebSocket Configuration with stable connection settings
+    //  FIXED: WebSocket Configuration with stable connection settings
     WEBSOCKET: {
         COMPRESSION: true,
         MAX_PAYLOAD: 16 * 1024,
-        PING_INTERVAL: 25000,     // ✅ FIXED: 25 seconds (less aggressive)
-        HEARTBEAT_INTERVAL: 10000, // ✅ FIXED: 10 seconds
-        CONNECTION_TIMEOUT: 180000, // ✅ FIXED: 3 minutes (much more lenient)
+        PING_INTERVAL: 25000,     //  FIXED: 25 seconds (less aggressive)
+        HEARTBEAT_INTERVAL: 10000, //  FIXED: 10 seconds
+        CONNECTION_TIMEOUT: 180000, //  FIXED: 3 minutes (much more lenient)
         MESSAGE_TYPES: {
             PING: 'ping',
             PONG: 'pong',
@@ -116,17 +116,17 @@ const config = {
         }
     },
 
-    // ✅ FIXED: CORS Configuration for your network
+    //  FIXED: CORS Configuration for your network
     CORS: {
         ALLOWED_ORIGINS: [
             'http://localhost:3000',
             'http://localhost:8080',
             'http://127.0.0.1:3000',
             'http://127.0.0.1:8080',
-            'http://192.168.128.240:3000', // ✅ FIXED: Your AMR IP
-            'http://192.168.0.76:3000',  // ✅ FIXED: Your backend IP
-            'http://192.168.0.*:*',      // ✅ FIXED: Allow entire subnet
-            '*' // ✅ FIXED: Allow all origins for development
+            'http://192.168.128.240:3000', //  FIXED: Your AMR IP
+            'http://192.168.0.76:3000',  //  FIXED: Your backend IP
+            'http://192.168.0.*:*',      //  FIXED: Allow entire subnet
+            '*' //  FIXED: Allow all origins for development
         ],
         CREDENTIALS: true
     },
@@ -142,7 +142,7 @@ const config = {
             z: 0.0
         },
         MAX_MAP_SIZE: 4000,
-        UPDATE_THROTTLE: 1000, // ✅ FIXED: Faster updates (1 second)
+        UPDATE_THROTTLE: 1000, //  FIXED: Faster updates (1 second)
         OCCUPANCY_THRESHOLD: {
             FREE: 25,
             OCCUPIED: 65
@@ -213,17 +213,17 @@ const config = {
         RECONNECT_DELAY: 2000
     },
 
-    // ✅ FIXED: Safety Configuration with proper limits
+    //  FIXED: Safety Configuration with proper limits
     SAFETY: {
         EMERGENCY_STOP_TIMEOUT: 100,
-        DEADMAN_SWITCH_TIMEOUT: 1000, // ✅ FIXED: More lenient
+        DEADMAN_SWITCH_TIMEOUT: 1000, //  FIXED: More lenient
         VELOCITY_LIMITS: {
             LINEAR: {
-                MIN: -1.0,  // ✅ FIXED: Safer limits
+                MIN: -1.0,  //  FIXED: Safer limits
                 MAX: 1.0
             },
             ANGULAR: {
-                MIN: -1.5,  // ✅ FIXED: Safer limits
+                MIN: -1.5,  //  FIXED: Safer limits
                 MAX: 1.5
             }
         },
@@ -234,14 +234,14 @@ const config = {
         }
     },
 
-    // ✅ FIXED: Network Configuration for device discovery
+    //  FIXED: Network Configuration for device discovery
     NETWORK: {
         DISCOVERY: {
             ENABLED: true,
             PORT: 8888,
             BROADCAST_INTERVAL: 5000,
             TIMEOUT: 10000,
-            // ✅ NEW: AMR subnet configuration
+            //  NEW: AMR subnet configuration
             AMR_SUBNET: '192.168.0',
             AMR_IP_RANGE: {
                 START: 100,
@@ -262,17 +262,17 @@ const config = {
         }
     },
 
-    // ✅ FIXED: Performance Configuration with optimized throttling
+    //  FIXED: Performance Configuration with optimized throttling
     PERFORMANCE: {
         MESSAGE_THROTTLE: {
-            JOYSTICK: 100,      // ✅ FIXED: Faster joystick response
-            POSITION: 200,      // ✅ FIXED: Faster position updates
-            MAP_UPDATE: 1000,   // ✅ FIXED: Faster map updates
-            SENSOR_DATA: 500    // ✅ FIXED: Faster sensor updates
+            JOYSTICK: 100,      //  FIXED: Faster joystick response
+            POSITION: 200,      //  FIXED: Faster position updates
+            MAP_UPDATE: 1000,   //  FIXED: Faster map updates
+            SENSOR_DATA: 500    //  FIXED: Faster sensor updates
         },
         BUFFER_SIZES: {
-            ROBOT_TRAIL: 1000,      // ✅ FIXED: Larger trail buffer
-            MESSAGE_HISTORY: 200,   // ✅ FIXED: More message history
+            ROBOT_TRAIL: 1000,      //  FIXED: Larger trail buffer
+            MESSAGE_HISTORY: 200,   //  FIXED: More message history
             ERROR_LOG: 1000
         }
     },
@@ -285,7 +285,7 @@ const config = {
         SIMULATE_AMR: process.env.SIMULATE_AMR === 'true'
     }
 };
-// ✅ ADD: Network discovery helper
+//  ADD: Network discovery helper
 function getLocalIPAddress() {
     const os = require('os');
     const networkInterfaces = os.networkInterfaces();
@@ -293,7 +293,7 @@ function getLocalIPAddress() {
     for (const [name, interfaces] of Object.entries(networkInterfaces)) {
         for (const iface of interfaces) {
             if (iface.family === 'IPv4' && !iface.internal) {
-                console.log(`📡 Found network interface ${name}: ${iface.address}`);
+                console.log(` Found network interface ${name}: ${iface.address}`);
                 return iface.address;
             }
         }
@@ -319,7 +319,7 @@ if (config.SERVER.ENV === 'test') {
     config.WEBSOCKET.PING_INTERVAL = 5000;
 }
 
-// ✅ FIXED: Enhanced validation function
+//  FIXED: Enhanced validation function
 function validateConfig() {
     const errors = [];
 
@@ -336,7 +336,7 @@ function validateConfig() {
         errors.push('WebSocket ping interval too short');
     }
 
-    // ✅ NEW: Validate network configuration
+    //  NEW: Validate network configuration
     if (config.NETWORK.DISCOVERY.AMR_IP_RANGE.START >= config.NETWORK.DISCOVERY.AMR_IP_RANGE.END) {
         errors.push('Invalid AMR IP range');
     }
@@ -345,11 +345,11 @@ function validateConfig() {
         throw new Error(`Configuration validation failed: ${errors.join(', ')}`);
     }
 
-    console.log('✅ Configuration validated successfully');
-    console.log(`📡 Server will listen on: ${config.SERVER.HOST}:${config.SERVER.PORT}`);
-    console.log(`🔌 WebSocket ping interval: ${config.WEBSOCKET.PING_INTERVAL}ms`);
+    console.log(' Configuration validated successfully');
+    console.log(` Server will listen on: ${config.SERVER.HOST}:${config.SERVER.PORT}`);
+    console.log(` WebSocket ping interval: ${config.WEBSOCKET.PING_INTERVAL}ms`);
     console.log(`⏱️ Connection timeout: ${config.WEBSOCKET.CONNECTION_TIMEOUT}ms`);
-    console.log(`🚗 Max speeds: ${config.AMR.MAX_LINEAR_SPEED}m/s linear, ${config.AMR.MAX_ANGULAR_SPEED}rad/s angular`);
+    console.log(` Max speeds: ${config.AMR.MAX_LINEAR_SPEED}m/s linear, ${config.AMR.MAX_ANGULAR_SPEED}rad/s angular`);
     
     return true;
 }
@@ -364,6 +364,6 @@ module.exports = {
 try {
     validateConfig();
 } catch (error) {
-    console.error('❌ Configuration validation failed:', error.message);
+    console.error(' Configuration validation failed:', error.message);
     process.exit(1);
 }

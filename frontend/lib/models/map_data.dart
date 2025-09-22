@@ -49,8 +49,8 @@ class MapInfo {
         originOrientation: originOrientation,
       );
     } catch (e) {
-      print('❌ Error parsing MapInfo: $e');
-      print('📋 JSON data: $json');
+      print(' Error parsing MapInfo: $e');
+      print(' JSON data: $json');
       
       // Return safe defaults
       return MapInfo(
@@ -133,8 +133,8 @@ class MapShape {
         createdAt: _parseDateTime(json['createdAt']),
       );
     } catch (e) {
-      print('❌ Error parsing MapShape: $e');
-      print('📋 JSON data: $json');
+      print(' Error parsing MapShape: $e');
+      print(' JSON data: $json');
       rethrow;
     }
   }
@@ -157,7 +157,7 @@ class MapShape {
           result.add(Position.fromJson(Map<String, dynamic>.from(point)));
         }
       } catch (e) {
-        print('❌ Error parsing point: $e');
+        print(' Error parsing point: $e');
         // Skip invalid points
       }
     }
@@ -188,7 +188,7 @@ class MapShape {
       try {
         return DateTime.parse(dateTime);
       } catch (e) {
-        print('❌ Error parsing datetime: $dateTime');
+        print(' Error parsing datetime: $dateTime');
         return DateTime.now();
       }
     }
@@ -309,7 +309,7 @@ class MapData {
 
   factory MapData.fromJson(Map<String, dynamic> json) {
     try {
-      print('🗺️ Parsing MapData from JSON...');
+      print('️ Parsing MapData from JSON...');
       
       return MapData(
         deviceId: _safeString(json['deviceId']) ?? 'unknown',
@@ -320,8 +320,8 @@ class MapData {
         version: _safeInt(json['version']) ?? 1,
       );
     } catch (e) {
-      print('❌ Error parsing MapData: $e');
-      print('📋 JSON keys: ${json.keys.toList()}');
+      print(' Error parsing MapData: $e');
+      print(' JSON keys: ${json.keys.toList()}');
       rethrow;
     }
   }
@@ -354,7 +354,7 @@ class MapData {
       try {
         return DateTime.parse(dateTime);
       } catch (e) {
-        print('❌ Error parsing datetime: $dateTime');
+        print(' Error parsing datetime: $dateTime');
         return DateTime.now();
       }
     }
@@ -371,7 +371,7 @@ class MapData {
     dynamic data = json['occupancyData'] ?? json['data'] ?? json['gridData'];
     
     if (data == null) {
-      print('⚠️ No occupancy data found, creating empty grid');
+      print('️ No occupancy data found, creating empty grid');
       return [];
     }
     
@@ -381,7 +381,7 @@ class MapData {
       try {
         return data.map((e) => (e as num?)?.toInt() ?? -1).toList();
       } catch (e) {
-        print('❌ Error converting occupancy data: $e');
+        print(' Error converting occupancy data: $e');
         return [];
       }
     }
@@ -402,12 +402,12 @@ class MapData {
           result.add(MapShape.fromJson(Map<String, dynamic>.from(shape)));
         }
       } catch (e) {
-        print('❌ Error parsing shape: $e');
+        print(' Error parsing shape: $e');
         // Skip invalid shapes
       }
     }
     
-    print('✅ Parsed ${result.length} shapes successfully');
+    print(' Parsed ${result.length} shapes successfully');
     return result;
   }
 
