@@ -29,19 +29,20 @@ RUN apt-get install -y --no-install-recommends \
     update-locale LANG=C.UTF-8 LC_ALL=C.UTF-8 && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python-based ROS tools via apt (Ubuntu 24.04 compatible)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-colcon-common-extensions \
-    python3-rosdep \
-    python3-vcstool && \
-    rm -rf /var/lib/apt/lists/*
-
-# Add ROS2 Jazzy apt repo and install
+# Add ROS2 Jazzy apt repo and install ROS2 + development tools
 RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
     apt-get update && \
-    apt-get install -y --no-install-recommends ros-jazzy-desktop && \
+    apt-get install -y --no-install-recommends \
+        ros-jazzy-desktop \
+        ros-dev-tools && \
     rm -rf /var/lib/apt/lists/*
+
+# Install additional Python-based ROS tools via pip (with system override for Docker)
+RUN pip3 install --break-system-packages -U \
+    colcon-common-extensions \
+    rosdep \
+    vcstool
 
 # Initialize rosdep (required for ros package dependencies)
 RUN rosdep init && rosdep update
