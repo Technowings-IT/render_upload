@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Use Ubuntu 18.04 (Bionic) as Jazzy is targeted here
 FROM ubuntu:22.04
 
@@ -57,7 +56,6 @@ EXPOSE 3000
 
 # Source ROS setup and start app
 CMD ["/bin/bash", "-c", "source /opt/ros/jazzy/setup.bash && npm start"]
-=======
 # Use Ubuntu 18.04 (Bionic) as Jazzy is targeted here
 FROM ubuntu:22.04
 
@@ -117,4 +115,3 @@ EXPOSE 3000
 # Source ROS setup and start app
 CMD ["/bin/bash", "-c", "source /opt/ros/jazzy/setup.bash && npm start"]
 
->>>>>>> 1bb79dffe9247d9162bf52ba7a955ac37466a7eb
