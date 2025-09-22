@@ -47,10 +47,9 @@ RUN pip3 install --break-system-packages -U \
 # Initialize rosdep (required for ros package dependencies)
 RUN rosdep init && rosdep update
 
-# Install Node.js 18 (recommended for modern ROS2 development)
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+# Install Node.js 20 (compatible with latest npm and modern ROS2 development)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
-    npm install -g npm@latest && \
     rm -rf /var/lib/apt/lists/*
 
 # Set working directory
