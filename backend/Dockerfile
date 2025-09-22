@@ -29,11 +29,12 @@ RUN apt-get install -y --no-install-recommends \
     update-locale LANG=C.UTF-8 LC_ALL=C.UTF-8 && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python-based ROS tools via pip
-RUN pip3 install -U \
-    colcon-common-extensions \
-    rosdep \
-    vcstool
+# Install Python-based ROS tools via apt (Ubuntu 24.04 compatible)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    python3-vcstool && \
+    rm -rf /var/lib/apt/lists/*
 
 # Add ROS2 Jazzy apt repo and install
 RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
