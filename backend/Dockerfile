@@ -29,13 +29,16 @@ RUN apt-get install -y --no-install-recommends \
     update-locale LANG=C.UTF-8 LC_ALL=C.UTF-8 && \
     rm -rf /var/lib/apt/lists/*
 
-# Add ROS2 Jazzy apt repo and install ROS2 + development tools
+# Add ROS2 Jazzy apt repo and install ROS2 + development tools + interface packages
 RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         ros-jazzy-desktop \
-        ros-dev-tools && \
+        ros-dev-tools \
+        ros-jazzy-rcl-interfaces \
+        ros-jazzy-std-msgs \
+        ros-jazzy-builtin-interfaces && \
     rm -rf /var/lib/apt/lists/*
 
 # Install additional Python-based ROS tools via pip (with system override for Docker)
@@ -63,8 +66,19 @@ RUN npm install --build-from-source
 # Copy app source
 COPY . .
 
+# Generate ROS2 message files for rclnodejs (must be done after npm install and with ROS2 sourced)
+# Install rclnodejs-cli for better message generation tools
+RUN npm install -g rclnodejs-cli && \
+    bash -c "source /opt/ros/jazzy/setup.bash && npx generate-ros-messages" || \
+    bash -c "source /opt/ros/jazzy/setup.bash && ./node_modules/.bin/generate-messages" || \
+    bash -c "source /opt/ros/jazzy/setup.bash && node ./node_modules/rclnodejs/scripts/generate_messages.js"
+
+# Set up permanent ROS2 environment sourcing
+RUN echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc && \
+    echo "export ROS_DOMAIN_ID=0" >> ~/.bashrc
+
 # Expose app port
 EXPOSE 3000
 
-# Run app
-CMD ["/bin/bash", "-c", "source /opt/ros/jazzy/setup.bash && npm start"]
+# Run app with ROS2 environment properly sourced
+CMD ["/bin/bash", "-c", "source /opt/ros/jazzy/setup.bash && export ROS_DOMAIN_ID=0 && npm start"]
